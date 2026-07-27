@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+:root {
+  --color-ink: #0a0a0a;
+  --color-ink-soft: #141414;
+  --color-ink-line: #1f1c18;
+  --color-bone: #efe7d8;
+  --color-bone-muted: #b8b0a3;
+  --color-brass: #b8862a;
+  --color-brass-light: #d4a857;
+  --color-oxblood: #722f37;
+}
+
+@theme inline {
+  --color-ink: var(--color-ink);
+  --color-ink-soft: var(--color-ink-soft);
+  --color-ink-line: var(--color-ink-line);
+  --color-bone: var(--color-bone);
+  --color-bone-muted: var(--color-bone-muted);
+  --color-brass: var(--color-brass);
+  --color-brass-light: var(--color-brass-light);
+  --color-oxblood: var(--color-oxblood);
+
+  --font-display: var(--font-playfair);
+  --font-sans: var(--font-inter);
+}
+
+html,
+body {
+  background: var(--color-ink);
+  color: var(--color-bone);
+}
+
+body {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    sans-serif;
+  font-feature-settings: "ss01", "ss02", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-brass);
+  color: var(--color-ink);
+}
+
+.font-display {
+  font-family: var(--font-playfair), ui-serif, Georgia, serif;
+  font-feature-settings: "lnum", "kern";
+  letter-spacing: -0.01em;
+}
+
+.hairline {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    var(--color-brass) 20%,
+    var(--color-brass) 80%,
+    transparent
+  );
+  height: 1px;
+}
