@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Menu, X, CalendarDays } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import clsx from "clsx";
 import { Logo } from "./Logo";
 import { LanguageToggle } from "./LanguageToggle";
@@ -41,9 +41,8 @@ export function Header() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-4 md:flex">
+        <div className="hidden md:block">
           <LanguageToggle />
-          <Link href="/book" className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-4 py-2.5 text-[10px] font-semibold tracking-[0.18em] uppercase text-[var(--color-ink)] transition-transform hover:-translate-y-0.5"><CalendarDays className="h-4 w-4"/>Book</Link>
         </div>
 
         <button
@@ -83,9 +82,8 @@ export function Header() {
               {dict.nav[item.key][lang]}
             </Link>
           ))}
-          <div className="flex items-center justify-between pt-4">
+          <div className="pt-4">
             <LanguageToggle />
-            <Link href="/book" onClick={() => setOpen(false)} className="rounded-full bg-[var(--color-brass)] px-4 py-2 text-[10px] font-semibold tracking-[.16em] uppercase text-[var(--color-ink)]">Book now</Link>
           </div>
         </nav>
       </div>

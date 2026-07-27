@@ -1,7 +1,11 @@
-import { StubPage } from "@/components/StubPage";
+import { ServicesView } from "./view";
 
-export const metadata = { title: "Services" };
+export const metadata = {
+  title: "Services",
+  description:
+    "Signature cuts, skin fades, beard sculpting, and hot towel shaves at Luxury Barber Lounge in Northfield, New Jersey.",
+};
 
 export default function ServicesPage() {
-  return <StubPage section="services" />;
+  return <ServicesView />;
 }
