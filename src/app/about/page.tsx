@@ -3,5 +3,5 @@ import { StubPage } from "@/components/StubPage";
 export const metadata = { title: "About" };
 
 export default function AboutPage() {
-  return <StubPage stub="about" />;
+  return <StubPage section="about" />;
 }
