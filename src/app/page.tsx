@@ -12,7 +12,7 @@ export default function Home() {
 
   return (
     <div className="bg-[var(--color-ink)] text-[var(--color-bone)]">
-      {/* --- HERO SECTION (YOUR EXISTING SCENE3D) --- */}
+      {/* HERO SECTION */}
       <Scene3D className="relative overflow-hidden">
         <div
           aria-hidden
@@ -107,7 +107,7 @@ export default function Home() {
         </div>
       </Scene3D>
 
-      {/* --- FEATURED SERVICES REEL --- */}
+      {/* FEATURED SERVICES REEL */}
       <section className="relative border-t border-[var(--color-ink-line)] py-28 px-6 sm:px-10">
         <div className="mx-auto max-w-6xl">
           <Reveal variant="fade">
@@ -130,36 +130,51 @@ export default function Home() {
           </Reveal>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {services.slice(0, 3).map((service, idx) => (
-              <Reveal key={idx} delay={idx * 100}>
-                <div className="group relative border border-[var(--color-ink-line)] p-8 bg-black/20 hover:border-[var(--color-brass)]/40 transition-all duration-500">
-                  <div className="flex justify-between items-baseline mb-4">
-                    <h3 className="font-display text-xl text-[var(--color-bone)] group-hover:text-[var(--color-brass)] transition-colors">
-                      {service.title[lang] || service.name}
-                    </h3>
-                    <span className="font-mono text-lg text-[var(--color-brass)]">
-                      ${service.price}
-                    </span>
+            {services.slice(0, 3).map((service: any, idx) => {
+              const serviceName =
+                service.name?.[lang] ||
+                service.name ||
+                service.title?.[lang] ||
+                service.title ||
+                "Signature Service";
+
+              const serviceDesc =
+                service.description?.[lang] ||
+                service.description ||
+                service.desc ||
+                "Traditional craftsmanship and luxury grooming.";
+
+              return (
+                <Reveal key={idx} delay={idx * 100}>
+                  <div className="group relative border border-[var(--color-ink-line)] p-8 bg-black/20 hover:border-[var(--color-brass)]/40 transition-all duration-500">
+                    <div className="flex justify-between items-baseline mb-4">
+                      <h3 className="font-display text-xl text-[var(--color-bone)] group-hover:text-[var(--color-brass)] transition-colors">
+                        {serviceName}
+                      </h3>
+                      <span className="font-mono text-lg text-[var(--color-brass)]">
+                        ${service.price}
+                      </span>
+                    </div>
+                    <p className="text-sm font-light text-[var(--color-bone-muted)] leading-relaxed mb-6 line-clamp-3">
+                      {serviceDesc}
+                    </p>
+                    <div className="flex items-center justify-between text-[11px] tracking-[0.2em] uppercase text-[var(--color-bone-muted)] border-t border-[var(--color-ink-line)] pt-4">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" /> {service.duration || "45 min"}
+                      </span>
+                      <a href="/visit" className="text-[var(--color-brass)] opacity-0 group-hover:opacity-100 transition-opacity">
+                        Reserve
+                      </a>
+                    </div>
                   </div>
-                  <p className="text-sm font-light text-[var(--color-bone-muted)] leading-relaxed mb-6 line-clamp-3">
-                    {service.description[lang] || service.desc}
-                  </p>
-                  <div className="flex items-center justify-between text-[11px] tracking-[0.2em] uppercase text-[var(--color-bone-muted)] border-t border-[var(--color-ink-line)] pt-4">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" /> {service.duration || '45 min'}
-                    </span>
-                    <a href="/visit" className="text-[var(--color-brass)] opacity-0 group-hover:opacity-100 transition-opacity">
-                      Reserve
-                    </a>
-                  </div>
-                </div>
-              </Reveal>
-            ))}
+                </Reveal>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* --- MASTER BARBERS SHOWCASE --- */}
+      {/* MASTER BARBERS SHOWCASE */}
       <section className="relative border-t border-[var(--color-ink-line)] py-28 px-6 sm:px-10 bg-black/40">
         <div className="mx-auto max-w-6xl">
           <Reveal>
@@ -177,44 +192,53 @@ export default function Home() {
           </Reveal>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-            {barbers.map((barber, idx) => (
-              <Reveal key={idx} delay={idx * 150}>
-                <div className="group relative flex flex-col sm:flex-row gap-6 border border-[var(--color-ink-line)] p-6 bg-neutral-950/60 hover:border-[var(--color-brass)]/50 transition-colors">
-                  <div className="w-full sm:w-40 h-52 bg-neutral-900 border border-[var(--color-ink-line)] overflow-hidden relative">
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent z-10 opacity-60" />
-                    <div className="w-full h-full flex items-center justify-center text-[var(--color-bone-muted)] font-serif text-3xl italic">
-                      {barber.name[0]}
+            {barbers.map((barber: any, idx) => {
+              const barberName = barber.name?.[lang] || barber.name || "Master Barber";
+              const barberRole = barber.role?.[lang] || barber.role || "Senior Barber";
+              const barberBio =
+                barber.bio?.[lang] ||
+                barber.bio ||
+                "Specializing in classic silhouettes, precision fades, and traditional straight razor shaves.";
+
+              return (
+                <Reveal key={idx} delay={idx * 150}>
+                  <div className="group relative flex flex-col sm:flex-row gap-6 border border-[var(--color-ink-line)] p-6 bg-neutral-950/60 hover:border-[var(--color-brass)]/50 transition-colors">
+                    <div className="w-full sm:w-40 h-52 bg-neutral-900 border border-[var(--color-ink-line)] overflow-hidden relative flex-shrink-0">
+                      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent z-10 opacity-60" />
+                      <div className="w-full h-full flex items-center justify-center text-[var(--color-bone-muted)] font-serif text-3xl italic">
+                        {barberName[0]}
+                      </div>
+                    </div>
+                    <div className="flex-1 flex flex-col justify-between py-2">
+                      <div>
+                        <span className="text-[10px] tracking-[0.3em] uppercase text-[var(--color-brass)]">
+                          {barberRole}
+                        </span>
+                        <h3 className="font-display text-2xl text-[var(--color-bone)] mt-1">
+                          {barberName}
+                        </h3>
+                        <p className="text-xs text-[var(--color-bone-muted)] mt-3 leading-relaxed">
+                          {barberBio}
+                        </p>
+                      </div>
+                      <div className="mt-6 pt-4 border-t border-[var(--color-ink-line)] flex justify-between items-center">
+                        <span className="text-[10px] tracking-[0.2em] uppercase text-[var(--color-bone-muted)]">
+                          Chair {idx + 1}
+                        </span>
+                        <a href="/visit" className="text-xs text-[var(--color-brass)] flex items-center gap-1 hover:underline">
+                          Book Chair <ArrowUpRight className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex-1 flex flex-col justify-between py-2">
-                    <div>
-                      <span className="text-[10px] tracking-[0.3em] uppercase text-[var(--color-brass)]">
-                        {barber.role || 'Master Barber'}
-                      </span>
-                      <h3 className="font-display text-2xl text-[var(--color-bone)] mt-1">
-                        {barber.name}
-                      </h3>
-                      <p className="text-xs text-[var(--color-bone-muted)] mt-3 leading-relaxed">
-                        {barber.bio ? barber.bio[lang] : 'Specializing in classic silhouettes, precision fades, and traditional straight razor shaves.'}
-                      </p>
-                    </div>
-                    <div className="mt-6 pt-4 border-t border-[var(--color-ink-line)] flex justify-between items-center">
-                      <span className="text-[10px] tracking-[0.2em] uppercase text-[var(--color-bone-muted)]">
-                        Chair {idx + 1}
-                      </span>
-                      <a href="/visit" className="text-xs text-[var(--color-brass)] flex items-center gap-1 hover:underline">
-                        Book Chair <ArrowUpRight className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </Reveal>
-            ))}
+                </Reveal>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* --- MEMBERSHIP INVITATION CTA --- */}
+      {/* MEMBERSHIP INVITATION CTA */}
       <section className="relative border-t border-[var(--color-ink-line)] py-32 px-6 sm:px-10 overflow-hidden">
         <div className="absolute inset-0 bg-[var(--color-oxblood)]/10 pointer-events-none" />
         <div className="mx-auto max-w-4xl text-center relative z-10 space-y-8">
@@ -229,7 +253,7 @@ export default function Home() {
           </Reveal>
           <Reveal delay={150}>
             <div className="pt-4 flex justify-center">
-              <MagneticButton onClick={() => window.location.href = '/membership'}>
+              <MagneticButton onClick={() => (window.location.href = "/membership")}>
                 Apply For Membership
               </MagneticButton>
             </div>
