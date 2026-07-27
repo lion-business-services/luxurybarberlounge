@@ -5,6 +5,7 @@ import { LangProvider } from "@/lib/i18n/context";
 import { Header } from "@/components/Header";
 import { MagneticCursor, ScrollProgress } from "@/components/motion";
 import { Footer } from "@/components/Footer";
+import SmoothScroll from "@/components/SmoothScroll";
 
 const playfair = Playfair_Display({
   variable: "--font-playfair",
@@ -49,17 +50,21 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col bg-[var(--color-ink)] text-[var(--color-bone)]">
         <LangProvider>
-          <ScrollProgress />
-          <MagneticCursor />
-          <a
-            href="#main"
-            className="sr-only focus:not-sr-only focus:absolute focus:left-6 focus:top-6 focus:z-[80] focus:rounded-full focus:bg-[var(--color-brass)] focus:px-5 focus:py-2 focus:text-[12px] focus:tracking-[0.2em] focus:uppercase focus:text-[var(--color-ink)]"
-          >
-            Skip to content
-          </a>
-          <Header />
-          <main id="main" className="flex-1">{children}</main>
-          <Footer />
+          <SmoothScroll>
+            <ScrollProgress />
+            <MagneticCursor />
+            <a
+              href="#main"
+              className="sr-only focus:not-sr-only focus:absolute focus:left-6 focus:top-6 focus:z-[80] focus:rounded-full focus:bg-[var(--color-brass)] focus:px-5 focus:py-2 focus:text-[12px] focus:tracking-[0.2em] focus:uppercase focus:text-[var(--color-ink)]"
+            >
+              Skip to content
+            </a>
+            <Header />
+            <main id="main" className="flex-1">
+              {children}
+            </main>
+            <Footer />
+          </SmoothScroll>
         </LangProvider>
       </body>
     </html>
