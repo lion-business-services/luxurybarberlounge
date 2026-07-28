@@ -24,7 +24,7 @@ import {
 } from "motion/react";
 import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useLang } from "@/lib/i18n/context";
-import { barbers, business, services, tiers, type Lang } from "@/lib/content/site";
+import { barbers, business, hours, services, tiers, type Lang } from "@/lib/content/site";
 import { homeMotion } from "@/lib/motion/homeMotionConfig";
 import { experienceCopy, homeMedia, processSteps } from "./homeExperienceData";
 import { useMotionTier, useVideoVisibility } from "./useHomeExperience";
@@ -153,7 +153,7 @@ function PrecisionScene({ lang, reduced }: { lang: Lang; reduced: boolean }) {
 
 function SignatureServices({ lang }: { lang: Lang }) {
   const featured = useMemo(() => {
-    const preferred = ["signature-haircut", "fade-cut", "beard-trim", "hair-beard-combo", "hot-towel-shave", "kids-cut", "groom-package"];
+    const preferred = ["signature-haircut", "fade-cut", "beard-trim", "head-shave", "hot-towel-shave", "straight-razor-shave", "kids-cut", "groom-package"];
     return preferred.map((slug) => services.find((item) => item.slug === slug)).filter(Boolean).slice(0, 8) as typeof services;
   }, []);
   const images = [homeMedia.toolsPair, homeMedia.toolsTray, homeMedia.toolsOrnate, homeMedia.toolsStand];
@@ -351,6 +351,28 @@ function Confidence({ lang }: { lang: Lang }) {
   );
 }
 
+function formatHours(lang: Lang): string[] {
+  const short = (bi: { en: string; es: string }) => bi[lang].slice(0, 3);
+  const fmt = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    const period = h >= 12 ? "PM" : "AM";
+    const hour = h % 12 === 0 ? 12 : h % 12;
+    return `${hour}:${String(m).padStart(2, "0")} ${period}`;
+  };
+  const closedWord = lang === "es" ? "Cerrado" : "Closed";
+  const groups: { label: string[]; value: string }[] = [];
+  for (const row of hours) {
+    const value = row.closed ? closedWord : `${fmt(row.open)}\u2013${fmt(row.close)}`;
+    const last = groups[groups.length - 1];
+    if (last && last.value === value) last.label.push(short(row.day));
+    else groups.push({ label: [short(row.day)], value });
+  }
+  return groups.map((g) => {
+    const label = g.label.length > 1 ? `${g.label[0]}\u2013${g.label[g.label.length - 1]}` : g.label[0];
+    return `${label} ${g.value}`;
+  });
+}
+
 function Visit({ lang }: { lang: Lang }) {
   return (
     <section className={`${styles.scene} ${styles.visitScene}`} aria-labelledby="visit-title">
@@ -362,7 +384,7 @@ function Visit({ lang }: { lang: Lang }) {
           <dl className={styles.visitInfo}>
             <div><dt>{lang === "es" ? "Dirección" : "Address"}</dt><dd>{business.street}<br />{business.city}, {business.state} {business.postalCode}</dd></div>
             <div><dt>{lang === "es" ? "Teléfono" : "Phone"}</dt><dd><a href={business.phoneHref}>{business.phone}</a><br /><a href={`mailto:${business.email}`}>{business.email}</a></dd></div>
-            <div><dt>{lang === "es" ? "Horario" : "Hours"}</dt><dd>{lang === "es" ? "Mar–Mié 9:00 AM–7:00 PM" : "Tue–Wed 9:00 AM–7:00 PM"}<br />{lang === "es" ? "Jue–Vie 9:00 AM–8:00 PM" : "Thu–Fri 9:00 AM–8:00 PM"}<br />{lang === "es" ? "Sáb 8:00 AM–6:00 PM" : "Sat 8:00 AM–6:00 PM"}</dd></div>
+            <div><dt>{lang === "es" ? "Horario" : "Hours"}</dt><dd>{formatHours(lang).map((line) => <span key={line} className="block">{line}</span>)}</dd></div>
             <div><dt>{lang === "es" ? "Estacionamiento" : "Parking"}</dt><dd>{lang === "es" ? "Hay estacionamiento en el lugar cerca de la Suite 106." : "On-site parking is available near Suite 106."}</dd></div>
           </dl>
           <div className={styles.actions}>

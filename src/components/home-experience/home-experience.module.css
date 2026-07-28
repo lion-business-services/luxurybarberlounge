@@ -248,3 +248,8 @@
   .threshold { min-height: 100svh; }
   .lounge { min-height: 100svh; }
 }
+
+/* Visit panel heading: the generic .heading clamp (up to 7.5rem) forces
+   five-line wraps inside the 48rem glass panel. Every other framed scene
+   already carries its own size override — this one was missing. */
+.visitPanel .heading { font-size: clamp(2.3rem, 4.4vw, 3.9rem); line-height: 1.05; }

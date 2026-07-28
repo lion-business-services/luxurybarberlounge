@@ -1,16 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, BookOpenText, CalendarDays, MapPin } from "lucide-react";
+import { ArrowUpRight, BookOpenText, CalendarDays, Gift, MapPin, Sparkles } from "lucide-react";
 import { useLang } from "@/lib/i18n/context";
 import { business, journalPosts, packages } from "@/lib/content/site";
-import { Reveal } from "@/components/motion";
+import { Reveal, Scene3D, TiltCard } from "@/components/motion";
 
 export function HomeEnhancements() {
   const { lang } = useLang();
   return (
     <>
-      
+      <Scene3D className="border-t border-[var(--color-ink-line)] px-6 py-28 sm:px-10">
+        <div className="mx-auto max-w-6xl">
+          <Reveal className="grid items-end gap-8 lg:grid-cols-[1fr_.8fr]">
+            <div>
+              <p className="text-[10px] tracking-[.32em] uppercase text-[var(--color-brass)]">The right service, without the guesswork</p>
+              <h2 className="font-display mt-5 text-4xl leading-tight sm:text-6xl">Start with the result.<br /><span className="italic text-[var(--color-brass)]">We shape the ritual.</span></h2>
+            </div>
+            <p className="text-sm leading-7 text-[var(--color-bone-muted)]">Explore the complete menu or use the guided booking flow to pair your goal with a service, add-ons, and the right chair. Clear choices first. Barber jargon only when it is actually useful.</p>
+          </Reveal>
+          <div className="mt-12 grid gap-5 md:grid-cols-3">
+            {[
+              { icon: Sparkles, title: lang === "es" ? "Quiero un cambio" : "I want a new look", copy: lang === "es" ? "Consulta y corte personalizado para una transformación bien planificada." : "Consultation-led custom cutting for a considered transformation.", href: "/book?service=custom-cut" },
+              { icon: CalendarDays, title: lang === "es" ? "Mantenerlo impecable" : "Keep it consistently sharp", copy: lang === "es" ? "Fades, shape-ups y mantenimiento de barba en un ritmo repetible." : "Fades, shape-ups, and beard maintenance on a repeatable rhythm.", href: "/membership" },
+              { icon: Gift, title: lang === "es" ? "Regalar la experiencia" : "Give the experience", copy: lang === "es" ? "Tarjetas y paquetes para alguien que aprecia el detalle." : "Gift cards and packages for someone who notices the details.", href: "/gift-cards" },
+            ].map((item, index) => <Reveal key={item.title} delay={index * 80}><TiltCard className="h-full"><Link href={item.href} className="group block h-full border border-[var(--color-ink-line)] bg-black/25 p-7 transition hover:border-[var(--color-brass)]/50"><item.icon className="h-6 w-6 text-[var(--color-brass)]" /><h3 className="font-display mt-7 text-2xl">{item.title}</h3><p className="mt-4 text-sm leading-7 text-[var(--color-bone-muted)]">{item.copy}</p><span className="mt-7 inline-flex items-center gap-2 text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Discover <ArrowUpRight className="h-4 w-4 transition group-hover:translate-x-1 group-hover:-translate-y-1" /></span></Link></TiltCard></Reveal>)}
+          </div>
+        </div>
+      </Scene3D>
 
       <section className="border-t border-[var(--color-ink-line)] bg-[var(--color-ink-soft)]/35 px-6 py-28 sm:px-10">
         <div className="mx-auto max-w-6xl">

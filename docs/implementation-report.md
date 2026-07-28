@@ -57,3 +57,22 @@ The following release checks passed in the supplied execution environment on Jul
 - Development data is marked in staff workspaces and never represented publicly as live availability or real testimonials.
 - Commission and reconciliation modules report amounts; they do not transfer funds or represent certified payroll.
 - Policies, membership pricing, service pricing, hours, and demo barber records remain owner-confirmation items before public launch.
+
+## Post-hero cinematic transformation
+
+The approved `CinematicHero`, its component dependencies, and every file under `public/hero` were byte-compared against the supplied repository and remain unchanged.
+
+The homepage after that boundary now uses one connected spiral-inspired narrative:
+
+- cinematic threshold using the supplied interior video
+- five-stage precision process using the supplied tool photography
+- bookable signature-service discovery
+- four-scene architectural lounge journey
+- mirror-framed barber profiles
+- accessible conceptual transformation control
+- editable membership presentation using the decanter only as atmosphere
+- official-logo brand signature over the supplied business-card texture
+- truthful client-confidence standards with no fabricated reviews
+- stable visit information and final booking resolution
+
+All ten supplied still images and the supplied video are used intentionally. Optimized WebP, AVIF, MP4, WebM, poster, and mobile variants are organized under `public/media/home`.
