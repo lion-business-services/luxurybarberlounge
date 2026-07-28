@@ -11,17 +11,25 @@ export type Bi = { en: string; es: string };
 
 export const business = {
   name: "Luxury Barber Lounge",
-  street: "801 Tilton Rd, Suite 106",
+  /** Registered entity — used on statements and legal documents, not marketing. */
+  legalName: "Luxury Barber Lounge, LLC",
+  street: "801 Tilton Road, Suite 106",
   city: "Northfield, NJ 08225",
   county: "Atlantic County",
-  /** CONFIRM — from owner intake. */
-  phone: "(609) 000-0000",
-  phoneHref: "tel:+16090000000",
-  email: "hello@luxurybarberlounge.com",
-  mapsUrl:
-    "https://www.google.com/maps/search/?api=1&query=801+Tilton+Rd+Suite+106+Northfield+NJ+08225",
-  instagram: "#",
-  facebook: "#",
+  phone: "(609) 384-5171",
+  phoneHref: "tel:+16093845171",
+  email: "info@theluxurybarberlounge.com",
+  domain: "https://www.theluxurybarberlounge.com",
+  mapsUrl: "https://share.google/hDyTg77M6c4LdlX3o",
+  instagram: "https://instagram.com/luxury_barberlounge",
+  instagramHandle: "@luxury_barberlounge",
+  facebook: "https://www.facebook.com/theluxurybarberlounge",
+  tagline: {
+    en: "Where precision grooming meets luxury experience",
+    es: "Donde el arreglo de precisión se encuentra con la experiencia de lujo",
+  },
+  brandWords: ["Luxurious", "Refined", "Distinctive"],
+  yearOpened: 2026,
 } as const;
 
 /** CONFIRM — hours pending owner intake. `closed` days render as Closed. */
