@@ -17,11 +17,7 @@ import { ArrowUpRight } from "lucide-react";
 import { useLang } from "@/lib/i18n/context";
 import { dict } from "@/lib/i18n/dict";
 import { useFinePointer } from "@/lib/motion/hooks";
-<<<<<<< HEAD
 import { crestLayers, CREST_ASPECT, roomAssets, availableTools, revealVideo, type HeroAsset } from "./assets";
-=======
-import { crestLayers, CREST_ASPECT, roomAssets, availableTools, type HeroAsset } from "./assets";
->>>>>>> 512ce6a1fef0d79792bb3b6f9743a21f3b8d49f4
 import { HeroStats } from "./HeroStats";
 
 /* Scene boundaries on the 0 → 1 scroll timeline.
@@ -134,14 +130,11 @@ export function CinematicHero() {
   const warmGlow = useMotionTemplate`radial-gradient(circle at 50% 42%, rgba(184,134,42,${warmth}), transparent 62%)`;
 
   /* ------------------------------ scene 5 ------------------------------- */
-<<<<<<< HEAD
   const videoOpacity = useTransform(p, [0, 0.05, S.arrival, S.lounge * 0.9], [0, 0.5, 0.42, 0]);
   const toolsOpacity = useTransform(p, [S.lounge, S.lounge + 0.07, S.craft - 0.02, S.craft + 0.04], [0, 0.5, 0.5, 0]);
   const toolsScale = useTransform(p, [S.lounge, S.craft], [1.18, 1.03]);
   const advanceOpacity = useTransform(p, [S.experience, S.experience + 0.06, 1], [0, 0.28, 0.24]);
 
-=======
->>>>>>> 512ce6a1fef0d79792bb3b6f9743a21f3b8d49f4
   const bookOpacity = useTransform(p, [S.experience, S.experience + 0.05, 1], [0, 1, 1]);
   const bookY = useTransform(p, [S.experience, 1], ["16%", "0%"]);
 
@@ -214,7 +207,6 @@ export function CinematicHero() {
           </motion.div>
         )}
 
-<<<<<<< HEAD
         {/* ---- scene 1: golden-crest reveal loop (desktop only) ---- */}
         {fine && !compact && (
           <motion.div aria-hidden className="pointer-events-none absolute inset-0" style={{ opacity: videoOpacity }}>
@@ -245,21 +237,13 @@ export function CinematicHero() {
 
         {/* ---- scene 4: the crest wall ---- */}
         {roomAssets.mirror.present && (
-=======
-        {/* ---- scene 4: the crest wall ---- */}
-        {roomAssets.wall.present && (
->>>>>>> 512ce6a1fef0d79792bb3b6f9743a21f3b8d49f4
           <motion.div
             aria-hidden
             className="pointer-events-none absolute inset-0"
             style={{ opacity: wallOpacity, scale: wallScale }}
           >
             <Image
-<<<<<<< HEAD
               src={roomAssets.mirror.src}
-=======
-              src={roomAssets.wall.src}
->>>>>>> 512ce6a1fef0d79792bb3b6f9743a21f3b8d49f4
               alt=""
               fill
               sizes="100vw"
@@ -389,7 +373,6 @@ export function CinematicHero() {
 
 /* --------------------------------------------------------------- helpers */
 
-<<<<<<< HEAD
 /**
  * Muted, looping, poster-backed ambient video. Plays only while on screen;
  * autoplay failures (low-power mode) fall back silently to the poster.
@@ -428,8 +411,6 @@ function AmbientVideo() {
   );
 }
 
-=======
->>>>>>> 512ce6a1fef0d79792bb3b6f9743a21f3b8d49f4
 /** One depth plane of the crest, offset by pointer position in proportion to depth. */
 function CrestPlane({
   src,
