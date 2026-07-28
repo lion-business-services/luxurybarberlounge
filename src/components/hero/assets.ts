@@ -42,6 +42,7 @@ export const roomAssets = {
     height: 1116,
     alt: "",
   } satisfies HeroAsset,
+<<<<<<< HEAD
   tools: {
     src: "/hero/craft-tools.webp",
     present: true,
@@ -76,6 +77,11 @@ export const revealVideo = {
 } as const;
 
 /**
+=======
+};
+
+/**
+>>>>>>> 512ce6a1fef0d79792bb3b6f9743a21f3b8d49f4
  * Optional transparent tool cut-outs. None exist yet.
  * To enable: add the file, set `present: true`. Nothing else needs to change.
  */
