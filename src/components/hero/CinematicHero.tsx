@@ -17,7 +17,7 @@ import { ArrowUpRight } from "lucide-react";
 import { useLang } from "@/lib/i18n/context";
 import { dict } from "@/lib/i18n/dict";
 import { useFinePointer } from "@/lib/motion/hooks";
-import { roomAssets, revealVideo } from "./assets";
+import { roomAssets } from "./assets";
 
 /* Scene boundaries on the 0 → 1 timeline.
    Scene 1 is fully composed at progress 0 — nothing fades in from nothing. */
@@ -163,12 +163,6 @@ export function CinematicHero() {
           </motion.div>
         </ParallaxMedia>
 
-        {fine && !compact && (
-          <motion.div aria-hidden className="pointer-events-none absolute inset-0" style={{ opacity: openOpacity }}>
-            <AmbientVideo />
-            <div className="absolute inset-0 bg-[var(--color-ink)]/58" />
-          </motion.div>
-        )}
 
         {/* ---------- SCENE 2 · the chair ---------- */}
         <ParallaxMedia px={px} py={py} depth={22}>
@@ -292,37 +286,6 @@ function ParallaxMedia({
     <motion.div aria-hidden className="pointer-events-none absolute inset-0" style={{ x, y }}>
       {children}
     </motion.div>
-  );
-}
-
-/** Muted, poster-backed ambient loop. Pauses offscreen; autoplay failure falls back to the poster. */
-function AmbientVideo() {
-  const ref = useRef<HTMLVideoElement>(null);
-  useEffect(() => {
-    const v = ref.current;
-    if (!v) return;
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) v.play().catch(() => {});
-        else v.pause();
-      },
-      { threshold: 0.05 },
-    );
-    io.observe(v);
-    return () => io.disconnect();
-  }, []);
-  return (
-    <video
-      ref={ref}
-      className="h-full w-full object-cover"
-      src={revealVideo.src}
-      poster={revealVideo.poster}
-      muted
-      loop
-      playsInline
-      preload="metadata"
-      disablePictureInPicture
-    />
   );
 }
 
