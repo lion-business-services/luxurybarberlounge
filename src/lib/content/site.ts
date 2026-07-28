@@ -249,7 +249,7 @@ export type Barber = {
 export const barbers: Barber[] = [
   {
     slug: "ruben",
-    name: "Rúben",
+    name: "Rubén Díaz Jr.",
     initials: "R",
     title: { en: "Founder & Master Barber", es: "Fundador y Barbero Maestro" },
     bio: {
@@ -270,7 +270,7 @@ export const barbers: Barber[] = [
     slug: "carlos",
     name: "Carlos",
     initials: "C",
-    title: { en: "Senior Barber", es: "Barbero Sénior" },
+    title: { en: "Barber", es: "Barbero" },
     bio: {
       en: "A detail-driven barber with a calm approach to clean fades, beard structure, and repeatable maintenance plans.",
       es: "Barbero detallista con enfoque tranquilo en fades limpios, estructura de barba y planes de mantenimiento.",

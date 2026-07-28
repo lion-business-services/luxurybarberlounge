@@ -1,0 +1,40 @@
+{
+  "release": "post-hero-cinematic-v4",
+  "date": "2026-07-28",
+  "heroProtected": true,
+  "heroHashes": {
+    "src/components/hero/CinematicHero.tsx": "167144a9b9abb884704b596bbc141f8d2adfcc594d7f7ebbc09b525130f20174",
+    "public/hero/craft-tools.webp": "2b9de178442d005c7affad270a3d55d02c7a19530a945d1a1f8d4054c6d3ee5f",
+    "public/hero/crest-reveal-poster.webp": "c813fa9bca13b2c494c8b078b890ecb541d721b9789baf27c3a9c4057691e71e",
+    "public/hero/crest-reveal.mp4": "1aad46d2c2cf2a398ae3d8e73712e3ff14e5ce60e9b88e76d6ced62deff023b2",
+    "public/hero/lounge-chair.webp": "bdcd3c4fa17596a687a945a8543243a4db3857a8eb545a9ad52abf820d1e60f8",
+    "public/hero/lounge-wall.webp": "f1ece0b311ffecc80e4836950050a693a8caaae4693187d86b7c1349cf1d411d",
+    "public/hero/mirror-station.webp": "e7da008fac403917ba8737777b3c3334022c291f74f9f329d4836b1ff5b4802d",
+    "public/hero/scene-advance.webp": "ef48dffc5669819e13bacbb75195c1bfec2e2c242e51d3b47183e701c2d196d9"
+  },
+  "sourceValidation": {
+    "format": "passed",
+    "lint": "passed",
+    "typecheck": "passed",
+    "content": "passed",
+    "migrations": "passed",
+    "routes": "passed",
+    "repository": "passed",
+    "secretScan": "passed",
+    "unitTests": "21 passed",
+    "integrationTests": "5 passed"
+  },
+  "build": {
+    "status": "environment-blocked",
+    "reason": "Validation container package mirror returned HTTP 404 for @next/swc-linux-x64-gnu@16.2.6. Source, lint, type, routes and tests passed."
+  },
+  "media": {
+    "video": [
+      "public/media/home/video/lounge-entry.mp4",
+      "public/media/home/video/lounge-entry.webm",
+      "public/media/home/video/lounge-entry-poster.webp"
+    ],
+    "optimizedStillCount": 30,
+    "originalStillCount": 10
+  }
+}
