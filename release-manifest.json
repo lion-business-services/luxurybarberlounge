@@ -4,16 +4,21 @@
   "framework": "Next.js 16.2.6",
   "routeCount": 145,
   "migrationCount": 6,
+  "sourceFileCount": 241,
+  "serviceCount": 31,
+  "barberCount": 9,
+  "membershipCount": 3,
   "sourceChecks": "passed",
+  "heroProtection": "passed-byte-for-byte",
   "unitTests": {
     "passed": 21,
     "failed": 0
   },
   "integrationTests": {
-    "passed": 3,
+    "passed": 8,
     "failed": 0
   },
-  "productionBuild": "run after clean platform-specific npm ci",
+  "productionBuild": "blocked only by isolated package mirror HTTP 404 for @next/swc-linux-x64-gnu@16.2.6",
   "excludedFromArchive": [
     "node_modules",
     ".next",

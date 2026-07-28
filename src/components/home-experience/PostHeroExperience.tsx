@@ -3,18 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
-  ArrowRight,
-  ArrowUpRight,
-  CalendarDays,
-  Check,
-  Clock3,
-  ExternalLink,
-  MapPin,
-  Phone,
-  Scissors,
-  Sparkles,
-} from "lucide-react";
-import {
+  AnimatePresence,
   motion,
   useReducedMotion,
   useScroll,
@@ -22,6 +11,19 @@ import {
   useTransform,
   type MotionValue,
 } from "motion/react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  CalendarDays,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  ExternalLink,
+  MapPin,
+  Phone,
+  Scissors,
+} from "lucide-react";
 import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useLang } from "@/lib/i18n/context";
 import { barbers, business, hours, services, tiers, type Lang } from "@/lib/content/site";
@@ -31,11 +33,17 @@ import { useMotionTier, useVideoVisibility } from "./useHomeExperience";
 import styles from "./home-experience.module.css";
 
 const reveal = {
-  hidden: { opacity: 0, y: 34 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.85, ease: homeMotion.ease } },
+  hidden: { opacity: 0, y: 30 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.78, ease: homeMotion.ease } },
 };
 
-function CopyBlock({ eyebrow, title, body, children, className = "" }: {
+function CopyBlock({
+  eyebrow,
+  title,
+  body,
+  children,
+  className = "",
+}: {
   eyebrow: string;
   title: ReactNode;
   body?: string;
@@ -43,7 +51,13 @@ function CopyBlock({ eyebrow, title, body, children, className = "" }: {
   className?: string;
 }) {
   return (
-    <motion.div className={className} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }} variants={reveal}>
+    <motion.div
+      className={className}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, amount: 0.28 }}
+      variants={reveal}
+    >
       <p className={styles.eyebrow}>{eyebrow}</p>
       <h2 className={`${styles.heading} mt-6`}>{title}</h2>
       {body ? <p className={`${styles.subheading} mt-6`}>{body}</p> : null}
@@ -53,10 +67,19 @@ function CopyBlock({ eyebrow, title, body, children, className = "" }: {
 }
 
 function SpiralGuide({ progress }: { progress: MotionValue<number> }) {
+  const path =
+    "M500 0 C900 260 930 780 520 1010 C120 1230 90 1750 510 1980 C920 2200 930 2760 500 3000 C110 3220 110 3740 510 3970 C910 4200 910 4740 500 4980 C130 5210 120 5680 500 6200";
   return (
-    <svg className={styles.spiral} viewBox="0 0 1000 7600" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M500 0 C900 260 940 820 520 1040 C120 1250 80 1800 510 2020 C930 2235 930 2810 500 3050 C100 3270 100 3810 510 4050 C920 4290 920 4870 500 5100 C120 5340 100 5890 510 6130 C900 6380 880 7000 500 7600" fill="none" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-      <motion.path d="M500 0 C900 260 940 820 520 1040 C120 1250 80 1800 510 2020 C930 2235 930 2810 500 3050 C100 3270 100 3810 510 4050 C920 4290 920 4870 500 5100 C120 5340 100 5890 510 6130 C900 6380 880 7000 500 7600" fill="none" stroke="rgba(226,193,125,.52)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" style={{ pathLength: progress }} />
+    <svg className={styles.spiral} viewBox="0 0 1000 6200" preserveAspectRatio="none" aria-hidden="true">
+      <path d={path} fill="none" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+      <motion.path
+        d={path}
+        fill="none"
+        stroke="rgba(226,193,125,.52)"
+        strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
+        style={{ pathLength: progress }}
+      />
     </svg>
   );
 }
@@ -69,19 +92,27 @@ function ThresholdScene({ lang, tier }: { lang: Lang; tier: ReturnType<typeof us
   useVideoVisibility(videoRef, useVideo && !reduced);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
   const smooth = useSpring(scrollYProgress, homeMotion.softSpring);
-  const scale = useTransform(smooth, [0, 0.72, 1], [0.84, 1, 1.04]);
+  const scale = useTransform(smooth, [0, 0.72, 1], [0.84, 1, 1.035]);
   const radius = useTransform(smooth, [0, 0.7], [44, 0]);
-  const copyY = useTransform(smooth, [0, 1], [42, -40]);
-  const copyOpacity = useTransform(smooth, [0, 0.76, 1], [1, 1, 0.2]);
-  const ringRotate = useTransform(smooth, [0, 1], [0, 80]);
-  const ringScale = useTransform(smooth, [0, 1], [0.82, 1.22]);
+  const copyY = useTransform(smooth, [0, 1], [42, -38]);
+  const copyOpacity = useTransform(smooth, [0, 0.76, 1], [1, 1, 0.28]);
+  const ringRotate = useTransform(smooth, [0, 1], [0, 76]);
+  const ringScale = useTransform(smooth, [0, 1], [0.82, 1.18]);
 
   return (
     <section ref={ref} className={`${styles.scene} ${styles.threshold}`} aria-labelledby="threshold-title">
       <div className={styles.thresholdSticky}>
         <motion.div className={styles.videoFrame} style={reduced ? undefined : { scale, borderRadius: radius }}>
           {useVideo && !reduced ? (
-            <video ref={videoRef} muted playsInline loop preload="metadata" poster={homeMedia.thresholdPoster} aria-label="Cinematic view of the Luxury Barber Lounge interior">
+            <video
+              ref={videoRef}
+              muted
+              playsInline
+              loop
+              preload="metadata"
+              poster={homeMedia.thresholdPoster}
+              aria-label="Cinematic view of the Luxury Barber Lounge interior"
+            >
               <source src={homeMedia.thresholdWebm} type="video/webm" />
               <source src={homeMedia.thresholdMp4} type="video/mp4" />
             </video>
@@ -104,15 +135,82 @@ function ThresholdScene({ lang, tier }: { lang: Lang; tier: ReturnType<typeof us
   );
 }
 
+function MembershipScene({ lang, reduced }: { lang: Lang; reduced: boolean }) {
+  const preferred = Math.max(0, tiers.findIndex((tier) => tier.featured));
+  const [activeIndex, setActiveIndex] = useState(preferred);
+  const active = tiers[activeIndex] ?? tiers[0];
+  const ref = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
+  const smooth = useSpring(scrollYProgress, homeMotion.softSpring);
+  const ringRotate = useTransform(smooth, [0, 1], [-26, 42]);
+  const ringScale = useTransform(smooth, [0, 0.5, 1], [0.86, 1, 1.08]);
+  const atmosphereY = useTransform(smooth, [0, 1], [42, -34]);
+
+  return (
+    <section ref={ref} className={`${styles.scene} ${styles.membershipScene}`} aria-labelledby="membership-title">
+      <motion.div className={styles.membershipAtmosphere} style={reduced ? undefined : { y: atmosphereY }} aria-hidden="true">
+        <Image src={homeMedia.thresholdPoster} alt="" fill sizes="100vw" className="object-cover" />
+      </motion.div>
+      <motion.div className={styles.membershipOrbit} style={reduced ? undefined : { rotate: ringRotate, scale: ringScale }} aria-hidden="true">
+        <span /><span /><span />
+      </motion.div>
+      <div className={`${styles.sceneInner} ${styles.membershipLayout}`}>
+        <CopyBlock
+          eyebrow={experienceCopy.membership.eyebrow[lang]}
+          title={<span id="membership-title">{experienceCopy.membership.title[lang]}</span>}
+          body={experienceCopy.membership.body[lang]}
+        >
+          <div className={styles.membershipTabs} role="tablist" aria-label={lang === "es" ? "Planes de membresía" : "Membership plans"}>
+            {tiers.map((tier, index) => (
+              <button
+                key={tier.slug}
+                type="button"
+                role="tab"
+                aria-selected={activeIndex === index}
+                aria-controls="membership-panel"
+                className={activeIndex === index ? styles.membershipTabActive : styles.membershipTab}
+                onClick={() => setActiveIndex(index)}
+              >
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                {tier.name[lang]}
+              </button>
+            ))}
+          </div>
+        </CopyBlock>
+        <div className={styles.membershipStage}>
+          <AnimatePresence mode="wait">
+            <motion.article
+              id="membership-panel"
+              role="tabpanel"
+              key={active.slug}
+              className={styles.membershipPanel}
+              initial={reduced ? false : { opacity: 0, y: 22, rotateY: -3 }}
+              animate={{ opacity: 1, y: 0, rotateY: 0 }}
+              exit={reduced ? undefined : { opacity: 0, y: -16, rotateY: 3 }}
+              transition={{ duration: 0.45, ease: homeMotion.ease }}
+            >
+              <p className={styles.eyebrow}>{active.featured ? (lang === "es" ? "Selección preferida" : "Preferred rhythm") : (lang === "es" ? "Concepto editable" : "Editable concept")}</p>
+              <h3>{active.name[lang]}</h3>
+              <p className={styles.membershipPrice}>${active.price}<small> / {active.cadence[lang]}</small></p>
+              <p className={styles.membershipDescription}>{active.description[lang]}</p>
+              <ul>{active.perks.map((perk) => <li key={perk.en}><Check size={15} />{perk[lang]}</li>)}</ul>
+              <p className={styles.membershipNotice}>{lang === "es" ? "Precio, beneficios y facturación sujetos a aprobación final." : "Pricing, benefits, and billing remain subject to final approval."}</p>
+              <div className={styles.actions}>
+                <Link href="/membership" className={styles.primary}>{lang === "es" ? "Explorar membresía" : "Explore membership"}</Link>
+                <Link href="/contact?topic=membership" className={styles.secondary}>{lang === "es" ? "Solicitar información" : "Request information"}</Link>
+              </div>
+            </motion.article>
+          </AnimatePresence>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function PrecisionStep({ progress, range, item }: { progress: MotionValue<number>; range: [number, number, number]; item: readonly [string, string, string] }) {
   const opacity = useTransform(progress, range, [0.25, 1, 0.58]);
   const x = useTransform(progress, range, [22, 0, -10]);
-  return (
-    <motion.div className={styles.step} style={{ opacity, x }}>
-      <span className={styles.stepNumber}>{item[0]}</span>
-      <div><h3>{item[1]}</h3><p>{item[2]}</p></div>
-    </motion.div>
-  );
+  return <motion.div className={styles.step} style={{ opacity, x }}><span className={styles.stepNumber}>{item[0]}</span><div><h3>{item[1]}</h3><p>{item[2]}</p></div></motion.div>;
 }
 
 function PrecisionScene({ lang, reduced }: { lang: Lang; reduced: boolean }) {
@@ -129,22 +227,13 @@ function PrecisionScene({ lang, reduced }: { lang: Lang; reduced: boolean }) {
     <section ref={ref} className={styles.scene} aria-labelledby="precision-title">
       <div className={`${styles.sceneInner} ${styles.precisionGrid}`}>
         <div className={styles.precisionVisual} aria-hidden="true">
-          <motion.div className={`${styles.toolCard} ${styles.toolCardA}`} style={reduced ? undefined : { y: imageAY, rotate: imageARotate }}>
-            <Image src={homeMedia.toolsTray} alt="" fill sizes="(max-width: 760px) 90vw, 52vw" className="object-cover" />
-          </motion.div>
-          <motion.div className={`${styles.toolCard} ${styles.toolCardB}`} style={reduced ? undefined : { y: imageBY, rotate: imageBRotate }}>
-            <Image src={homeMedia.toolsStand} alt="" fill sizes="(max-width: 760px) 54vw, 24vw" className="object-cover" />
-          </motion.div>
+          <motion.div className={`${styles.toolCard} ${styles.toolCardA}`} style={reduced ? undefined : { y: imageAY, rotate: imageARotate }}><Image src={homeMedia.toolsTray} alt="" fill sizes="(max-width: 760px) 90vw, 52vw" className="object-cover" /></motion.div>
+          <motion.div className={`${styles.toolCard} ${styles.toolCardB}`} style={reduced ? undefined : { y: imageBY, rotate: imageBRotate }}><Image src={homeMedia.toolsStand} alt="" fill sizes="(max-width: 760px) 54vw, 24vw" className="object-cover" /></motion.div>
           <motion.div className={styles.toolOrb} style={reduced ? undefined : { rotate: orbRotate }} />
         </div>
         <div>
           <CopyBlock eyebrow={experienceCopy.precision.eyebrow[lang]} title={<span id="precision-title">{experienceCopy.precision.title[lang]}</span>} body={experienceCopy.precision.body[lang]} />
-          <div className={styles.steps}>
-            {steps.map((item, index) => {
-              const center = 0.19 + index * 0.145;
-              return <PrecisionStep key={item[0]} progress={smooth} range={[Math.max(0, center - .15), center, Math.min(1, center + .16)]} item={item} />;
-            })}
-          </div>
+          <div className={styles.steps}>{steps.map((item, index) => { const center = 0.19 + index * 0.145; return <PrecisionStep key={item[0]} progress={smooth} range={[Math.max(0, center - 0.15), center, Math.min(1, center + 0.16)]} item={item} />; })}</div>
         </div>
       </div>
     </section>
@@ -170,40 +259,23 @@ function SignatureServices({ lang }: { lang: Lang }) {
               key={service.slug}
               className={styles.serviceCard}
               style={{ "--service-image": `url(${images[index % images.length]})` } as CSSProperties}
-              initial={{ opacity: 0, y: 48, rotateY: index % 2 ? -4 : 4 }}
+              initial={{ opacity: 0, y: 42, rotateY: index % 2 ? -3 : 3 }}
               whileInView={{ opacity: 1, y: 0, rotateY: 0 }}
               viewport={{ once: true, amount: 0.22 }}
-              transition={{ duration: .8, delay: Math.min(index * .06, .3), ease: homeMotion.ease }}
+              transition={{ duration: 0.76, delay: Math.min(index * 0.05, 0.25), ease: homeMotion.ease }}
             >
               <span className={styles.serviceIndex}>{String(index + 1).padStart(2, "0")}</span>
               <div>
                 <h3>{service.name[lang]}</h3>
                 <p>{service.blurb[lang]}</p>
-                <div className={styles.serviceMeta}>
-                  <span><Clock3 size={13} className="inline mr-1" />{service.minutes} min</span>
-                  <span>{lang === "es" ? "Desde" : "From"} ${service.from}</span>
-                </div>
-                <div className={`${styles.actions} mt-5`}>
-                  <Link href={`/book?service=${service.slug}`} className={styles.primary}>{lang === "es" ? "Reservar" : "Book"}</Link>
-                  <Link href={`/services/${service.slug}`} className={styles.secondary}>{lang === "es" ? "Detalles" : "Details"}</Link>
-                </div>
+                <div className={styles.serviceMeta}><span><Clock3 size={13} className="inline mr-1" />{service.minutes} min</span><span>{lang === "es" ? "Desde" : "From"} ${service.from}</span></div>
+                <div className={`${styles.actions} mt-5`}><Link href={`/book?service=${service.slug}`} className={styles.primary}>{lang === "es" ? "Reservar" : "Book"}</Link><Link href={`/services/${service.slug}`} className={styles.secondary}>{lang === "es" ? "Detalles" : "Details"}</Link></div>
               </div>
             </motion.article>
           ))}
         </div>
       </div>
     </section>
-  );
-}
-
-function LoungeLayer({ progress, src, range, alt, position = "center" }: { progress: MotionValue<number>; src: string; range: [number, number, number, number]; alt: string; position?: string }) {
-  const opacity = useTransform(progress, range, [0, 1, 1, 0]);
-  const scale = useTransform(progress, [range[0], range[3]], [1.08, 1]);
-  const x = useTransform(progress, [range[0], range[3]], [22, -18]);
-  return (
-    <motion.div className={styles.loungeLayer} style={{ opacity, scale, x }}>
-      <Image src={src} alt={alt} fill sizes="100vw" className="object-cover" style={{ objectPosition: position }} />
-    </motion.div>
   );
 }
 
@@ -211,53 +283,93 @@ function LoungeEnvironment({ lang, reduced }: { lang: Lang; reduced: boolean }) 
   const ref = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
   const smooth = useSpring(scrollYProgress, homeMotion.softSpring);
+  const firstOpacity = useTransform(smooth, [0, 0.5, 0.78], [1, 1, 0]);
+  const secondOpacity = useTransform(smooth, [0.42, 0.72, 1], [0, 1, 1]);
+  const firstScale = useTransform(smooth, [0, 1], [1.035, 1.08]);
+  const secondScale = useTransform(smooth, [0, 1], [1.08, 1.01]);
+  const copyY = useTransform(smooth, [0, 1], [18, -18]);
   return (
     <section ref={ref} className={`${styles.scene} ${styles.lounge}`} aria-labelledby="lounge-title">
       <div className={styles.loungeSticky}>
-        {reduced ? (
-          <div className={styles.loungeLayer}><Image src={homeMedia.stationsArched} alt="Refined barber stations inside a black-and-gold lounge" fill sizes="100vw" className="object-cover" /></div>
-        ) : (
-          <>
-            <LoungeLayer progress={smooth} src={homeMedia.loungeGold} range={[0, .02, .24, .31]} alt="A refined black-and-gold barber lounge" position="left center" />
-            <LoungeLayer progress={smooth} src={homeMedia.loungeEditorial} range={[.2, .29, .49, .58]} alt="A private barber chair in a cinematic lounge" position="42% center" />
-            <LoungeLayer progress={smooth} src={homeMedia.stationsRound} range={[.47, .56, .74, .83]} alt="Luxury barber stations with circular illuminated mirrors" />
-            <LoungeLayer progress={smooth} src={homeMedia.stationsArched} range={[.72, .81, .98, 1]} alt="Black marble barber stations with gold-framed mirrors" />
-          </>
-        )}
-        <div className={styles.loungeCopy}>
+        <motion.div className={styles.loungeLayer} style={reduced ? undefined : { opacity: firstOpacity, scale: firstScale }}><Image src={homeMedia.loungeGold} alt="A refined black-and-gold barber lounge" fill sizes="100vw" className="object-cover" /></motion.div>
+        <motion.div className={styles.loungeLayer} style={reduced ? undefined : { opacity: secondOpacity, scale: secondScale }}><Image src={homeMedia.stationsArched} alt="Black marble barber stations with gold-framed mirrors" fill sizes="100vw" className="object-cover" /></motion.div>
+        <motion.div className={styles.loungeCopy} style={reduced ? undefined : { y: copyY }}>
           <CopyBlock eyebrow={experienceCopy.lounge.eyebrow[lang]} title={<span id="lounge-title">{experienceCopy.lounge.title[lang]}</span>} body={experienceCopy.lounge.body[lang]}>
-            <div className={styles.actions}><Link href="/about" className={styles.secondary}>{lang === "es" ? "Conoce el estándar" : "Explore the standard"}<ArrowRight size={15} /></Link></div>
+            <div className={styles.actions}><Link href="/visit" className={styles.primary}>{lang === "es" ? "Visitar el lounge" : "Visit the lounge"}<ArrowUpRight size={15} /></Link><a href={business.mapsUrl} target="_blank" rel="noreferrer" className={styles.secondary}>{lang === "es" ? "Cómo llegar" : "Get directions"}<MapPin size={15} /></a></div>
           </CopyBlock>
-        </div>
-        <div className={styles.loungeIndex} aria-hidden="true"><span /><span /><span /><span /></div>
+        </motion.div>
+        <div className={styles.loungeIndex} aria-hidden="true"><span /><span /></div>
       </div>
     </section>
   );
 }
 
-function BarberProfiles({ lang }: { lang: Lang }) {
+function BarberProfiles({ lang, reduced }: { lang: Lang; reduced: boolean }) {
+  const roster = useMemo(() => barbers.filter((barber) => barber.active), []);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const active = roster[activeIndex] ?? roster[0];
+  const show = (index: number) => setActiveIndex((index + roster.length) % roster.length);
   return (
-    <section className={styles.scene} aria-labelledby="barbers-title">
+    <section className={`${styles.scene} ${styles.barberScene}`} aria-labelledby="barbers-title">
       <div className={styles.sceneInner}>
-        <CopyBlock eyebrow={experienceCopy.barbers.eyebrow[lang]} title={<span id="barbers-title">{experienceCopy.barbers.title[lang]}</span>} body={lang === "es" ? "Elige tu silla preferida o deja que el lounge conecte tu servicio con el especialista adecuado." : "Choose your preferred chair or let the lounge match your service to the right specialist."} />
-        <div className={styles.barberGrid}>
-          {barbers.map((barber, index) => (
-            <motion.article key={barber.slug} className={styles.barberCard} initial={{ opacity: 0, y: 50, rotateY: index ? -4 : 4 }} whileInView={{ opacity: 1, y: 0, rotateY: 0 }} viewport={{ once: true, amount: .25 }} transition={{ duration: .9, delay: index * .12, ease: homeMotion.ease }}>
-              <div className={styles.barberBackdrop}><Image src={index ? homeMedia.stationsArched : homeMedia.loungeEditorial} alt="" fill sizes="(max-width: 760px) 100vw, 50vw" className="object-cover" /></div>
-              <div className={styles.barberMirror}><span className={styles.barberInitial}>{barber.initials}</span></div>
-              <div className={styles.barberContent}>
-                <p className={styles.eyebrow}>{barber.title[lang]}</p>
-                <h3>{barber.name}</h3>
-                <p>{barber.bio[lang]}</p>
-                <div className={styles.barberMeta}>{barber.specialties[lang]} · {barber.languages}</div>
-                <div className={styles.actions}>
-                  <Link href={`/book?barber=${barber.slug}`} className={styles.primary}>{lang === "es" ? "Reservar esta silla" : "Book this barber"}</Link>
-                  <Link href={`/barbers/${barber.slug}`} className={styles.secondary}>{lang === "es" ? "Ver perfil" : "View profile"}</Link>
-                </div>
-              </div>
-            </motion.article>
+        <div className={styles.barberIntro}>
+          <CopyBlock eyebrow={experienceCopy.barbers.eyebrow[lang]} title={<span id="barbers-title">{experienceCopy.barbers.title[lang]}</span>} body={experienceCopy.barbers.body[lang]} />
+          <div className={styles.barberArrows}>
+            <button type="button" onClick={() => show(activeIndex - 1)} aria-label={lang === "es" ? "Barbero anterior" : "Previous barber"}><ChevronLeft /></button>
+            <span>{String(activeIndex + 1).padStart(2, "0")} / {String(roster.length).padStart(2, "0")}</span>
+            <button type="button" onClick={() => show(activeIndex + 1)} aria-label={lang === "es" ? "Siguiente barbero" : "Next barber"}><ChevronRight /></button>
+          </div>
+        </div>
+        <div className={styles.barberStage}>
+          <div className={styles.barberPortraitShell}>
+            <div className={styles.barberHalo} aria-hidden="true" />
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={active.slug}
+                className={styles.barberPortrait}
+                initial={reduced ? false : { opacity: 0, x: 34, scale: 0.985 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={reduced ? undefined : { opacity: 0, x: -28, scale: 0.99 }}
+                transition={{ duration: 0.5, ease: homeMotion.ease }}
+              >
+                <Image src={active.image.profile} alt={active.image.alt[lang]} fill sizes="(max-width: 760px) 92vw, 46vw" priority={activeIndex === 0} style={{ objectPosition: active.image.objectPosition.profile }} className="object-cover" />
+              </motion.div>
+            </AnimatePresence>
+          </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${active.slug}-copy`}
+              className={styles.barberDetails}
+              initial={reduced ? false : { opacity: 0, y: 22 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduced ? undefined : { opacity: 0, y: -14 }}
+              transition={{ duration: 0.42, ease: homeMotion.ease }}
+            >
+              <p className={styles.eyebrow}>{active.title[lang]}</p>
+              <h3>{active.name}</h3>
+              <p>{active.bio[lang]}</p>
+              <div className={styles.barberMeta}>{active.specialties[lang]} · {active.languages}</div>
+              <p className={styles.barberAvailability}>{active.availability[lang]}</p>
+              <div className={styles.actions}><Link href={`/book?barber=${active.slug}`} data-magnetic="true" className={styles.primary}>{lang === "es" ? "Reservar esta silla" : "Book this barber"}</Link><Link href={`/barbers/${active.slug}`} className={styles.secondary}>{lang === "es" ? "Ver perfil" : "View profile"}</Link></div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+        <div className={styles.barberRail} role="tablist" aria-label={lang === "es" ? "Seleccionar barbero" : "Select a barber"}>
+          {roster.map((barber, index) => (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={index === activeIndex}
+              className={index === activeIndex ? styles.barberThumbActive : styles.barberThumb}
+              key={barber.slug}
+              onClick={() => show(index)}
+            >
+              <Image src={barber.image.card} alt="" width={120} height={150} style={{ objectPosition: barber.image.objectPosition.card }} />
+              <span>{barber.name}</span>
+            </button>
           ))}
         </div>
+        <div className={styles.allBarbersAction}><Link href="/barbers" className={styles.secondary}>{lang === "es" ? "Ver todo el equipo" : "View the full team"}<ArrowUpRight size={15} /></Link></div>
       </div>
     </section>
   );
@@ -286,91 +398,13 @@ function Transformation({ lang }: { lang: Lang }) {
   );
 }
 
-function Membership({ lang }: { lang: Lang }) {
-  return (
-    <section className={`${styles.scene} ${styles.membershipWrap}`} aria-labelledby="membership-title">
-      <div className={styles.membershipBackdrop}><Image src={homeMedia.decanter} alt="" fill sizes="100vw" className="object-cover" /></div>
-      <div className={styles.sceneInner}>
-        <CopyBlock eyebrow={experienceCopy.membership.eyebrow[lang]} title={<span id="membership-title">{experienceCopy.membership.title[lang]}</span>} body={experienceCopy.membership.body[lang]} />
-        <div className={styles.membershipGrid}>
-          {tiers.map((tier, index) => (
-            <motion.article key={tier.slug} className={`${styles.membershipCard} ${tier.featured ? styles.membershipCardFeatured : ""}`} initial={{ opacity: 0, y: 45, scale: .98 }} whileInView={{ opacity: 1, y: 0, scale: 1 }} viewport={{ once: true, amount: .25 }} transition={{ duration: .75, delay: index * .1, ease: homeMotion.ease }}>
-              <p className={styles.eyebrow}>{tier.featured ? (lang === "es" ? "Preferida" : "Preferred") : `0${index + 1}`}</p>
-              <h3 className="mt-6">{tier.name[lang]}</h3>
-              <p className={styles.membershipPrice}>${tier.price}<small> / {tier.cadence[lang]}</small></p>
-              <p className="mt-4 text-sm leading-7 text-[rgba(243,235,221,.65)]">{tier.description[lang]}</p>
-              <ul>{tier.perks.map((perk) => <li key={perk.en}><Check size={15} className="mt-1 shrink-0 text-[var(--color-brass)]" />{perk[lang]}</li>)}</ul>
-              <div className={styles.actions}><Link href="/membership" className={tier.featured ? styles.primary : styles.secondary}>{lang === "es" ? "Solicitar información" : "Request information"}</Link></div>
-            </motion.article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function BrandSignature({ lang, reduced }: { lang: Lang; reduced: boolean }) {
-  const ref = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
-  const smooth = useSpring(scrollYProgress, homeMotion.softSpring);
-  const imageRotate = useTransform(smooth, [0, 1], [-3, 2]);
-  const logoY = useTransform(smooth, [0, 1], [55, -35]);
-  return (
-    <section ref={ref} className={`${styles.scene} ${styles.brandScene}`} aria-labelledby="brand-title">
-      <div className={`${styles.sceneInner} ${styles.brandGrid}`}>
-        <div className={styles.brandVisual}>
-          <motion.div className={styles.brandImage} style={reduced ? undefined : { rotate: imageRotate }}><Image src={homeMedia.brandCards} alt="Black presentation cards with gold-foil barber branding" fill sizes="(max-width: 760px) 100vw, 52vw" className="object-cover" /></motion.div>
-          <motion.div className={styles.brandLogo} style={reduced ? undefined : { y: logoY }}><Image src={homeMedia.officialLogo} alt="Luxury Barber Lounge" width={920} height={920} /></motion.div>
-        </div>
-        <CopyBlock eyebrow={experienceCopy.brand.eyebrow[lang]} title={<span id="brand-title">{experienceCopy.brand.title[lang]}</span>} body={experienceCopy.brand.body[lang]}>
-          <div className={styles.actions}><Link href="/about" className={styles.secondary}>{lang === "es" ? "Descubrir la marca" : "Discover the brand"}<ArrowRight size={15} /></Link></div>
-        </CopyBlock>
-      </div>
-    </section>
-  );
-}
-
-function Confidence({ lang }: { lang: Lang }) {
-  const items = lang === "es" ? [
-    ["01", "Consulta clara", "Cada servicio comienza con objetivos, mantenimiento y expectativas entendidas."],
-    ["02", "Estándar profesional", "El tiempo, la higiene, la preparación y el acabado reciben atención deliberada."],
-    ["03", "Feedback auténtico", "Las reseñas públicas aparecen solo cuando son verificadas; no fabricamos credibilidad."],
-  ] : [
-    ["01", "Clear consultation", "Every service begins with goals, maintenance, and expectations understood."],
-    ["02", "Professional standard", "Timing, hygiene, preparation, and finishing receive deliberate attention."],
-    ["03", "Authentic feedback", "Public reviews appear only when verified; credibility is never manufactured."],
-  ];
-  return (
-    <section className={styles.scene} aria-labelledby="confidence-title">
-      <div className={styles.sceneInner}>
-        <CopyBlock eyebrow={experienceCopy.confidence.eyebrow[lang]} title={<span id="confidence-title">{experienceCopy.confidence.title[lang]}</span>} body={lang === "es" ? "La confianza no necesita un contador falso. Se construye con comunicación, consistencia y atención a cada detalle." : "Confidence needs no fake counter. It is built through communication, consistency, and attention to every detail."} />
-        <div className={styles.confidenceGrid}>{items.map((item, index) => <motion.article key={item[0]} className={styles.confidenceCard} initial={{ opacity: 0, y: 35 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .3 }} transition={{ duration: .7, delay: index * .1, ease: homeMotion.ease }}><span className={styles.confidenceNumber}>{item[0]}</span><h3>{item[1]}</h3><p>{item[2]}</p></motion.article>)}</div>
-        <div className={`${styles.actions} mt-10`}><Link href="/reviews" className={styles.secondary}>{lang === "es" ? "Reseñas y feedback" : "Reviews & feedback"}<ArrowUpRight size={15} /></Link><Link href="/book" className={styles.primary}>{lang === "es" ? "Reservar experiencia" : "Book your experience"}</Link></div>
-      </div>
-    </section>
-  );
-}
-
 function formatHours(lang: Lang): string[] {
   const short = (bi: { en: string; es: string }) => bi[lang].slice(0, 3);
-  const fmt = (t: string) => {
-    const [h, m] = t.split(":").map(Number);
-    const period = h >= 12 ? "PM" : "AM";
-    const hour = h % 12 === 0 ? 12 : h % 12;
-    return `${hour}:${String(m).padStart(2, "0")} ${period}`;
-  };
+  const fmt = (time: string) => { const [hourValue, minute] = time.split(":").map(Number); const period = hourValue >= 12 ? "PM" : "AM"; const hour = hourValue % 12 === 0 ? 12 : hourValue % 12; return `${hour}:${String(minute).padStart(2, "0")} ${period}`; };
   const closedWord = lang === "es" ? "Cerrado" : "Closed";
   const groups: { label: string[]; value: string }[] = [];
-  for (const row of hours) {
-    const value = row.closed ? closedWord : `${fmt(row.open)}\u2013${fmt(row.close)}`;
-    const last = groups[groups.length - 1];
-    if (last && last.value === value) last.label.push(short(row.day));
-    else groups.push({ label: [short(row.day)], value });
-  }
-  return groups.map((g) => {
-    const label = g.label.length > 1 ? `${g.label[0]}\u2013${g.label[g.label.length - 1]}` : g.label[0];
-    return `${label} ${g.value}`;
-  });
+  for (const row of hours) { const value = row.closed ? closedWord : `${fmt(row.open)}–${fmt(row.close)}`; const last = groups[groups.length - 1]; if (last && last.value === value) last.label.push(short(row.day)); else groups.push({ label: [short(row.day)], value }); }
+  return groups.map((group) => `${group.label.length > 1 ? `${group.label[0]}–${group.label[group.label.length - 1]}` : group.label[0]} ${group.value}`);
 }
 
 function Visit({ lang }: { lang: Lang }) {
@@ -378,7 +412,7 @@ function Visit({ lang }: { lang: Lang }) {
     <section className={`${styles.scene} ${styles.visitScene}`} aria-labelledby="visit-title">
       <div className={styles.visitBackdrop}><Image src={homeMedia.stationsRound} alt="Luxury Barber Lounge station environment" fill sizes="100vw" className="object-cover" /></div>
       <div className={styles.sceneInner}>
-        <motion.div className={styles.visitPanel} initial={{ opacity: 0, x: -35 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, amount: .25 }} transition={{ duration: .9, ease: homeMotion.ease }}>
+        <motion.div className={styles.visitPanel} initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, amount: 0.25 }} transition={{ duration: 0.82, ease: homeMotion.ease }}>
           <p className={styles.eyebrow}>{experienceCopy.visit.eyebrow[lang]}</p>
           <h2 id="visit-title" className={`${styles.heading} mt-6`}>{experienceCopy.visit.title[lang]}</h2>
           <dl className={styles.visitInfo}>
@@ -387,11 +421,7 @@ function Visit({ lang }: { lang: Lang }) {
             <div><dt>{lang === "es" ? "Horario" : "Hours"}</dt><dd>{formatHours(lang).map((line) => <span key={line} className="block">{line}</span>)}</dd></div>
             <div><dt>{lang === "es" ? "Estacionamiento" : "Parking"}</dt><dd>{lang === "es" ? "Hay estacionamiento en el lugar cerca de la Suite 106." : "On-site parking is available near Suite 106."}</dd></div>
           </dl>
-          <div className={styles.actions}>
-            <a href={business.mapsUrl} target="_blank" rel="noreferrer" className={styles.primary}><MapPin size={15} />{lang === "es" ? "Indicaciones" : "Directions"}</a>
-            <a href={business.phoneHref} className={styles.secondary}><Phone size={15} />{lang === "es" ? "Llamar" : "Call"}</a>
-            <Link href="/visit" className={styles.secondary}>{lang === "es" ? "Detalles de visita" : "Visit details"}<ExternalLink size={14} /></Link>
-          </div>
+          <div className={styles.actions}><a href={business.mapsUrl} target="_blank" rel="noreferrer" className={styles.primary}><MapPin size={15} />{lang === "es" ? "Indicaciones" : "Directions"}</a><a href={business.phoneHref} className={styles.secondary}><Phone size={15} />{lang === "es" ? "Llamar" : "Call"}</a><Link href="/visit" className={styles.secondary}>{lang === "es" ? "Detalles de visita" : "Visit details"}<ExternalLink size={14} /></Link></div>
         </motion.div>
       </div>
     </section>
@@ -402,22 +432,23 @@ function FinalConversion({ lang, reduced }: { lang: Lang; reduced: boolean }) {
   const ref = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end end"] });
   const smooth = useSpring(scrollYProgress, homeMotion.softSpring);
-  const logoScale = useTransform(smooth, [0, .7, 1], [.78, 1, 1]);
-  const logoRotate = useTransform(smooth, [0, 1], [-7, 0]);
+  const backgroundScale = useTransform(smooth, [0, 1], [1.08, 1]);
+  const ringScale = useTransform(smooth, [0, 0.8], [0.7, 1]);
+  const ringRotate = useTransform(smooth, [0, 1], [-24, 0]);
   return (
     <section ref={ref} className={`${styles.scene} ${styles.finalScene}`} aria-labelledby="final-title">
-      <div className={styles.finalBackdrop}><Image src={homeMedia.toolsOrnate} alt="" fill sizes="100vw" className="object-cover" /></div>
+      <motion.div className={styles.finalBackdrop} style={reduced ? undefined : { scale: backgroundScale }}><Image src={homeMedia.loungeEditorial} alt="A refined barber chair inside the Luxury Barber Lounge" fill sizes="100vw" className="object-cover" /></motion.div>
+      <motion.div className={styles.finalChairRing} style={reduced ? undefined : { scale: ringScale, rotate: ringRotate }} aria-hidden="true"><span /><span /></motion.div>
       <div className={styles.finalInner}>
-        <motion.div className={styles.finalLogo} style={reduced ? undefined : { scale: logoScale, rotate: logoRotate }}><Image src={homeMedia.officialLogo} alt="Luxury Barber Lounge" width={920} height={920} /></motion.div>
         <p className={styles.eyebrow}>{experienceCopy.final.eyebrow[lang]}</p>
         <h2 id="final-title" className={`${styles.heading} mt-6`}>{experienceCopy.final.title[lang]}</h2>
-        <p className={styles.subheading}>{lang === "es" ? "Grooming de precisión, atención personal y un ambiente diseñado para hacer que cada visita se sienta distinta." : "Precision grooming, personal attention, and a room designed to make every visit feel distinct."}</p>
-        <div className={styles.actions}>
-          <Link href="/book" data-magnetic="true" className={styles.primary}><CalendarDays size={15} />{lang === "es" ? "Reservar experiencia" : "Book your experience"}</Link>
-          <a href={business.phoneHref} className={styles.secondary}><Phone size={15} />{lang === "es" ? "Llamar" : "Call the lounge"}</a>
-          <Link href="/services" className={styles.secondary}><Scissors size={15} />{lang === "es" ? "Explorar servicios" : "Explore services"}</Link>
-          <Link href="/walk-ins" className={styles.secondary}><Sparkles size={15} />{lang === "es" ? "Información sin cita" : "Walk-in information"}</Link>
+        <p className={styles.subheading}>{experienceCopy.final.body[lang]}</p>
+        <div className={styles.choiceSteps} aria-label={lang === "es" ? "Pasos para reservar" : "Booking steps"}>
+          <span><b>01</b>{lang === "es" ? "Tu servicio" : "Your service"}</span>
+          <span><b>02</b>{lang === "es" ? "Tu barbero" : "Your barber"}</span>
+          <span><b>03</b>{lang === "es" ? "Tu horario" : "Your time"}</span>
         </div>
+        <div className={styles.actions}><Link href="/book" data-magnetic="true" className={styles.primary}><CalendarDays size={15} />{lang === "es" ? "Reservar experiencia" : "Book your experience"}</Link><Link href="/barbers" className={styles.secondary}>{lang === "es" ? "Conocer barberos" : "Meet the barbers"}<ArrowRight size={15} /></Link><Link href="/services" className={styles.secondary}><Scissors size={15} />{lang === "es" ? "Explorar servicios" : "Explore services"}</Link><a href={business.phoneHref} className={styles.secondary}><Phone size={15} />{lang === "es" ? "Llamar" : "Call the lounge"}</a></div>
       </div>
     </section>
   );
@@ -436,14 +467,12 @@ export function PostHeroExperience() {
     <div ref={rootRef} className={styles.root} data-motion-tier={tier}>
       <SpiralGuide progress={progress} />
       <ThresholdScene lang={lang} tier={tier} />
+      <MembershipScene lang={lang} reduced={reduced} />
       <PrecisionScene lang={lang} reduced={reduced} />
       <SignatureServices lang={lang} />
       <LoungeEnvironment lang={lang} reduced={reduced} />
-      <BarberProfiles lang={lang} />
+      <BarberProfiles lang={lang} reduced={reduced} />
       <Transformation lang={lang} />
-      <Membership lang={lang} />
-      <BrandSignature lang={lang} reduced={reduced} />
-      <Confidence lang={lang} />
       <Visit lang={lang} />
       <FinalConversion lang={lang} reduced={reduced} />
     </div>

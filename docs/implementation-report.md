@@ -2,41 +2,43 @@
 
 ## Delivered
 
-- Existing cinematic design preserved and organized into a formal motion system
+- Approved cinematic hero preserved byte-for-byte
+- Dead post-services blank interval corrected at its underlying sticky-height and opacity cause
+- Redundant and weak homepage concepts removed cleanly
+- Membership experience redesigned as a direct cinematic continuation of “Step Into Distinction”
+- Signature-service discovery retained with stable prices and booking actions
+- Lounge presentation shortened into a focused two-view architectural sequence
+- All nine owner-supplied barber photographs organized, optimized, and integrated
+- Responsive barber directory and individual profile pages
+- Dimensional “Meet the Artists” homepage selector with keyboard, touch, and direct booking controls
+- Accessible transformation control
+- Stable Visit scene with centralized business data
+- Completely redesigned chair-centered “Make the Chair Yours” final conversion experience
 - Canonical verified business data centralized
-- 31-service bilingual launch catalog based on the supplied service reference
-- Dynamic services and barber profiles
-- Complete public route coverage
-- Booking and queue development experiences with feature-safe live-provider architecture
+- 31-service bilingual catalog
 - Client, barber, reception, and owner/admin route coverage
 - Deterministic attribution, commission, queue, permission, and automation modules
-- Square request, availability, mapping, and signature-verification architecture
-- Provider-neutral booking, email, SMS, AI, and analytics modules
+- Square and Supabase activation architecture left feature-controlled for later credential connection
 - Six ordered transactional Supabase migrations with RLS and storage policies
-- Idempotent seed covering business, location, services, clearly marked demo profiles, memberships, templates, and flags
+- Seed data synchronized to the nine-profile roster; unverified identity fields remain explicitly marked as demo content
 - SEO, sitemap, robots, structured data, security headers, reduced motion, and mobile conversion controls
-- Content, migration, route, repository, secret, lint, type, unit, and integration quality gates
-- Setup, architecture, operations, security, testing, and launch documentation
+- Complete source, content, route, migration, secret, unit, integration, and hero-regression checks
+
+## Barber content boundary
+
+Rubén Díaz Jr. is the verified named record. The remaining eight profile names, titles, biographies, languages, specialties, availability labels, and service mappings are centralized temporary content awaiting owner approval. No licenses, awards, exact experience claims, ratings, or celebrity clients were invented.
 
 ## Route and data scope
 
-- 145 page routes across public, authentication, kiosk, client, barber, reception, and admin surfaces
-- 236 source files validated by repository checks
+- 145 page routes
+- 241 source files
 - 6 ordered Supabase migrations plus idempotent development seed
-- 31 bilingual services, 2 clearly marked development barber profiles, and 3 membership concepts
-- 21 passing unit tests and 3 passing integration tests
-
-## Integration state
-
-- Supabase: schema, auth clients, RLS, storage, seed, and route-protection architecture ready; production project activation remains credential-dependent
-- Square: development and Square provider boundary ready; live credentials, catalog mapping, team mapping, and webhook registration remain credential-dependent
-- Email/SMS: development adapters and localized templates ready; production providers remain credential-dependent
-- AI: deterministic approved-content fallback active; live provider optional and feature-controlled
-- Analytics: consent-aware event abstraction and environment configuration ready
+- 31 bilingual services, 9 barber profiles, and 3 editable membership concepts
+- 21 passing unit tests and 8 passing integration tests
 
 ## Validation record
 
-The following release checks passed in the supplied execution environment on July 28, 2026:
+Passed:
 
 - `npm run format:check`
 - `npm run lint`
@@ -47,32 +49,13 @@ The following release checks passed in the supplied execution environment on Jul
 - `npm run validate:repository`
 - `npm run scan:secrets`
 - `npm test` — 21 passed, 0 failed
-- `npm run test:integration` — 3 passed, 0 failed
+- `npm run test:integration` — 8 passed, 0 failed
 
-`npm run build` could not execute in this container because the only available dependency directory had been copied from Windows and did not contain Next.js's Linux SWC binary. The source ZIP deliberately excludes `node_modules`; a clean `npm ci` on Vercel or another Linux build environment installs the matching optional compiler package before running `next build`. See `docs/validation-report.md` and `docs/troubleshooting.md`.
+`npm run build` reached Next.js startup and was blocked only when the isolated environment’s internal package mirror returned HTTP 404 for `@next/swc-linux-x64-gnu@16.2.6`. See `docs/validation-report.md` for the exact release boundary.
 
 ## Operational boundaries
 
 - Credential-dependent writes remain disabled by default.
-- Development data is marked in staff workspaces and never represented publicly as live availability or real testimonials.
+- Temporary roster fields are marked internally and can be replaced in one typed content source.
+- Membership pricing and terms remain subject to owner approval.
 - Commission and reconciliation modules report amounts; they do not transfer funds or represent certified payroll.
-- Policies, membership pricing, service pricing, hours, and demo barber records remain owner-confirmation items before public launch.
-
-## Post-hero cinematic transformation
-
-The approved `CinematicHero`, its component dependencies, and every file under `public/hero` were byte-compared against the supplied repository and remain unchanged.
-
-The homepage after that boundary now uses one connected spiral-inspired narrative:
-
-- cinematic threshold using the supplied interior video
-- five-stage precision process using the supplied tool photography
-- bookable signature-service discovery
-- four-scene architectural lounge journey
-- mirror-framed barber profiles
-- accessible conceptual transformation control
-- editable membership presentation using the decanter only as atmosphere
-- official-logo brand signature over the supplied business-card texture
-- truthful client-confidence standards with no fabricated reviews
-- stable visit information and final booking resolution
-
-All ten supplied still images and the supplied video are used intentionally. Optimized WebP, AVIF, MP4, WebM, poster, and mobile variants are organized under `public/media/home`.

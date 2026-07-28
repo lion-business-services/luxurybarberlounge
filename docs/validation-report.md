@@ -2,13 +2,13 @@
 
 **Release date:** July 28, 2026
 
-**Target:** GitHub and Vercel source deployment
+**Target:** Existing GitHub and Vercel source deployment
 
-## Passed gates
+## Passed source gates
 
 ```text
 Format guard                         PASS
-ESLint                               PASS
+ESLint                               PASS, 0 warnings
 TypeScript strict check              PASS
 Bilingual content validation         PASS
 Migration safety/order validation    PASS
@@ -16,23 +16,42 @@ Internal route validation            PASS
 Repository completeness validation  PASS
 High-confidence secret scan          PASS
 Unit tests                           21 PASS / 0 FAIL
-Integration tests                    3 PASS / 0 FAIL
+Integration tests                    8 PASS / 0 FAIL
+Protected hero comparison            PASS, byte-for-byte
 ```
 
 Repository validation counted:
 
 - 145 page routes
-- 236 source files
+- 241 source files
 - 6 ordered transactional SQL migrations
 - 31 services
-- 2 clearly marked development barber profiles
-- 3 membership concepts
+- 9 barber profiles using the supplied portraits
+- 3 editable membership concepts
 
-## Production build note
+## Homepage refinement validation
 
-The extracted project supplied for this build contained a Windows `node_modules` directory. Next.js therefore could not load a Linux SWC compiler binary in the isolated Linux validation container. Network access was unavailable for a clean package reinstall inside that container.
+The release confirms:
 
-The delivery ZIP excludes `node_modules`, `.next`, local environment files, and TypeScript build artifacts. The deployment environment must install dependencies from `package-lock.json`:
+- the approved hero component and all protected `public/hero` assets remain byte-for-byte unchanged
+- the dead post-services interval is removed at its source
+- all nine portrait derivative sets are packaged
+- the removed homepage concepts and obsolete 300svh lounge spacer are absent
+- the membership experience directly follows the cinematic threshold
+- the Lounge scene is shortened and starts with a visible frame
+- the final conversion scene is the redesigned “Make the Chair Yours” experience
+
+## Production build command and exact external blocker
+
+`npm run build` was invoked after lint and strict type checking passed. Next.js started and requested its platform compiler:
+
+```text
+@next/swc-linux-x64-gnu@16.2.6
+```
+
+The isolated environment redirected that request to its internal package mirror and returned HTTP 404. The exact failed URL and status were reported by Next.js. The supplied copied dependency set contains only the Windows SWC binary, so it cannot be used to certify a Linux production build.
+
+The release ZIP deliberately excludes `node_modules`, `.next`, local environment files, and TypeScript build artifacts. In the actual Vercel project or any normal Linux environment, run:
 
 ```bash
 rm -rf node_modules .next
@@ -40,22 +59,4 @@ npm ci
 npm run check
 ```
 
-Vercel should use the repository root, Node.js 22, `npm ci` or its standard lockfile install, and `npm run build`. Do not upload a copied local `node_modules` directory.
-
-## Launch controls
-
-Keep live Square, queue, kiosk, membership billing, gift-card purchasing, SMS, WhatsApp, advanced analytics, and payout-export flags disabled until the relevant credentials, mappings, policies, and owner approvals are complete.
-
-## Post-hero validation addendum
-
-The post-hero release additionally passed:
-
-- complete ESLint scan
-- strict TypeScript scan
-- media existence integration tests
-- approved hero ordering integration test
-- hero source and `public/hero` byte comparison against the supplied archive
-- dead `href="#"` scan
-- modified-source console-log scan
-
-The Next.js production build was invoked again. It reached Next.js startup and then failed only because this isolated Linux container could not download `@next/swc-linux-x64-gnu@16.2.6` from its configured package gateway, which returned HTTP 404. This is an execution-environment package mirror failure, not a source, TypeScript, lint, test, or route failure. Vercel installs the matching compiler package from the public npm registry during its normal lockfile install.
+No source, lint, TypeScript, content, route, repository, secret, unit-test, integration-test, or hero-regression failure remains in this package.

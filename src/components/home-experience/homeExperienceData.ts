@@ -12,16 +12,14 @@ export const homeMedia = {
   loungeEditorial: "/media/home/interiors/lounge-editorial.webp",
   stationsRound: "/media/home/interiors/stations-round.webp",
   stationsArched: "/media/home/interiors/stations-arched.webp",
-  brandCards: "/media/home/brand/brand-cards.webp",
-  decanter: "/media/home/atmosphere/lounge-decanter.webp",
   officialLogo: "/brand/logo-official-transparent.webp",
 } as const;
 
 export const processSteps = {
   en: [
     ["01", "Consultation", "We begin with your features, routine, preferences, and the finish you want to maintain."],
-    ["02", "Preparation", "The service is set up with the right timing, tools, and details before the first cut is made."],
-    ["03", "Precision", "Shape, weight, transitions, and edges are controlled deliberately, not rushed."],
+    ["02", "Preparation", "The service is set with the right timing, tools, and details before the first cut is made."],
+    ["03", "Precision", "Shape, weight, transitions, and edges are controlled deliberately, never rushed."],
     ["04", "Refinement", "Every angle is checked, balanced, and finished for how the style will live beyond the chair."],
     ["05", "Final reveal", "You leave with a polished result and practical guidance for keeping it intentional."],
   ],
@@ -43,6 +41,14 @@ export const experienceCopy = {
       es: "Un estándar privado de grooming donde precisión, ambiente y atención personal se mueven como uno solo.",
     },
   },
+  membership: {
+    eyebrow: { en: "Membership by design", es: "Membresía por diseño" },
+    title: { en: "A reserved rhythm, shaped around you.", es: "Un ritmo reservado, diseñado para ti." },
+    body: {
+      en: "Explore editable membership concepts for guests who prefer consistency, priority, and a more considered grooming routine. Final terms remain subject to owner approval.",
+      es: "Explora conceptos editables para clientes que prefieren consistencia, prioridad y una rutina de grooming más cuidada. Los términos finales requieren aprobación del propietario.",
+    },
+  },
   precision: {
     eyebrow: { en: "The art of precision", es: "El arte de la precisión" },
     title: { en: "Every detail begins with understanding.", es: "Cada detalle comienza con comprensión." },
@@ -56,16 +62,20 @@ export const experienceCopy = {
     title: { en: "Choose the result. We refine the ritual.", es: "Elige el resultado. Nosotros refinamos el ritual." },
   },
   lounge: {
-    eyebrow: { en: "The lounge environment", es: "El ambiente del lounge" },
+    eyebrow: { en: "The lounge", es: "El lounge" },
     title: { en: "Designed to slow the world down.", es: "Diseñado para bajar el ritmo del mundo." },
     body: {
-      en: "Refined surroundings, thoughtful comfort, and a professional room built around focused service.",
-      es: "Un entorno refinado, comodidad pensada y un espacio profesional creado alrededor de un servicio enfocado.",
+      en: "Refined surroundings, considered comfort, and a professional room built around focused service.",
+      es: "Un entorno refinado, comodidad cuidada y un espacio profesional creado alrededor de un servicio enfocado.",
     },
   },
   barbers: {
-    eyebrow: { en: "Meet the barbers", es: "Conoce a los barberos" },
-    title: { en: "Distinct chairs. One exacting standard.", es: "Sillas distintas. Un estándar exigente." },
+    eyebrow: { en: "Meet the artists", es: "Conoce a los artistas" },
+    title: { en: "Nine distinct chairs. One exacting standard.", es: "Nueve sillas distintas. Un estándar exigente." },
+    body: {
+      en: "Explore the team, their preferred work, and the chair that best fits your service.",
+      es: "Explora el equipo, su trabajo preferido y la silla que mejor se adapta a tu servicio.",
+    },
   },
   transformation: {
     eyebrow: { en: "The transformation", es: "La transformación" },
@@ -75,32 +85,16 @@ export const experienceCopy = {
       es: "Mueve el espejo para descubrir cómo la consulta se convierte en un acabado personalizado y seguro. Es un recorrido conceptual, no un antes y después de un cliente.",
     },
   },
-  membership: {
-    eyebrow: { en: "Private lounge value", es: "Valor del lounge privado" },
-    title: { en: "Consistency, reserved.", es: "Consistencia, reservada." },
-    body: {
-      en: "Curated membership concepts for guests who value a planned grooming rhythm. Final pricing and billing remain subject to owner approval.",
-      es: "Conceptos de membresía para clientes que valoran un ritmo de grooming planificado. Los precios y la facturación final requieren aprobación del propietario.",
-    },
-  },
-  brand: {
-    eyebrow: { en: "The brand signature", es: "La firma de la marca" },
-    title: { en: "Crafted for distinction.", es: "Creado para distinguirte." },
-    body: {
-      en: "Every surface, service, and finishing detail carries the same promise: considered, refined, unmistakably personal.",
-      es: "Cada superficie, servicio y detalle final lleva la misma promesa: considerado, refinado e inconfundiblemente personal.",
-    },
-  },
-  confidence: {
-    eyebrow: { en: "Client confidence", es: "Confianza del cliente" },
-    title: { en: "Trust is earned in the chair.", es: "La confianza se gana en la silla." },
-  },
   visit: {
     eyebrow: { en: "Visit the lounge", es: "Visita el lounge" },
     title: { en: "Northfield. Your next chair is ready.", es: "Northfield. Tu próxima silla está lista." },
   },
   final: {
-    eyebrow: { en: "Your experience begins here", es: "Tu experiencia comienza aquí" },
-    title: { en: "Reserve the chair. Own the finish.", es: "Reserva la silla. Haz tuyo el acabado." },
+    eyebrow: { en: "Your experience", es: "Tu experiencia" },
+    title: { en: "Make the chair yours.", es: "Haz tuya la silla." },
+    body: {
+      en: "Choose your service, select your barber, and reserve a moment designed entirely around you.",
+      es: "Elige tu servicio, selecciona tu barbero y reserva un momento diseñado completamente para ti.",
+    },
   },
 } as const;

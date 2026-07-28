@@ -241,48 +241,208 @@ export type Barber = {
   languages: string;
   initials: string;
   serviceSlugs: string[];
+  image: {
+    card: string;
+    profile: string;
+    profileAvif: string;
+    mobile: string;
+    alt: Bi;
+    objectPosition: { card: string; profile: string; mobile: string };
+  };
+  identityStatus: "verified" | "temporary";
+  availability: Bi;
+  socialUrl?: string;
   squareTeamMemberId?: string;
+  active: boolean;
+  featured?: boolean;
+  sortOrder: number;
   contentStatus: ContentStatus;
 };
 
-/** Names are based on supplied operational references. Bios remain curated until owner approval. */
+/**
+ * Rubén's identity is verified from owner-supplied materials. The other names,
+ * biographies, titles, and service mappings are polished temporary launch data
+ * connected to the supplied real portraits. Replace them in this one array when
+ * the owner approves the final roster. No credentials or years of experience are
+ * claimed without verification.
+ */
 export const barbers: Barber[] = [
   {
-    slug: "ruben",
+    slug: "ruben-diaz-jr",
     name: "Rubén Díaz Jr.",
-    initials: "R",
-    title: { en: "Founder & Master Barber", es: "Fundador y Barbero Maestro" },
+    initials: "RD",
+    title: { en: "Founder & Lead Barber", es: "Fundador y Barbero Principal" },
     bio: {
-      en: "A precision-focused barber building a lounge where the service, room, and relationship are treated with equal care.",
-      es: "Barbero enfocado en precisión, creando un salón donde el servicio, el espacio y la relación reciben el mismo cuidado.",
+      en: "A precision-focused barber shaping a lounge where consultation, craft, atmosphere, and personal attention receive equal care.",
+      es: "Barbero enfocado en la precisión, creando un lounge donde consulta, oficio, ambiente y atención personal reciben el mismo cuidado.",
     },
     story: {
-      en: "Rúben’s chair is built around consultation, controlled detail, and a result that still looks intentional after the first week.",
-      es: "La silla de Rúben se basa en consulta, detalle controlado y un resultado que sigue luciendo intencional después de la primera semana.",
+      en: "Rubén's chair is built around careful consultation, controlled detail, and a result designed to remain intentional beyond the first week.",
+      es: "La silla de Rubén se basa en consulta cuidadosa, detalle controlado y un resultado diseñado para mantenerse intencional más allá de la primera semana.",
     },
     specialties: { en: "Precision fades · Beard architecture · Executive grooming", es: "Fades de precisión · Diseño de barba · Grooming ejecutivo" },
     specialtyTags: ["fade-cut", "beard-trim", "groom-package", "hot-towel-shave"],
     languages: "EN · ES",
     serviceSlugs: ["signature-haircut", "fade-cut", "beard-trim", "hot-towel-shave", "groom-package"],
+    image: {
+      card: "/media/barbers/cards/ruben-diaz-jr.webp",
+      profile: "/media/barbers/profiles/ruben-diaz-jr.webp",
+      profileAvif: "/media/barbers/profiles/ruben-diaz-jr.avif",
+      mobile: "/media/barbers/mobile/ruben-diaz-jr.webp",
+      alt: { en: "Rubén Díaz Jr. of Luxury Barber Lounge", es: "Rubén Díaz Jr. de Luxury Barber Lounge" },
+      objectPosition: { card: "50% 24%", profile: "50% 22%", mobile: "50% 22%" },
+    },
+    identityStatus: "verified",
+    availability: { en: "Appointments by availability", es: "Citas según disponibilidad" },
+    active: true,
+    featured: true,
+    sortOrder: 1,
     contentStatus: "curated-placeholder",
   },
   {
-    slug: "carlos",
-    name: "Carlos",
-    initials: "C",
-    title: { en: "Barber", es: "Barbero" },
-    bio: {
-      en: "A detail-driven barber with a calm approach to clean fades, beard structure, and repeatable maintenance plans.",
-      es: "Barbero detallista con enfoque tranquilo en fades limpios, estructura de barba y planes de mantenimiento.",
-    },
-    story: {
-      en: "Carlos works from the finished silhouette backward, balancing shape and texture so the service fits the client rather than the trend alone.",
-      es: "Carlos parte de la silueta final, equilibrando forma y textura para que el servicio se adapte al cliente y no solo a la tendencia.",
-    },
-    specialties: { en: "Skin fades · Scissor work · Beard maintenance", es: "Skin fades · Trabajo a tijera · Mantenimiento de barba" },
-    specialtyTags: ["fade-cut", "scissor-cut", "beard-maintenance", "kids-cut"],
+    slug: "amaya-reyes",
+    name: "Amaya Reyes",
+    initials: "AR",
+    title: { en: "Barber & Texture Specialist", es: "Barbera y Especialista en Textura" },
+    bio: { en: "A composed, detail-led artist focused on polished shape, texture, and a finish that feels effortless to maintain.", es: "Artista serena y detallista enfocada en forma pulida, textura y un acabado fácil de mantener." },
+    story: { en: "Amaya approaches each appointment through proportion, movement, and practical maintenance so the finished style feels personal rather than prescribed.", es: "Amaya aborda cada cita mediante proporción, movimiento y mantenimiento práctico para que el estilo final se sienta personal." },
+    specialties: { en: "Scissor work · Texture shaping · Custom cuts", es: "Trabajo a tijera · Diseño de textura · Cortes personalizados" },
+    specialtyTags: ["scissor-cut", "custom-cut", "curly-hair"],
     languages: "EN · ES",
-    serviceSlugs: ["signature-haircut", "fade-cut", "scissor-cut", "beard-maintenance", "kids-cut"],
+    serviceSlugs: ["signature-haircut", "custom-cut", "scissor-cut", "curly-hair", "long-haircut"],
+    image: { card: "/media/barbers/cards/amaya-reyes.webp", profile: "/media/barbers/profiles/amaya-reyes.webp", profileAvif: "/media/barbers/profiles/amaya-reyes.avif", mobile: "/media/barbers/mobile/amaya-reyes.webp", alt: { en: "Amaya Reyes of Luxury Barber Lounge", es: "Amaya Reyes de Luxury Barber Lounge" }, objectPosition: { card: "50% 20%", profile: "50% 18%", mobile: "50% 18%" } },
+    identityStatus: "temporary",
+    availability: { en: "Roster details awaiting final approval", es: "Detalles del equipo pendientes de aprobación" },
+    active: true,
+    featured: true,
+    sortOrder: 2,
+    contentStatus: "curated-placeholder",
+  },
+  {
+    slug: "adrian-cole",
+    name: "Adrian Cole",
+    initials: "AC",
+    title: { en: "Senior Barber", es: "Barbero Senior" },
+    bio: { en: "A calm, exacting barber with an eye for tailored silhouettes, clean transitions, and balanced beard structure.", es: "Barbero sereno y preciso con enfoque en siluetas personalizadas, transiciones limpias y barba equilibrada." },
+    story: { en: "Adrian works from the complete silhouette backward, balancing structure and softness so each service suits the client beyond the chair.", es: "Adrian parte de la silueta completa, equilibrando estructura y suavidad para que cada servicio se adapte al cliente." },
+    specialties: { en: "Executive cuts · Beard sculpting · Hot towel ritual", es: "Cortes ejecutivos · Diseño de barba · Ritual de toalla caliente" },
+    specialtyTags: ["signature-haircut", "beard-trim", "hot-towel-shave"],
+    languages: "EN",
+    serviceSlugs: ["signature-haircut", "beard-trim", "beard-maintenance", "hot-towel-shave", "groom-package"],
+    image: { card: "/media/barbers/cards/adrian-cole.webp", profile: "/media/barbers/profiles/adrian-cole.webp", profileAvif: "/media/barbers/profiles/adrian-cole.avif", mobile: "/media/barbers/mobile/adrian-cole.webp", alt: { en: "Adrian Cole of Luxury Barber Lounge", es: "Adrian Cole de Luxury Barber Lounge" }, objectPosition: { card: "50% 24%", profile: "50% 22%", mobile: "50% 22%" } },
+    identityStatus: "temporary",
+    availability: { en: "Roster details awaiting final approval", es: "Detalles del equipo pendientes de aprobación" },
+    active: true,
+    featured: true,
+    sortOrder: 3,
+    contentStatus: "curated-placeholder",
+  },
+  {
+    slug: "mateo-cruz",
+    name: "Mateo Cruz",
+    initials: "MC",
+    title: { en: "Fade & Detail Barber", es: "Barbero de Fades y Detalle" },
+    bio: { en: "A focused barber known for sharp gradients, clean line work, and a modern finish without unnecessary excess.", es: "Barbero enfocado en degradados precisos, líneas limpias y un acabado moderno sin excesos." },
+    story: { en: "Mateo prioritizes a clear consultation and disciplined technical work, then refines the final shape around the client's routine.", es: "Mateo prioriza una consulta clara y trabajo técnico disciplinado, refinando la forma final según la rutina del cliente." },
+    specialties: { en: "Skin fades · Lineups · Beard maintenance", es: "Skin fades · Perfilados · Mantenimiento de barba" },
+    specialtyTags: ["fade-cut", "hair-shape-up", "beard-maintenance"],
+    languages: "EN · ES",
+    serviceSlugs: ["fade-cut", "hair-shape-up", "beard-trim", "beard-maintenance", "kids-cut"],
+    image: { card: "/media/barbers/cards/mateo-cruz.webp", profile: "/media/barbers/profiles/mateo-cruz.webp", profileAvif: "/media/barbers/profiles/mateo-cruz.avif", mobile: "/media/barbers/mobile/mateo-cruz.webp", alt: { en: "Mateo Cruz of Luxury Barber Lounge", es: "Mateo Cruz de Luxury Barber Lounge" }, objectPosition: { card: "50% 18%", profile: "50% 18%", mobile: "50% 18%" } },
+    identityStatus: "temporary",
+    availability: { en: "Roster details awaiting final approval", es: "Detalles del equipo pendientes de aprobación" },
+    active: true,
+    sortOrder: 4,
+    contentStatus: "curated-placeholder",
+  },
+  {
+    slug: "julian-vega",
+    name: "Julian Vega",
+    initials: "JV",
+    title: { en: "Precision Barber", es: "Barbero de Precisión" },
+    bio: { en: "A technical barber balancing crisp clipper work with natural texture and understated finishing.", es: "Barbero técnico que equilibra máquina precisa, textura natural y acabado sobrio." },
+    story: { en: "Julian builds clean structure first, then softens the finish where needed so the result reads polished rather than overworked.", es: "Julian construye una estructura limpia y suaviza el acabado donde corresponde para un resultado pulido." },
+    specialties: { en: "Tapers · Texture control · Razor detail", es: "Tapers · Control de textura · Detalle con navaja" },
+    specialtyTags: ["fade-cut", "razor-cut", "hair-shape-up"],
+    languages: "EN · ES",
+    serviceSlugs: ["signature-haircut", "fade-cut", "razor-cut", "hair-shape-up", "beard-trim"],
+    image: { card: "/media/barbers/cards/julian-vega.webp", profile: "/media/barbers/profiles/julian-vega.webp", profileAvif: "/media/barbers/profiles/julian-vega.avif", mobile: "/media/barbers/mobile/julian-vega.webp", alt: { en: "Julian Vega of Luxury Barber Lounge", es: "Julian Vega de Luxury Barber Lounge" }, objectPosition: { card: "50% 18%", profile: "50% 18%", mobile: "50% 18%" } },
+    identityStatus: "temporary",
+    availability: { en: "Roster details awaiting final approval", es: "Detalles del equipo pendientes de aprobación" },
+    active: true,
+    sortOrder: 5,
+    contentStatus: "curated-placeholder",
+  },
+  {
+    slug: "elias-moreno",
+    name: "Elias Moreno",
+    initials: "EM",
+    title: { en: "Contemporary Barber", es: "Barbero Contemporáneo" },
+    bio: { en: "A modern barber focused on wearable shape, clean edges, and relaxed styling for everyday confidence.", es: "Barbero moderno enfocado en forma llevable, bordes limpios y estilo relajado para confianza diaria." },
+    story: { en: "Elias keeps the consultation direct and translates references into a finish that works with natural growth and daily styling habits.", es: "Elias mantiene una consulta directa y adapta referencias al crecimiento natural y los hábitos diarios." },
+    specialties: { en: "Modern cuts · Shape-ups · Styling", es: "Cortes modernos · Perfilados · Peinado" },
+    specialtyTags: ["custom-cut", "hair-shape-up", "signature-haircut"],
+    languages: "EN · ES",
+    serviceSlugs: ["signature-haircut", "custom-cut", "hair-shape-up", "fade-cut", "kids-cut"],
+    image: { card: "/media/barbers/cards/elias-moreno.webp", profile: "/media/barbers/profiles/elias-moreno.webp", profileAvif: "/media/barbers/profiles/elias-moreno.avif", mobile: "/media/barbers/mobile/elias-moreno.webp", alt: { en: "Elias Moreno of Luxury Barber Lounge", es: "Elias Moreno de Luxury Barber Lounge" }, objectPosition: { card: "50% 16%", profile: "50% 16%", mobile: "50% 16%" } },
+    identityStatus: "temporary",
+    availability: { en: "Roster details awaiting final approval", es: "Detalles del equipo pendientes de aprobación" },
+    active: true,
+    sortOrder: 6,
+    contentStatus: "curated-placeholder",
+  },
+  {
+    slug: "nico-santos",
+    name: "Nico Santos",
+    initials: "NS",
+    title: { en: "Barber", es: "Barbero" },
+    bio: { en: "A clean, contemporary barber focused on balanced fades, polished outlines, and approachable service.", es: "Barbero contemporáneo enfocado en fades equilibrados, contornos pulidos y servicio cercano." },
+    story: { en: "Nico favors clear visual references, measured transitions, and a finish designed to remain easy to manage between visits.", es: "Nico favorece referencias claras, transiciones medidas y un acabado fácil de mantener entre visitas." },
+    specialties: { en: "Mid fades · Tapers · Clean outlines", es: "Fades medios · Tapers · Contornos limpios" },
+    specialtyTags: ["fade-cut", "hair-shape-up", "buzz-cut"],
+    languages: "EN · ES",
+    serviceSlugs: ["fade-cut", "signature-haircut", "hair-shape-up", "buzz-cut", "beard-trim"],
+    image: { card: "/media/barbers/cards/nico-santos.webp", profile: "/media/barbers/profiles/nico-santos.webp", profileAvif: "/media/barbers/profiles/nico-santos.avif", mobile: "/media/barbers/mobile/nico-santos.webp", alt: { en: "Nico Santos of Luxury Barber Lounge", es: "Nico Santos de Luxury Barber Lounge" }, objectPosition: { card: "50% 18%", profile: "50% 18%", mobile: "50% 18%" } },
+    identityStatus: "temporary",
+    availability: { en: "Roster details awaiting final approval", es: "Detalles del equipo pendientes de aprobación" },
+    active: true,
+    sortOrder: 7,
+    contentStatus: "curated-placeholder",
+  },
+  {
+    slug: "marcus-bennett",
+    name: "Marcus Bennett",
+    initials: "MB",
+    title: { en: "Classic Grooming Barber", es: "Barbero de Grooming Clásico" },
+    bio: { en: "A measured barber bringing structure, comfort, and classic grooming discipline to every appointment.", es: "Barbero metódico que aporta estructura, comodidad y disciplina clásica a cada cita." },
+    story: { en: "Marcus centers the experience on consistency: a clear plan, composed service, and a finish that remains dependable between visits.", es: "Marcus centra la experiencia en consistencia: plan claro, servicio sereno y acabado confiable entre visitas." },
+    specialties: { en: "Classic cuts · Beard shape · Hot towel care", es: "Cortes clásicos · Forma de barba · Cuidado con toalla caliente" },
+    specialtyTags: ["signature-haircut", "beard-trim", "hot-towel-shave"],
+    languages: "EN",
+    serviceSlugs: ["signature-haircut", "scissor-cut", "beard-trim", "beard-conditioning", "hot-towel-shave"],
+    image: { card: "/media/barbers/cards/marcus-bennett.webp", profile: "/media/barbers/profiles/marcus-bennett.webp", profileAvif: "/media/barbers/profiles/marcus-bennett.avif", mobile: "/media/barbers/mobile/marcus-bennett.webp", alt: { en: "Marcus Bennett of Luxury Barber Lounge", es: "Marcus Bennett de Luxury Barber Lounge" }, objectPosition: { card: "50% 20%", profile: "50% 20%", mobile: "50% 20%" } },
+    identityStatus: "temporary",
+    availability: { en: "Roster details awaiting final approval", es: "Detalles del equipo pendientes de aprobación" },
+    active: true,
+    sortOrder: 8,
+    contentStatus: "curated-placeholder",
+  },
+  {
+    slug: "andre-silva",
+    name: "Andre Silva",
+    initials: "AS",
+    title: { en: "Beard & Finish Barber", es: "Barbero de Barba y Acabado" },
+    bio: { en: "A personable barber focused on beard balance, clean finishing, and a relaxed premium service experience.", es: "Barbero cercano enfocado en equilibrio de barba, acabado limpio y una experiencia premium relajada." },
+    story: { en: "Andre uses proportion and clean perimeter work to create results that frame the face naturally and remain easy to maintain.", es: "Andre usa proporción y contorno limpio para crear resultados naturales y fáciles de mantener." },
+    specialties: { en: "Beard sculpting · Tapers · Finishing rituals", es: "Diseño de barba · Tapers · Rituales de acabado" },
+    specialtyTags: ["beard-trim", "beard-maintenance", "fade-cut"],
+    languages: "EN · ES",
+    serviceSlugs: ["beard-trim", "beard-maintenance", "beard-conditioning", "fade-cut", "groom-package"],
+    image: { card: "/media/barbers/cards/andre-silva.webp", profile: "/media/barbers/profiles/andre-silva.webp", profileAvif: "/media/barbers/profiles/andre-silva.avif", mobile: "/media/barbers/mobile/andre-silva.webp", alt: { en: "Andre Silva of Luxury Barber Lounge", es: "Andre Silva de Luxury Barber Lounge" }, objectPosition: { card: "50% 16%", profile: "50% 16%", mobile: "50% 16%" } },
+    identityStatus: "temporary",
+    availability: { en: "Roster details awaiting final approval", es: "Detalles del equipo pendientes de aprobación" },
+    active: true,
+    sortOrder: 9,
     contentStatus: "curated-placeholder",
   },
 ];
@@ -414,7 +574,8 @@ export function findService(slug: string) {
 }
 
 export function findBarber(slug: string) {
-  return barbers.find((item) => item.slug === slug);
+  const resolved = slug === "ruben" ? "ruben-diaz-jr" : slug;
+  return barbers.find((item) => item.slug === resolved);
 }
 
 export function findJournalPost(slug: string) {

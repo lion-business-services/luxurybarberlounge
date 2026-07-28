@@ -10,7 +10,7 @@ The repository preserves the existing cinematic black, ivory, brass, bronze, and
 
 - Cinematic, immediately visible scroll-to-discover homepage
 - Services catalog and dynamic service pages
-- Barber directory and dynamic barber profiles
+- Barber directory and nine dynamic, responsive barber profiles using the owner-supplied team portraits
 - Booking request experience with provider abstraction
 - Honest walk-in/queue states and kiosk interfaces
 - Memberships, packages, gift cards, gallery, reviews, events, weddings, products, careers, FAQ, journal, policies, contact, and Visit pages
@@ -32,7 +32,7 @@ The repository preserves the existing cinematic black, ivory, brass, bronze, and
 - Role and permission model
 - Row Level Security policies
 - Storage buckets and policies
-- Seed data for the verified business, 31 services, two clearly marked demo barber profiles, memberships, templates, and feature flags
+- Seed data for the verified business, 31 services, the nine-profile roster with temporary fields explicitly marked, memberships, templates, and feature flags
 - Square booking provider abstraction and verified-webhook inbox
 - Development booking provider for credential-free testing
 - Deterministic attribution and commission engines
