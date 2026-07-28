@@ -9,8 +9,8 @@ export const testimonials = [
     rating: 5,
     service: "Signature Haircut",
     quote: {
-      en: "An environment built on professional craftsmanship and clear communication from start to finish.",
-      es: "Un ambiente basado en el oficio profesional y comunicación clara de principio a fin.",
+      en: "Demo testimonial placeholder. Replace with a verified client review before enabling review structured data.",
+      es: "Testimonio de demostración. Reemplázalo con una reseña verificada antes de activar datos estructurados.",
     },
     state: "demo" as ContentState,
   },
@@ -20,8 +20,8 @@ export const testimonials = [
     rating: 5,
     service: "Hair & Beard Ritual",
     quote: {
-      en: "A consistent, detail-oriented grooming experience tailored to individual routines.",
-      es: "Una experiencia de grooming consistente y detallada adaptada a rutinas individuales.",
+      en: "Demo testimonial placeholder emphasizing consultation, detail, and an unhurried experience.",
+      es: "Testimonio de demostración que destaca consulta, detalle y una experiencia sin prisa.",
     },
     state: "demo" as ContentState,
   },
@@ -31,8 +31,8 @@ export const testimonials = [
     rating: 5,
     service: "Fade Cut",
     quote: {
-      en: "The service sets a high standard for precision and care.",
-      es: "El servicio establece un alto estándar de precisión y cuidado.",
+      en: "Demo testimonial placeholder for layout and content-management review only.",
+      es: "Testimonio de demostración solo para revisar diseño y administración de contenido.",
     },
     state: "demo" as ContentState,
   },
@@ -84,7 +84,7 @@ export const careerRoles = [
 export const policies: Record<string, { title: string; intro: string; sections: Array<{ heading: string; paragraphs: string[]; bullets?: string[] }> }> = {
   booking: {
     title: "Booking Policy",
-    intro: "Review our complete booking terms and policies below.",
+    intro: "These curated launch terms should be reviewed by ownership and counsel before final publication.",
     sections: [
       { heading: "Reservation accuracy", paragraphs: ["Guests should select the service that most closely matches the requested result. If additional time or a different service is required, the lounge may recommend an adjustment before confirmation."] },
       { heading: "Confirmation", paragraphs: ["A request is not a confirmed appointment until the guest receives an approved booking confirmation through the active booking system or directly from the lounge."] },
@@ -93,7 +93,7 @@ export const policies: Record<string, { title: string; intro: string; sections: 
   },
   cancellation: {
     title: "Cancellation & Rescheduling Policy",
-    intro: "Please review our cancellation window and associated terms.",
+    intro: "The final cancellation window and fees must match the settings approved in Square.",
     sections: [
       { heading: "Advance changes", paragraphs: ["Please cancel or reschedule within the notice window displayed during booking. This protects reserved chair time and gives another guest a fair opportunity to book."] },
       { heading: "Late changes", paragraphs: ["Changes made after the approved window may result in loss of deposit or a fee, subject to the confirmed booking terms."] },
@@ -102,7 +102,7 @@ export const policies: Record<string, { title: string; intro: string; sections: 
   },
   deposits: {
     title: "Deposit Policy",
-    intro: "Selected appointments may require a deposit to secure your booking.",
+    intro: "Deposits remain disabled until Square configuration and owner approval are complete.",
     sections: [
       { heading: "Purpose", paragraphs: ["Selected appointments may require a deposit to reserve time, products, or extended service capacity."] },
       { heading: "Application", paragraphs: ["An accepted deposit is applied to the eligible final service total unless the confirmed cancellation or no-show terms state otherwise."] },
@@ -111,7 +111,7 @@ export const policies: Record<string, { title: string; intro: string; sections: 
   },
   noShow: {
     title: "No-Show & Late Arrival Policy",
-    intro: "Review our policies regarding late arrivals and missed appointments.",
+    intro: "The final fee amount and grace period must be confirmed before live enforcement.",
     sections: [
       { heading: "Late arrival", paragraphs: ["The lounge will make a reasonable effort to preserve the appointment, but the service may be shortened, adjusted, or rescheduled if completing it would affect later guests."] },
       { heading: "No-show", paragraphs: ["Failure to arrive without notice may result in loss of deposit, a fee, or a requirement to prepay a future appointment, subject to the approved booking terms."] },
@@ -120,7 +120,7 @@ export const policies: Record<string, { title: string; intro: string; sections: 
   },
   refund: {
     title: "Refund Policy",
-    intro: "Please review our terms regarding service and retail refunds.",
+    intro: "Service and retail refund terms should be reviewed before activation.",
     sections: [
       { heading: "Service concerns", paragraphs: ["Contact the lounge promptly if a service concern arises. Management may offer an assessment, reasonable correction, account credit, or another resolution based on the circumstances."] },
       { heading: "Retail products", paragraphs: ["Unopened eligible products may be considered for return within the posted period. Used personal-care products are generally not returnable for hygiene reasons unless defective."] },
@@ -129,7 +129,7 @@ export const policies: Record<string, { title: string; intro: string; sections: 
   },
   membership: {
     title: "Membership Terms",
-    intro: "Review the benefits and terms associated with lounge memberships.",
+    intro: "Membership billing is feature-flagged and these terms are a launch draft only.",
     sections: [
       { heading: "Benefits", paragraphs: ["Benefits, eligible services, discounts, and usage limits are defined by the active plan shown at enrollment."] },
       { heading: "Billing", paragraphs: ["Membership charges will not begin until live billing is activated and the guest completes an approved enrollment flow."] },

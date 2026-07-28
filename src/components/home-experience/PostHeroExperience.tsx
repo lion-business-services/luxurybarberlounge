@@ -194,7 +194,7 @@ function MembershipScene({ lang, reduced }: { lang: Lang; reduced: boolean }) {
               <p className={styles.membershipPrice}>${active.price}<small> / {active.cadence[lang]}</small></p>
               <p className={styles.membershipDescription}>{active.description[lang]}</p>
               <ul>{active.perks.map((perk) => <li key={perk.en}><Check size={15} />{perk[lang]}</li>)}</ul>
-              <p className={styles.membershipNotice}>{lang === "es" ? "Consulta precios y beneficios actualizados al momento de tu visita." : "Confirm current pricing and benefits at the time of your visit."}</p>
+              <p className={styles.membershipNotice}>{lang === "es" ? "Precio, beneficios y facturación sujetos a aprobación final." : "Pricing, benefits, and billing remain subject to final approval."}</p>
               <div className={styles.actions}>
                 <Link href="/membership" className={styles.primary}>{lang === "es" ? "Explorar membresía" : "Explore membership"}</Link>
                 <Link href="/contact?topic=membership" className={styles.secondary}>{lang === "es" ? "Solicitar información" : "Request information"}</Link>
