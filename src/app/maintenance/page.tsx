@@ -1,0 +1,3 @@
+import { business } from "@/lib/content/site";
+export const metadata={title:"Maintenance",robots:{index:false,follow:false}};
+export default function Page(){return <main className="grid min-h-screen place-items-center bg-[#090909] px-6 text-center"><section className="max-w-xl"><p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">The lounge is being polished</p><h1 className="font-display mt-5 text-6xl">A brief service pause.</h1><p className="mt-5 text-sm leading-7 text-[var(--color-bone-muted)]">The website is under controlled maintenance. Call <a className="text-[var(--color-brass)]" href={business.phoneHref}>{business.phone}</a> for immediate booking assistance.</p></section></main>}

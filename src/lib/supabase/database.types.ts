@@ -1,0 +1,177 @@
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
+type Table<Row, Insert = Partial<Row>, Update = Partial<Insert>> = {
+  Row: Row;
+  Insert: Insert;
+  Update: Update;
+  Relationships: [];
+};
+
+export type Database = {
+  public: {
+    Tables: {
+      businesses: Table<{
+        id: string;
+        name: string;
+        slug: string;
+        legal_name: string | null;
+        phone: string | null;
+        email: string | null;
+        website_url: string | null;
+        timezone: string;
+        default_language: "en" | "es";
+        status: "active" | "inactive" | "archived";
+        metadata: Json;
+        created_at: string;
+        updated_at: string;
+      }>;
+      locations: Table<{
+        id: string;
+        business_id: string;
+        name: string;
+        slug: string;
+        phone: string | null;
+        email: string | null;
+        address_line_1: string | null;
+        address_line_2: string | null;
+        city: string | null;
+        region: string | null;
+        postal_code: string | null;
+        country_code: string;
+        timezone: string;
+        active: boolean;
+        created_at: string;
+        updated_at: string;
+      }>;
+      leads: Table<{
+        id: string;
+        business_id: string | null;
+        location_id: string | null;
+        source: string;
+        campaign: string | null;
+        status: string;
+        stage: string;
+        owner_user_id: string | null;
+        full_name: string;
+        email: string | null;
+        phone: string | null;
+        preferred_language: "en" | "es";
+        service_interest: string | null;
+        payload: Json;
+        consent: Json;
+        next_follow_up_at: string | null;
+        created_at: string;
+        updated_at: string;
+      }, {
+        id?: string;
+        business_id?: string | null;
+        location_id?: string | null;
+        source?: string;
+        campaign?: string | null;
+        status?: string;
+        stage?: string;
+        owner_user_id?: string | null;
+        full_name: string;
+        email?: string | null;
+        phone?: string | null;
+        preferred_language?: "en" | "es";
+        service_interest?: string | null;
+        payload?: Json;
+        consent?: Json;
+        next_follow_up_at?: string | null;
+        created_at?: string;
+        updated_at?: string;
+      }>;
+      queue_entries: Table<{
+        id: string;
+        business_id: string | null;
+        location_id: string | null;
+        walkin_session_id: string | null;
+        client_id: string | null;
+        client_name: string | null;
+        client_phone: string | null;
+        service_id: string | null;
+        service_slug: string | null;
+        preferred_barber_id: string | null;
+        barber_preference: string | null;
+        public_token: string;
+        status: string;
+        estimated_wait_minutes: number | null;
+        manual_priority: number;
+        attribution_source: string;
+        metadata: Json;
+        joined_at: string;
+        called_at: string | null;
+        service_started_at: string | null;
+        completed_at: string | null;
+        created_at: string;
+        updated_at: string;
+      }, {
+        id?: string;
+        business_id?: string | null;
+        location_id?: string | null;
+        walkin_session_id?: string | null;
+        client_id?: string | null;
+        client_name?: string | null;
+        client_phone?: string | null;
+        service_id?: string | null;
+        service_slug?: string | null;
+        preferred_barber_id?: string | null;
+        barber_preference?: string | null;
+        public_token: string;
+        status?: string;
+        estimated_wait_minutes?: number | null;
+        manual_priority?: number;
+        attribution_source?: string;
+        metadata?: Json;
+        joined_at?: string;
+        called_at?: string | null;
+        service_started_at?: string | null;
+        completed_at?: string | null;
+        created_at?: string;
+        updated_at?: string;
+      }>;
+      webhook_events: Table<{
+        id: string;
+        business_id: string | null;
+        provider: string;
+        provider_event_id: string;
+        event_type: string;
+        signature_valid: boolean;
+        payload: Json;
+        sanitized_headers: Json;
+        received_at: string;
+        processing_status: string;
+        processed_at: string | null;
+        attempt_count: number;
+        last_error: string | null;
+      }, {
+        id?: string;
+        business_id?: string | null;
+        provider: string;
+        provider_event_id: string;
+        event_type: string;
+        signature_valid?: boolean;
+        payload?: Json;
+        sanitized_headers?: Json;
+        received_at?: string;
+        processing_status?: string;
+        processed_at?: string | null;
+        attempt_count?: number;
+        last_error?: string | null;
+      }>;
+    };
+    Views: Record<string, never>;
+    Functions: {
+      has_role: { Args: { required_role: Database["public"]["Enums"]["app_role"]; target_business?: string | null }; Returns: boolean };
+      can_manage_business: { Args: { target_business: string }; Returns: boolean };
+      can_operate_business: { Args: { target_business: string }; Returns: boolean };
+      can_admin_business: { Args: { target_business: string }; Returns: boolean };
+    };
+    Enums: {
+      app_role: "client" | "barber" | "receptionist" | "manager" | "owner" | "super_admin";
+      record_status: "draft" | "in_review" | "approved" | "published" | "archived";
+    };
+    CompositeTypes: Record<string, never>;
+  };
+};

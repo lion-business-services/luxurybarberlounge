@@ -1,0 +1,25 @@
+{
+  "release": "2026-07-28",
+  "project": "Luxury Barber Lounge",
+  "framework": "Next.js 16.2.6",
+  "routeCount": 145,
+  "migrationCount": 6,
+  "sourceChecks": "passed",
+  "unitTests": {
+    "passed": 21,
+    "failed": 0
+  },
+  "integrationTests": {
+    "passed": 3,
+    "failed": 0
+  },
+  "productionBuild": "run after clean platform-specific npm ci",
+  "excludedFromArchive": [
+    "node_modules",
+    ".next",
+    ".git",
+    ".env.local",
+    "*.tsbuildinfo"
+  ],
+  "featureProviders": "credential-dependent features disabled by default"
+}

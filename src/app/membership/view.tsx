@@ -65,7 +65,7 @@ export function MembershipView() {
                     </ul>
 
                     <Link
-                      href="/visit"
+                      href={`/book?membership=${tier.slug}`}
                       data-magnetic
                       className={clsx(
                         "mt-9 inline-flex items-center justify-center gap-3 rounded-full px-6 py-3 text-[11px] tracking-[0.24em] uppercase transition-colors duration-300",
@@ -90,7 +90,6 @@ export function MembershipView() {
               {copy.membership.note[lang]}
             </p>
             <p className="mt-3 text-[11px] tracking-[0.26em] uppercase text-[var(--color-bone-muted)]">
-              {copy.common.confirmNote[lang]}
             </p>
           </Reveal>
         </Layer>

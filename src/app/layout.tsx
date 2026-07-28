@@ -7,6 +7,9 @@ import { MobileActions } from "@/components/MobileActions";
 import { MagneticCursor, ScrollProgress } from "@/components/motion";
 import { Footer } from "@/components/Footer";
 import SmoothScroll from "@/components/SmoothScroll";
+import { ConciergeWidget } from "@/components/public/ConciergeWidget";
+import { CookiePreferences } from "@/components/public/CookiePreferences";
+import { business } from "@/lib/content/site";
 
 const playfair = Playfair_Display({
   variable: "--font-playfair",
@@ -25,18 +28,27 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Luxury Barber Lounge",
+    default: "Luxury Barber Lounge | Northfield, NJ",
     template: "%s · Luxury Barber Lounge",
   },
-  description:
-    "An invitation-grade barbershop. Old-world craft, modern grooming, by appointment.",
-  metadataBase: new URL("https://www.theluxurybarberlounge.com"),
+  description: business.shortDescription.en,
+  metadataBase: new URL(business.domain),
+  applicationName: business.name,
+  keywords: ["barbershop Northfield NJ", "luxury barber", "fade Northfield", "beard trim Northfield", "hot towel shave Atlantic County"],
+  alternates: { canonical: "/" },
   openGraph: {
     title: "Luxury Barber Lounge",
-    description:
-      "Old-world craft. Modern grooming. A quiet room poured in brass and leather.",
+    description: business.tagline.en,
     type: "website",
+    url: business.domain,
+    siteName: business.name,
+    locale: "en_US",
+    alternateLocale: ["es_US"],
+    images: [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: "Luxury Barber Lounge" }],
   },
+  twitter: { card: "summary_large_image", title: business.name, description: business.tagline.en, images: ["/opengraph-image.png"] },
+  icons: { icon: "/favicon.ico", apple: "/apple-icon.png" },
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({
@@ -44,12 +56,33 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "BarberShop",
+    name: business.name,
+    url: business.domain,
+    telephone: business.phone,
+    email: business.email,
+    image: `${business.domain}/opengraph-image.png`,
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: business.street,
+      addressLocality: business.city,
+      addressRegion: business.state,
+      postalCode: business.postalCode,
+      addressCountry: business.country,
+    },
+    priceRange: "$$",
+    sameAs: [business.instagram, business.facebook],
+  };
+
   return (
     <html
       lang="en"
       className={`${playfair.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-[var(--color-ink)] text-[var(--color-bone)]">
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
         <LangProvider>
           <SmoothScroll>
             <ScrollProgress />
@@ -65,6 +98,8 @@ export default function RootLayout({
               {children}
             </main>
             <Footer />
+            <ConciergeWidget />
+            <CookiePreferences />
           <MobileActions />
           </SmoothScroll>
         </LangProvider>

@@ -1,0 +1,5 @@
+import type { Metadata } from "next";
+import { PageHero } from "@/components/PageHero";
+import { CtaBand, DemoContentNotice, ProductGrid } from "@/components/public/PublicUI";
+export const metadata: Metadata = { title: "Grooming Products", description: "Curated styling and grooming product previews from Luxury Barber Lounge.", alternates: { canonical: "/products" } };
+export default function ProductsPage(){return <><PageHero eyebrow={{en:"Between appointments",es:"Entre citas"}} title={{en:"Grooming Products",es:"Productos de Grooming"}} lead={{en:"A focused retail edit for styling, beard care, cleansing, and travel maintenance.",es:"Una selección enfocada en peinado, barba, limpieza y mantenimiento de viaje."}}/><main className="mx-auto max-w-6xl px-6 pb-28 sm:px-10"><DemoContentNotice/><div className="mt-8"><ProductGrid/></div></main><CtaBand eyebrow="Product guidance" title="Use what supports the result." copy="Your barber can recommend hold, finish, conditioning, and frequency without turning the chair into a sales pitch." /></>}

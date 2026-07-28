@@ -6,7 +6,10 @@ export const dict = {
     services: { en: "Services", es: "Servicios" },
     barbers: { en: "Barbers", es: "Barberos" },
     membership: { en: "Membership", es: "Membresía" },
+    gallery: { en: "Gallery", es: "Galería" },
     visit: { en: "Visit", es: "Visítanos" },
+    book: { en: "Book", es: "Reservar" },
+    portal: { en: "Client portal", es: "Portal del cliente" },
   },
   langToggle: {
     label: { en: "Language", es: "Idioma" },
@@ -15,84 +18,38 @@ export const dict = {
   },
   hero: {
     eyebrow: {
-      en: "Private Lounge · By Appointment",
-      es: "Salón Privado · Por Cita",
+      en: "Northfield · Precision Grooming",
+      es: "Northfield · Grooming de Precisión",
     },
     title: { en: "Luxury Barber Lounge", es: "Luxury Barber Lounge" },
     tagline: {
-      en: "Old-world craft. Modern grooming. A quiet room poured in brass and leather.",
-      es: "Oficio clásico. Estilo moderno. Un salón íntimo en latón y cuero.",
+      en: "Old-world craft. Modern grooming. A first-class room built around the chair.",
+      es: "Oficio clásico. Grooming moderno. Un salón de primera clase creado alrededor de la silla.",
     },
     intro: {
-      en: "An invitation-grade barbershop built for the gentleman who values the cut as much as the chair he sits in. Single-seating service, a curated bar of tools, and barbers who treat the trade like a craft.",
-      es: "Una barbería de nivel premium para el caballero que valora el corte tanto como el sillón donde se sienta. Atención uno a uno, herramientas curadas y barberos que tratan el oficio como un arte.",
+      en: "Precision cuts, beard architecture, hot-towel rituals, and a calm lounge experience designed around how you want to look and feel.",
+      es: "Cortes de precisión, diseño de barba, rituales de toalla caliente y una experiencia tranquila diseñada para cómo deseas verte y sentirte.",
     },
     cta: { en: "Reserve · Book Now", es: "Reservar · Agendar" },
-    comingSoon: { en: "Opening Soon", es: "Próxima Apertura" },
+    comingSoon: { en: "Grand Opening · August 4 · 5 PM", es: "Gran Apertura · 4 de agosto · 5 PM" },
   },
   stub: {
     badge: { en: "In Preparation", es: "En Preparación" },
-    services: {
-      title: { en: "Services", es: "Servicios" },
-      body: {
-        en: "The full menu — cuts, shaves, beard work, and member-only rituals — is being finalized.",
-        es: "El menú completo — cortes, afeitados, barba y rituales exclusivos — está en preparación.",
-      },
-    },
-    barbers: {
-      title: { en: "The Barbers", es: "Los Barberos" },
-      body: {
-        en: "Meet the chairs. Profiles, specialties, and direct booking are arriving soon.",
-        es: "Conoce a los barberos. Perfiles, especialidades y reservas directas llegan pronto.",
-      },
-    },
-    membership: {
-      title: { en: "Membership", es: "Membresía" },
-      body: {
-        en: "A small, private membership for gentlemen who prefer their grooming on standing reservation.",
-        es: "Una membresía privada y limitada para caballeros que prefieren su cuidado con reserva permanente.",
-      },
-    },
-    visit: {
-      title: { en: "Visit", es: "Visítanos" },
-      body: {
-        en: "Address, hours, parking, and the quiet etiquette of the lounge — coming online with our opening.",
-        es: "Dirección, horarios, estacionamiento y la etiqueta del salón — disponibles para nuestra apertura.",
-      },
-    },
-    about: {
-      title: { en: "About", es: "Nosotros" },
-      body: {
-        en: "The story behind the lounge, the standards we hold, and the men who keep them.",
-        es: "La historia detrás del salón, los estándares que mantenemos y los hombres que los sostienen.",
-      },
-    },
+    services: { title: { en: "Services", es: "Servicios" }, body: { en: "Explore the complete grooming menu.", es: "Explora el menú completo de grooming." } },
+    barbers: { title: { en: "The Barbers", es: "Los Barberos" }, body: { en: "Meet the professionals behind each chair.", es: "Conoce a los profesionales detrás de cada silla." } },
+    membership: { title: { en: "Membership", es: "Membresía" }, body: { en: "Build a reliable grooming rhythm with priority benefits.", es: "Crea un ritmo constante de grooming con beneficios prioritarios." } },
+    visit: { title: { en: "Visit", es: "Visítanos" }, body: { en: "Find the lounge, hours, parking, and contact details.", es: "Encuentra el salón, horario, estacionamiento y contacto." } },
+    about: { title: { en: "About", es: "Nosotros" }, body: { en: "The standards, room, and service behind the lounge.", es: "Los estándares, el espacio y el servicio detrás del salón." } },
   },
   footer: {
     sectionVisit: { en: "Visit", es: "Visítanos" },
     sectionHours: { en: "Hours", es: "Horario" },
+    sectionExplore: { en: "Explore", es: "Explora" },
     sectionFollow: { en: "Follow", es: "Síguenos" },
-    addressPlaceholder: {
-      en: "Address — to be announced",
-      es: "Dirección — por anunciar",
-    },
-    phonePlaceholder: { en: "Phone — TBA", es: "Teléfono — por anunciar" },
-    hoursWeekday: {
-      en: "Tuesday – Friday · 10:00 – 19:00",
-      es: "Martes – Viernes · 10:00 – 19:00",
-    },
-    hoursSat: { en: "Saturday · 09:00 – 18:00", es: "Sábado · 09:00 – 18:00" },
-    hoursSunMon: {
-      en: "Sunday & Monday · Closed",
-      es: "Domingo y Lunes · Cerrado",
-    },
-    rights: {
-      en: "All rights reserved.",
-      es: "Todos los derechos reservados.",
-    },
+    rights: { en: "All rights reserved.", es: "Todos los derechos reservados." },
     tagline: {
-      en: "By appointment. Quiet hours observed.",
-      es: "Sólo con cita. Se respeta el silencio del salón.",
+      en: "Precision grooming, genuine hospitality, and a chair worth returning to.",
+      es: "Grooming de precisión, hospitalidad genuina y una silla a la que vale la pena volver.",
     },
   },
 } as const;

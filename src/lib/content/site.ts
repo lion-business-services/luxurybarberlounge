@@ -1,203 +1,301 @@
 /**
- * Single source of truth for editable business content.
+ * Centralized, editable business and marketing content.
  *
- * Everything a non-developer will want to change lives here, in the same
- * `{ en, es }` shape the existing dictionary uses. Values marked CONFIRM are
- * placeholders awaiting the owner's intake form and must be replaced before
- * launch — they are deliberately generic so nothing reads as broken in public.
+ * Public pages read from this file today. The Supabase content tables mirror
+ * these shapes so the admin portal can replace local content without a redesign.
+ * Values marked `contentStatus: "curated-placeholder"` are professionally
+ * written launch content and must be confirmed by the owner before live billing,
+ * payroll, or legal reliance.
  */
 
+export type Lang = "en" | "es";
 export type Bi = { en: string; es: string };
+export type ContentStatus = "confirmed" | "curated-placeholder" | "integration-required";
 
 export const business = {
   name: "Luxury Barber Lounge",
-  /** Registered entity — used on statements and legal documents, not marketing. */
   legalName: "Luxury Barber Lounge, LLC",
   street: "801 Tilton Road, Suite 106",
-  city: "Northfield, NJ 08225",
+  city: "Northfield",
+  state: "NJ",
+  postalCode: "08225",
   county: "Atlantic County",
+  country: "US",
   phone: "(609) 384-5171",
+  bookingPhone: "(609) 384-5171",
   phoneHref: "tel:+16093845171",
   email: "info@theluxurybarberlounge.com",
+  statementsEmail: "info@theluxurybarberlounge.com",
   domain: "https://www.theluxurybarberlounge.com",
-  mapsUrl: "https://share.google/hDyTg77M6c4LdlX3o",
+  mapsUrl: "https://www.google.com/maps/search/?api=1&query=801+Tilton+Road+Suite+106+Northfield+NJ+08225",
+  googleBusinessUrl: "https://share.google/hDyTg77M6c4LdIX3o",
   instagram: "https://instagram.com/luxury_barberlounge",
   instagramHandle: "@luxury_barberlounge",
   facebook: "https://www.facebook.com/theluxurybarberlounge",
-  tagline: {
-    en: "Where precision grooming meets luxury experience",
-    es: "Donde el arreglo de precisión se encuentra con la experiencia de lujo",
-  },
-  brandWords: ["Luxurious", "Refined", "Distinctive"],
+  ownerName: "Rubén Díaz, Jr.",
+  ownerLanguage: ["English", "Spanish"],
   yearOpened: 2026,
+  timezone: "America/New_York",
+  currency: "USD",
+  brandWords: ["Luxurious", "Refined", "Distinctive"],
+  tagline: {
+    en: "Where precision grooming meets luxury experience.",
+    es: "Donde el grooming de precisión se encuentra con una experiencia de lujo.",
+  },
+  shortDescription: {
+    en: "A luxury barbershop in Northfield, New Jersey offering precision cuts, fades, beard services, hot-towel rituals, and personalized grooming.",
+    es: "Una barbería de lujo en Northfield, Nueva Jersey, con cortes de precisión, fades, barba, rituales de toalla caliente y atención personalizada.",
+  },
+  parking: {
+    en: "On-site parking is available near Suite 106. Final accessibility and overflow-parking details remain subject to owner confirmation.",
+    es: "Hay estacionamiento en el lugar cerca de la Suite 106. Los detalles finales de accesibilidad y estacionamiento adicional requieren confirmación del propietario.",
+  },
+  grandOpening: {
+    date: "2026-08-04",
+    time: "5:00 PM",
+    label: { en: "Grand Opening · August 4 · 5:00 PM", es: "Gran Apertura · 4 de agosto · 5:00 PM" },
+  },
+  ownerConfirmation: [
+    "business hours",
+    "parking and accessibility details",
+    "service prices and deposits",
+    "barber roster and biographies",
+    "membership pricing and terms",
+    "policies and legal text",
+    "Square catalog and team mappings",
+  ],
+  accessibility: {
+    en: "Contact the lounge before your visit for mobility, sensory, or communication accommodations.",
+    es: "Comunícate con el salón antes de tu visita para solicitar adaptaciones de movilidad, sensoriales o de comunicación.",
+  },
+  contentStatus: "confirmed" as ContentStatus,
 } as const;
 
-/** CONFIRM — hours pending owner intake. `closed` days render as Closed. */
-export const hours: { day: Bi; open: string; close: string; closed?: boolean }[] = [
-  { day: { en: "Tuesday", es: "Martes" }, open: "9:00", close: "19:00" },
-  { day: { en: "Wednesday", es: "Miércoles" }, open: "9:00", close: "19:00" },
-  { day: { en: "Thursday", es: "Jueves" }, open: "9:00", close: "20:00" },
-  { day: { en: "Friday", es: "Viernes" }, open: "9:00", close: "20:00" },
-  { day: { en: "Saturday", es: "Sábado" }, open: "8:00", close: "18:00" },
-  { day: { en: "Sunday", es: "Domingo" }, open: "", close: "", closed: true },
-  { day: { en: "Monday", es: "Lunes" }, open: "", close: "", closed: true },
+export const hours: { day: Bi; weekday: number; open: string; close: string; closed?: boolean }[] = [
+  { day: { en: "Sunday", es: "Domingo" }, weekday: 0, open: "", close: "", closed: true },
+  { day: { en: "Monday", es: "Lunes" }, weekday: 1, open: "", close: "", closed: true },
+  { day: { en: "Tuesday", es: "Martes" }, weekday: 2, open: "09:00", close: "19:00" },
+  { day: { en: "Wednesday", es: "Miércoles" }, weekday: 3, open: "09:00", close: "19:00" },
+  { day: { en: "Thursday", es: "Jueves" }, weekday: 4, open: "09:00", close: "20:00" },
+  { day: { en: "Friday", es: "Viernes" }, weekday: 5, open: "09:00", close: "20:00" },
+  { day: { en: "Saturday", es: "Sábado" }, weekday: 6, open: "08:00", close: "18:00" },
+];
+
+export type ServiceCategory = {
+  slug: string;
+  name: Bi;
+  description: Bi;
+};
+
+export const serviceCategories: ServiceCategory[] = [
+  {
+    slug: "haircuts-fades",
+    name: { en: "Haircuts & Fades", es: "Cortes y Fades" },
+    description: {
+      en: "Precision shape, balanced weight, and clean finishing for every texture and length.",
+      es: "Forma precisa, peso equilibrado y acabado limpio para toda textura y largo.",
+    },
+  },
+  {
+    slug: "beard-shaves",
+    name: { en: "Beard & Shaves", es: "Barba y Afeitados" },
+    description: {
+      en: "Sculpting, conditioning, color refinement, and traditional hot-towel rituals.",
+      es: "Diseño, acondicionamiento, color y rituales tradicionales con toalla caliente.",
+    },
+  },
+  {
+    slug: "color-texture",
+    name: { en: "Color & Texture", es: "Color y Textura" },
+    description: {
+      en: "Controlled color, curl, smoothing, and texture services designed around your finish.",
+      es: "Servicios de color, rizos, alisado y textura diseñados para tu acabado.",
+    },
+  },
+  {
+    slug: "hair-scalp-care",
+    name: { en: "Hair & Scalp Care", es: "Cuidado Capilar" },
+    description: {
+      en: "Restorative cleansing, conditioning, scalp care, and capillary treatments.",
+      es: "Limpieza restauradora, acondicionamiento, cuidado del cuero cabelludo y tratamientos capilares.",
+    },
+  },
+  {
+    slug: "grooming-finish",
+    name: { en: "Grooming & Finish", es: "Arreglo y Acabado" },
+    description: {
+      en: "Detail work for brows, waxing, manicure grooming, and complete service packages.",
+      es: "Detalles para cejas, depilación, manicura masculina y paquetes completos.",
+    },
+  },
+  {
+    slug: "youth-specialty",
+    name: { en: "Youth & Specialty", es: "Juvenil y Especialidad" },
+    description: {
+      en: "Purpose-built services for young guests, military cuts, long hair, and special requests.",
+      es: "Servicios para jóvenes, cortes militares, cabello largo y solicitudes especiales.",
+    },
+  },
 ];
 
 export type Service = {
   slug: string;
+  category: string;
   name: Bi;
+  shortName?: Bi;
   blurb: Bi;
+  description: Bi;
   minutes: number;
-  /** CONFIRM — pricing pending owner intake. Displayed as "from $X". */
   from: number;
+  deposit: number;
+  featured?: boolean;
+  benefits: Bi[];
+  preparation: Bi;
+  maintenance: Bi;
+  tags: string[];
+  squareCatalogId?: string;
+  contentStatus: ContentStatus;
 };
 
+const commonPreparation: Bi = {
+  en: "Arrive with your hair in its normal condition and bring any reference images that clarify the result you want.",
+  es: "Llega con el cabello en su condición normal y trae imágenes de referencia que aclaren el resultado que deseas.",
+};
+
+function service(input: Omit<Service, "benefits" | "preparation" | "maintenance" | "tags" | "contentStatus"> & {
+  benefits?: Bi[];
+  preparation?: Bi;
+  maintenance?: Bi;
+  tags?: string[];
+  contentStatus?: ContentStatus;
+}): Service {
+  return {
+    ...input,
+    benefits: input.benefits ?? [
+      { en: "Personal consultation before the service begins", es: "Consulta personal antes de comenzar" },
+      { en: "Detailed finishing and styling guidance", es: "Acabado detallado y guía de estilo" },
+    ],
+    preparation: input.preparation ?? commonPreparation,
+    maintenance: input.maintenance ?? {
+      en: "Most guests rebook in two to four weeks, depending on the desired level of definition.",
+      es: "La mayoría vuelve en dos a cuatro semanas, según el nivel de definición deseado.",
+    },
+    tags: input.tags ?? [],
+    contentStatus: input.contentStatus ?? "curated-placeholder",
+  };
+}
+
+/**
+ * Curated launch catalog based on the supplied barber-service reference.
+ * Prices are starting-price placeholders until the Square catalog is mapped.
+ */
 export const services: Service[] = [
-  {
-    slug: "signature-cut",
-    name: { en: "Signature Cut", es: "Corte Signature" },
-    blurb: {
-      en: "Consultation, precision cut, hot towel, and a finish built to hold all week.",
-      es: "Consulta, corte de precisión, toalla caliente y acabado que dura toda la semana.",
-    },
-    minutes: 45,
-    from: 45,
-  },
-  {
-    slug: "skin-fade",
-    name: { en: "Skin Fade", es: "Skin Fade" },
-    blurb: {
-      en: "Clean taper to the skin, blended by eye, edged with a straight razor.",
-      es: "Degradado limpio hasta la piel, difuminado a ojo y perfilado con navaja.",
-    },
-    minutes: 45,
-    from: 45,
-  },
-  {
-    slug: "beard-sculpt",
-    name: { en: "Beard Sculpt", es: "Perfilado de Barba" },
-    blurb: {
-      en: "Shaped to your jaw, softened with steam, finished with oil.",
-      es: "Diseñada a tu mandíbula, suavizada con vapor y terminada con aceite.",
-    },
-    minutes: 30,
-    from: 30,
-  },
-  {
-    slug: "cut-and-beard",
-    name: { en: "Cut & Beard", es: "Corte y Barba" },
-    blurb: {
-      en: "The full sitting. Cut, beard, hot towel, and the chair for an hour.",
-      es: "La sesión completa. Corte, barba, toalla caliente y la silla por una hora.",
-    },
-    minutes: 60,
-    from: 70,
-  },
-  {
-    slug: "hot-towel-shave",
-    name: { en: "Hot Towel Shave", es: "Afeitado con Toalla Caliente" },
-    blurb: {
-      en: "Straight razor, three towels, and no reason to hurry.",
-      es: "Navaja, tres toallas y ninguna razón para apurarse.",
-    },
-    minutes: 45,
-    from: 50,
-  },
-  {
-    slug: "young-gentleman",
-    name: { en: "The Young Gentleman", es: "El Joven Caballero" },
-    blurb: {
-      en: "For guests twelve and under. Same chair, same standard, less ceremony.",
-      es: "Para clientes de doce años o menos. Misma silla, mismo estándar, menos ceremonia.",
-    },
-    minutes: 30,
-    from: 30,
-  },
+  service({ slug: "signature-haircut", category: "haircuts-fades", name: { en: "Signature Haircut", es: "Corte Signature" }, blurb: { en: "Consultation, precision cut, rinse, styling, and a finish built for your routine.", es: "Consulta, corte de precisión, enjuague, peinado y acabado para tu rutina." }, description: { en: "A tailored haircut built around head shape, growth pattern, texture, and daily styling. The service includes a clear consultation, precision cutting, detailed neckline and perimeter work, and product guidance.", es: "Un corte personalizado según la forma de la cabeza, crecimiento, textura y rutina diaria. Incluye consulta, corte de precisión, detalles del contorno y guía de productos." }, minutes: 45, from: 45, deposit: 15, featured: true, tags: ["haircut", "custom cut", "scissor cut"] }),
+  service({ slug: "fade-cut", category: "haircuts-fades", name: { en: "Fade Cut", es: "Corte Fade" }, blurb: { en: "A clean gradient with deliberate weight, crisp edges, and balanced shape.", es: "Un degradado limpio con peso deliberado, bordes precisos y forma equilibrada." }, description: { en: "Choose low, mid, high, taper, or skin fade. Your barber balances the fade with the top length and finishes the perimeter with exact detailing.", es: "Elige fade bajo, medio, alto, taper o skin fade. El barbero equilibra el degradado con la parte superior y termina el contorno con precisión." }, minutes: 45, from: 45, deposit: 15, featured: true, tags: ["fade", "skin fade", "taper"] }),
+  service({ slug: "buzz-cut", category: "haircuts-fades", name: { en: "Buzz Cut", es: "Buzz Cut" }, blurb: { en: "Uniform clipper work, clean edges, and a polished low-maintenance finish.", es: "Máquina uniforme, bordes limpios y acabado pulido de bajo mantenimiento." }, description: { en: "A precise clipper cut using one or more guard lengths, with neckline and edge detailing for a clean, intentional result.", es: "Corte preciso con máquina usando uno o más números, con detalles en nuca y contorno." }, minutes: 25, from: 30, deposit: 10, tags: ["buzz cut", "clipper"] }),
+  service({ slug: "custom-cut", category: "haircuts-fades", name: { en: "Custom Cut", es: "Corte Personalizado" }, blurb: { en: "A consultative cut for a new shape, image change, or complex reference.", es: "Un corte consultivo para nueva forma, cambio de imagen o referencia compleja." }, description: { en: "Designed for guests making a meaningful change. Extra consultation time allows the barber to plan shape, movement, texture, and maintenance before cutting.", es: "Diseñado para quienes buscan un cambio importante. El tiempo adicional permite planificar forma, movimiento, textura y mantenimiento." }, minutes: 60, from: 60, deposit: 20, tags: ["custom cut", "transformation"] }),
+  service({ slug: "scissor-cut", category: "haircuts-fades", name: { en: "Scissor Cut", es: "Corte a Tijera" }, blurb: { en: "Classic scissor work for control, movement, and natural texture.", es: "Trabajo clásico a tijera para control, movimiento y textura natural." }, description: { en: "A scissor-led service for medium or longer styles, emphasizing natural movement, balanced layers, and polished shape.", es: "Servicio principalmente a tijera para estilos medios o largos, con movimiento natural, capas equilibradas y forma pulida." }, minutes: 50, from: 55, deposit: 15, tags: ["scissor cut", "long hair"] }),
+  service({ slug: "razor-cut", category: "haircuts-fades", name: { en: "Razor Cut", es: "Corte con Navaja" }, blurb: { en: "Soft texture and controlled movement created with professional razor technique.", es: "Textura suave y movimiento controlado con técnica profesional de navaja." }, description: { en: "A texture-focused cutting service using a guarded professional razor where appropriate. Best for selected hair types and finishes after consultation.", es: "Servicio enfocado en textura usando navaja profesional protegida cuando corresponde. Ideal para ciertos tipos de cabello tras consulta." }, minutes: 50, from: 55, deposit: 15, tags: ["razor cut", "texture"] }),
+  service({ slug: "hair-shape-up", category: "haircuts-fades", name: { en: "Hair Shape-Up", es: "Perfilado de Cabello" }, blurb: { en: "Crisp front, temple, and neckline detail between full services.", es: "Detalles precisos en frente, sienes y nuca entre servicios completos." }, description: { en: "A focused perimeter refresh that restores clean lines without changing the overall haircut.", es: "Retoque del contorno que recupera líneas limpias sin cambiar el corte completo." }, minutes: 20, from: 22, deposit: 8, tags: ["shape up", "lineup"] }),
+  service({ slug: "head-shave", category: "beard-shaves", name: { en: "Head Shave", es: "Afeitado de Cabeza" }, blurb: { en: "Hot towels, close razor work, soothing finish, and polished detail.", es: "Toallas calientes, afeitado al ras, acabado calmante y detalle pulido." }, description: { en: "A traditional close head shave prepared with heat and finished with soothing post-shave care.", es: "Afeitado tradicional al ras preparado con calor y terminado con cuidado calmante." }, minutes: 40, from: 45, deposit: 15, tags: ["head shave", "hot towel"] }),
+  service({ slug: "beard-trim", category: "beard-shaves", name: { en: "Beard Trim", es: "Recorte de Barba" }, blurb: { en: "Balanced length, clean perimeter, and a shape that supports the jaw.", es: "Largo equilibrado, contorno limpio y forma que favorece la mandíbula." }, description: { en: "A controlled beard trim with consultation, clipper or scissor shaping, neckline cleanup, and styling finish.", es: "Recorte controlado con consulta, forma a máquina o tijera, limpieza del cuello y acabado." }, minutes: 25, from: 28, deposit: 10, featured: true, tags: ["beard trim", "beard maintenance"] }),
+  service({ slug: "beard-maintenance", category: "beard-shaves", name: { en: "Beard Maintenance", es: "Mantenimiento de Barba" }, blurb: { en: "Regular shape control, flyaway cleanup, neckline, and conditioning.", es: "Control regular de forma, limpieza, nuca y acondicionamiento." }, description: { en: "A maintenance visit for guests preserving an established beard shape between full sculpting sessions.", es: "Visita de mantenimiento para conservar una forma de barba ya establecida entre sesiones completas." }, minutes: 20, from: 24, deposit: 8, tags: ["beard maintenance"] }),
+  service({ slug: "beard-conditioning", category: "beard-shaves", name: { en: "Beard Conditioning", es: "Acondicionamiento de Barba" }, blurb: { en: "Steam, cleansing, hydration, and a softer, healthier finish.", es: "Vapor, limpieza, hidratación y un acabado más suave y saludable." }, description: { en: "A restorative beard ritual using warm preparation, cleansing, conditioning, and finishing oil selected for the beard and skin.", es: "Ritual restaurador con preparación caliente, limpieza, acondicionamiento y aceite elegido para barba y piel." }, minutes: 25, from: 30, deposit: 10, tags: ["beard conditioning", "treatment"] }),
+  service({ slug: "beard-dyeing", category: "beard-shaves", name: { en: "Beard Color Refinement", es: "Color de Barba" }, blurb: { en: "Subtle gray blending or fuller color with a natural-looking result.", es: "Mezcla sutil de canas o color completo con resultado natural." }, description: { en: "A consultation-led beard color service designed to soften gray, improve density appearance, or refine tone without an artificial finish.", es: "Servicio de color consultivo para suavizar canas, mejorar apariencia de densidad o refinar tono sin acabado artificial." }, minutes: 40, from: 45, deposit: 15, tags: ["beard dyeing", "color"] }),
+  service({ slug: "hot-towel-shave", category: "beard-shaves", name: { en: "Hot Towel Shave", es: "Afeitado con Toalla Caliente" }, blurb: { en: "A traditional close shave with warm preparation and calming post-shave care.", es: "Afeitado tradicional al ras con preparación caliente y cuidado calmante." }, description: { en: "A classic barber ritual with multiple hot towels, lather, straight-razor work where appropriate, cool finish, and post-shave hydration.", es: "Ritual clásico con varias toallas calientes, espuma, navaja cuando corresponde, acabado frío e hidratación." }, minutes: 45, from: 50, deposit: 15, featured: true, tags: ["hot towel shave", "straight razor shave"] }),
+  service({ slug: "straight-razor-shave", category: "beard-shaves", name: { en: "Straight Razor Shave", es: "Afeitado con Navaja" }, blurb: { en: "Precision razor work for the closest traditional finish.", es: "Trabajo preciso con navaja para el acabado tradicional más al ras." }, description: { en: "A close traditional shave performed after skin and hair preparation, with measured razor passes and a calming finish.", es: "Afeitado tradicional al ras tras preparar piel y vello, con pasadas controladas y acabado calmante." }, minutes: 40, from: 48, deposit: 15, tags: ["straight razor shave", "shave"] }),
+  service({ slug: "hair-coloring", category: "color-texture", name: { en: "Hair Coloring", es: "Coloración de Cabello" }, blurb: { en: "Tone refinement, gray blending, or richer color planned through consultation.", es: "Refinamiento de tono, mezcla de canas o color más intenso mediante consulta." }, description: { en: "A customized color service priced after consultation according to hair length, density, product use, and desired result.", es: "Servicio de color personalizado cotizado tras consulta según largo, densidad, producto y resultado deseado." }, minutes: 75, from: 75, deposit: 25, tags: ["hair coloring", "gray blending"] }),
+  service({ slug: "curly-hair", category: "color-texture", name: { en: "Curly Hair Design", es: "Diseño para Cabello Rizado" }, blurb: { en: "Shape and weight management created specifically for curls and coils.", es: "Forma y control de peso diseñados para rizos y cabello muy rizado." }, description: { en: "A texture-aware service focused on curl pattern, shrinkage, balance, and a practical styling routine.", es: "Servicio enfocado en patrón de rizo, encogimiento, equilibrio y rutina práctica de peinado." }, minutes: 60, from: 60, deposit: 20, tags: ["curly hair", "texture"] }),
+  service({ slug: "hair-straightening", category: "color-texture", name: { en: "Hair Straightening", es: "Alisado de Cabello" }, blurb: { en: "Controlled smoothing and styling after a compatibility consultation.", es: "Alisado y peinado controlado tras consulta de compatibilidad." }, description: { en: "A consultation-required smoothing service. Technique, duration, and price depend on hair history, texture, length, and desired result.", es: "Servicio de alisado que requiere consulta. Técnica, duración y precio dependen del historial, textura, largo y resultado." }, minutes: 90, from: 95, deposit: 30, tags: ["hair straightening"] }),
+  service({ slug: "perms", category: "color-texture", name: { en: "Texture Perm", es: "Permanente" }, blurb: { en: "Structured wave or curl created after condition and compatibility review.", es: "Ondas o rizos estructurados tras revisar condición y compatibilidad." }, description: { en: "A consultation-required texture service planned around hair integrity, desired curl size, and maintenance commitment.", es: "Servicio de textura que requiere consulta, planificado según integridad del cabello, tamaño del rizo y mantenimiento." }, minutes: 120, from: 120, deposit: 40, tags: ["perms", "texture"] }),
+  service({ slug: "hair-extensions", category: "color-texture", name: { en: "Hair Extension Consultation", es: "Consulta de Extensiones" }, blurb: { en: "A private planning session for length, density, method, color, and maintenance.", es: "Sesión privada para planificar largo, densidad, método, color y mantenimiento." }, description: { en: "A consultation and suitability assessment. Final pricing is provided after method, quantity, color, and maintenance requirements are confirmed.", es: "Consulta y evaluación de compatibilidad. El precio final se entrega tras confirmar método, cantidad, color y mantenimiento." }, minutes: 30, from: 25, deposit: 25, tags: ["hair extensions", "consultation"] }),
+  service({ slug: "shampoo-conditioning", category: "hair-scalp-care", name: { en: "Shampoo & Conditioning", es: "Champú y Acondicionamiento" }, blurb: { en: "Professional cleansing and conditioning selected for hair and scalp needs.", es: "Limpieza y acondicionamiento profesional según las necesidades del cabello y cuero cabelludo." }, description: { en: "A restorative cleanse and condition service that can stand alone or prepare the hair for another treatment.", es: "Limpieza y acondicionamiento restaurador que puede ser independiente o preparar el cabello para otro servicio." }, minutes: 20, from: 20, deposit: 5, tags: ["shampoo", "conditioning"] }),
+  service({ slug: "scalp-treatment", category: "hair-scalp-care", name: { en: "Scalp Treatment", es: "Tratamiento del Cuero Cabelludo" }, blurb: { en: "Deep cleansing, exfoliation, hydration, and a calmer scalp feel.", es: "Limpieza profunda, exfoliación, hidratación y sensación de calma." }, description: { en: "A non-medical grooming treatment focused on cleansing product buildup and supporting a refreshed scalp environment. Persistent concerns should be discussed with a licensed healthcare professional.", es: "Tratamiento cosmético no médico para limpiar acumulación y refrescar el cuero cabelludo. Las molestias persistentes deben consultarse con un profesional de salud." }, minutes: 35, from: 40, deposit: 12, tags: ["scalp treatment", "care"] }),
+  service({ slug: "capillary-hair-treatment", category: "hair-scalp-care", name: { en: "Capillary Hair Treatment", es: "Tratamiento Capilar" }, blurb: { en: "Condition-focused care to improve manageability, softness, and appearance.", es: "Cuidado enfocado en condición para mejorar manejo, suavidad y apariencia." }, description: { en: "A cosmetic conditioning treatment selected according to dryness, damage appearance, texture, and styling needs.", es: "Tratamiento cosmético elegido según resequedad, apariencia de daño, textura y necesidades de peinado." }, minutes: 45, from: 50, deposit: 15, tags: ["capillary treatment", "conditioning"] }),
+  service({ slug: "eyebrow-trimming", category: "grooming-finish", name: { en: "Eyebrow Trimming", es: "Recorte de Cejas" }, blurb: { en: "Subtle cleanup that preserves a natural, masculine shape.", es: "Limpieza sutil que conserva una forma natural y masculina." }, description: { en: "A conservative trim and cleanup to reduce excess length and improve symmetry without over-shaping.", es: "Recorte conservador para reducir exceso de largo y mejorar simetría sin sobre-diseñar." }, minutes: 15, from: 15, deposit: 5, tags: ["eyebrow trimming"] }),
+  service({ slug: "eyebrow-tinting", category: "grooming-finish", name: { en: "Eyebrow Tinting", es: "Tinte de Cejas" }, blurb: { en: "Controlled tone enhancement for stronger definition and balance.", es: "Mejora controlada del tono para mayor definición y equilibrio." }, description: { en: "A subtle tint service selected to complement natural hair and skin tone. Patch testing may be required.", es: "Tinte sutil elegido para complementar cabello y tono de piel. Puede requerir prueba de sensibilidad." }, minutes: 25, from: 28, deposit: 10, tags: ["eyebrow tinting"] }),
+  service({ slug: "waxing", category: "grooming-finish", name: { en: "Facial Detail Waxing", es: "Depilación Facial" }, blurb: { en: "Clean detail work for brows, ears, nose, or selected facial areas.", es: "Detalles limpios para cejas, orejas, nariz o áreas faciales seleccionadas." }, description: { en: "Targeted facial waxing performed only on appropriate areas after a brief skin and sensitivity check.", es: "Depilación facial localizada en áreas apropiadas tras una breve revisión de piel y sensibilidad." }, minutes: 20, from: 18, deposit: 5, tags: ["waxing"] }),
+  service({ slug: "mens-manicure", category: "grooming-finish", name: { en: "Men’s Manicure", es: "Manicura Masculina" }, blurb: { en: "Clean nails, refined cuticles, and a natural professional finish.", es: "Uñas limpias, cutículas cuidadas y acabado profesional natural." }, description: { en: "A discreet grooming service focused on trimming, shaping, cuticle care, and hydration without polish unless requested.", es: "Servicio discreto de corte, forma, cuidado de cutícula e hidratación, sin esmalte salvo solicitud." }, minutes: 35, from: 38, deposit: 12, tags: ["men's manicure"] }),
+  service({ slug: "groom-package", category: "grooming-finish", name: { en: "Executive Grooming Package", es: "Paquete Ejecutivo" }, blurb: { en: "Haircut, beard detail, hot towel, cleansing, and a complete finishing ritual.", es: "Corte, detalle de barba, toalla caliente, limpieza y ritual completo de acabado." }, description: { en: "A complete sitting designed for guests who want the full lounge experience in one coordinated appointment.", es: "Sesión completa para quienes desean toda la experiencia del salón en una cita coordinada." }, minutes: 90, from: 105, deposit: 30, featured: true, tags: ["groom package", "executive"] }),
+  service({ slug: "kids-cut", category: "youth-specialty", name: { en: "Young Gentleman’s Cut", es: "Corte para Niño" }, blurb: { en: "A patient, polished haircut for guests twelve and under.", es: "Corte paciente y pulido para clientes de doce años o menos." }, description: { en: "A youth haircut with clear communication, age-appropriate pacing, and the same finishing standard as an adult service.", es: "Corte juvenil con comunicación clara, ritmo apropiado y el mismo estándar de acabado." }, minutes: 30, from: 30, deposit: 10, tags: ["kids' cuts"] }),
+  service({ slug: "military-haircut", category: "youth-specialty", name: { en: "Military Haircut", es: "Corte Militar" }, blurb: { en: "Disciplined clipper work with a clean, regulation-conscious finish.", es: "Trabajo disciplinado con máquina y acabado limpio, consciente de reglamentos." }, description: { en: "A precise short cut customized to the requested military or professional standard. Guests remain responsible for confirming exact organizational requirements.", es: "Corte corto preciso adaptado al estándar militar o profesional solicitado. El cliente debe confirmar requisitos específicos." }, minutes: 30, from: 32, deposit: 10, tags: ["military haircut"] }),
+  service({ slug: "long-haircut", category: "youth-specialty", name: { en: "Long Haircut", es: "Corte de Cabello Largo" }, blurb: { en: "Shape, movement, and controlled weight for longer styles.", es: "Forma, movimiento y peso controlado para estilos largos." }, description: { en: "A longer appointment for scissor-led shaping, layers, perimeter refinement, and styling guidance.", es: "Cita más larga para forma a tijera, capas, contorno y guía de peinado." }, minutes: 65, from: 70, deposit: 20, tags: ["long haircut", "scissor"] }),
+  service({ slug: "male-body-hair-removal", category: "youth-specialty", name: { en: "Men’s Body Grooming Consultation", es: "Consulta de Grooming Corporal" }, blurb: { en: "Private assessment for approved grooming areas and suitable methods.", es: "Evaluación privada de áreas aprobadas y métodos adecuados." }, description: { en: "A consultation-only listing. Services, licensed scope, method, pricing, and consent requirements must be confirmed before activation.", es: "Servicio solo de consulta. Deben confirmarse alcance autorizado, método, precio y consentimiento antes de activarlo." }, minutes: 20, from: 20, deposit: 10, tags: ["body grooming", "consultation"], contentStatus: "integration-required" }),
 ];
+
+export const serviceAddOns = [
+  { slug: "hot-towel", name: { en: "Hot Towel Finish", es: "Acabado con Toalla Caliente" }, minutes: 10, price: 12 },
+  { slug: "beard-conditioning", name: { en: "Beard Conditioning", es: "Acondicionamiento de Barba" }, minutes: 15, price: 18 },
+  { slug: "scalp-reset", name: { en: "Scalp Reset", es: "Renovación del Cuero Cabelludo" }, minutes: 20, price: 25 },
+  { slug: "gray-blend", name: { en: "Gray Blend", es: "Mezcla de Canas" }, minutes: 25, price: 35 },
+] as const;
 
 export type Barber = {
   slug: string;
   name: string;
   title: Bi;
   bio: Bi;
+  story: Bi;
   specialties: Bi;
+  specialtyTags: string[];
   languages: string;
-  /** Initials render in the portrait plate until real photography arrives. */
   initials: string;
+  serviceSlugs: string[];
+  squareTeamMemberId?: string;
+  contentStatus: ContentStatus;
 };
 
-/** CONFIRM — roster, bios, and photography pending owner intake. */
+/** Names are based on supplied operational references. Bios remain curated until owner approval. */
 export const barbers: Barber[] = [
   {
-    slug: "chair-one",
-    name: "Barber One",
-    initials: "I",
-    title: { en: "Master Barber", es: "Barbero Maestro" },
+    slug: "ruben",
+    name: "Rúben",
+    initials: "R",
+    title: { en: "Founder & Master Barber", es: "Fundador y Barbero Maestro" },
     bio: {
-      en: "Fifteen years behind the chair and a preference for the quiet, exact kind of work.",
-      es: "Quince años detrás de la silla y preferencia por el trabajo callado y exacto.",
+      en: "A precision-focused barber building a lounge where the service, room, and relationship are treated with equal care.",
+      es: "Barbero enfocado en precisión, creando un salón donde el servicio, el espacio y la relación reciben el mismo cuidado.",
     },
-    specialties: { en: "Skin fades · Classic scissor work", es: "Skin fades · Trabajo clásico a tijera" },
+    story: {
+      en: "Rúben’s chair is built around consultation, controlled detail, and a result that still looks intentional after the first week.",
+      es: "La silla de Rúben se basa en consulta, detalle controlado y un resultado que sigue luciendo intencional después de la primera semana.",
+    },
+    specialties: { en: "Precision fades · Beard architecture · Executive grooming", es: "Fades de precisión · Diseño de barba · Grooming ejecutivo" },
+    specialtyTags: ["fade-cut", "beard-trim", "groom-package", "hot-towel-shave"],
     languages: "EN · ES",
+    serviceSlugs: ["signature-haircut", "fade-cut", "beard-trim", "hot-towel-shave", "groom-package"],
+    contentStatus: "curated-placeholder",
   },
   {
-    slug: "chair-two",
-    name: "Barber Two",
-    initials: "II",
+    slug: "carlos",
+    name: "Carlos",
+    initials: "C",
     title: { en: "Senior Barber", es: "Barbero Sénior" },
     bio: {
-      en: "Known for beards that look grown rather than cut, and for remembering how you take your coffee.",
-      es: "Conocido por barbas que parecen crecidas y no cortadas, y por recordar cómo tomas el café.",
+      en: "A detail-driven barber with a calm approach to clean fades, beard structure, and repeatable maintenance plans.",
+      es: "Barbero detallista con enfoque tranquilo en fades limpios, estructura de barba y planes de mantenimiento.",
     },
-    specialties: { en: "Beard sculpting · Straight razor", es: "Diseño de barba · Navaja" },
-    languages: "EN · ES",
-  },
-  {
-    slug: "chair-three",
-    name: "Barber Three",
-    initials: "III",
-    title: { en: "Barber", es: "Barbero" },
-    bio: {
-      en: "Fast hands, patient eye. The one to see when you want something changed, not maintained.",
-      es: "Manos rápidas, ojo paciente. El indicado cuando quieres un cambio, no mantenimiento.",
+    story: {
+      en: "Carlos works from the finished silhouette backward, balancing shape and texture so the service fits the client rather than the trend alone.",
+      es: "Carlos parte de la silueta final, equilibrando forma y textura para que el servicio se adapte al cliente y no solo a la tendencia.",
     },
-    specialties: { en: "Design work · Textured crops", es: "Diseños · Cortes texturizados" },
+    specialties: { en: "Skin fades · Scissor work · Beard maintenance", es: "Skin fades · Trabajo a tijera · Mantenimiento de barba" },
+    specialtyTags: ["fade-cut", "scissor-cut", "beard-maintenance", "kids-cut"],
     languages: "EN · ES",
-  },
-  {
-    slug: "chair-four",
-    name: "Barber Four",
-    initials: "IV",
-    title: { en: "Barber", es: "Barbero" },
-    bio: {
-      en: "Trained on classic cuts and never lost the habit of finishing by hand.",
-      es: "Formado en cortes clásicos y nunca perdió la costumbre de terminar a mano.",
-    },
-    specialties: { en: "Tapers · Hot towel shaves", es: "Degradados · Afeitados con toalla" },
-    languages: "EN · ES",
-  },
-  {
-    slug: "chair-five",
-    name: "Barber Five",
-    initials: "V",
-    title: { en: "Barber", es: "Barbero" },
-    bio: {
-      en: "Quietly the most requested chair on Saturdays. Book ahead.",
-      es: "En silencio, la silla más solicitada los sábados. Reserva con tiempo.",
-    },
-    specialties: { en: "Kids' cuts · Line-ups", es: "Cortes para niños · Perfilados" },
-    languages: "EN · ES",
+    serviceSlugs: ["signature-haircut", "fade-cut", "scissor-cut", "beard-maintenance", "kids-cut"],
+    contentStatus: "curated-placeholder",
   },
 ];
 
 export type Tier = {
   slug: string;
   name: Bi;
-  /** CONFIRM — membership pricing pending owner approval. */
   price: number;
   cadence: Bi;
+  description: Bi;
   perks: Bi[];
   featured?: boolean;
+  contentStatus: ContentStatus;
 };
 
 export const tiers: Tier[] = [
@@ -206,40 +304,70 @@ export const tiers: Tier[] = [
     name: { en: "The Standing", es: "La Fija" },
     price: 65,
     cadence: { en: "per month", es: "al mes" },
+    description: { en: "A reliable monthly reset with a preferred booking rhythm.", es: "Un mantenimiento mensual confiable con ritmo de reserva preferente." },
     perks: [
-      { en: "One signature cut each month", es: "Un corte signature cada mes" },
-      { en: "Priority on the standing-appointment list", es: "Prioridad en la lista de citas fijas" },
-      { en: "10% off retail", es: "10% de descuento en productos" },
+      { en: "One signature haircut each month", es: "Un corte signature cada mes" },
+      { en: "Priority rebooking window", es: "Ventana prioritaria para volver a reservar" },
+      { en: "10% off eligible retail", es: "10% de descuento en productos elegibles" },
     ],
+    contentStatus: "curated-placeholder",
   },
   {
     slug: "the-fortnight",
     name: { en: "The Fortnight", es: "La Quincenal" },
     price: 110,
     cadence: { en: "per month", es: "al mes" },
+    description: { en: "For guests who keep their shape crisp every other week.", es: "Para quienes mantienen su forma impecable cada dos semanas." },
     perks: [
-      { en: "Two cuts each month", es: "Dos cortes cada mes" },
+      { en: "Two eligible haircuts each month", es: "Dos cortes elegibles cada mes" },
       { en: "Complimentary beard tidy between visits", es: "Retoque de barba de cortesía entre visitas" },
       { en: "Priority booking window", es: "Ventana de reserva prioritaria" },
-      { en: "15% off retail", es: "15% de descuento en productos" },
+      { en: "15% off eligible retail", es: "15% de descuento en productos elegibles" },
     ],
     featured: true,
+    contentStatus: "curated-placeholder",
   },
   {
     slug: "the-lounge",
     name: { en: "The Lounge", es: "La Lounge" },
     price: 190,
     cadence: { en: "per month", es: "al mes" },
+    description: { en: "A concierge-style grooming rhythm for high-frequency maintenance.", es: "Un ritmo de grooming tipo concierge para mantenimiento frecuente." },
     perks: [
-      { en: "Unlimited cuts and beard work", es: "Cortes y barba ilimitados" },
-      { en: "After-hours appointments on request", es: "Citas fuera de horario a solicitud" },
-      { en: "A guest visit each month", es: "Una visita de invitado cada mes" },
-      { en: "20% off retail", es: "20% de descuento en productos" },
+      { en: "Expanded monthly service allowance", es: "Asignación mensual ampliada de servicios" },
+      { en: "After-hours request priority", es: "Prioridad para solicitudes fuera de horario" },
+      { en: "One guest benefit each month", es: "Un beneficio para invitado cada mes" },
+      { en: "20% off eligible retail", es: "20% de descuento en productos elegibles" },
     ],
+    contentStatus: "curated-placeholder",
   },
 ];
 
-/** Page-level copy, same shape as the existing dictionary. */
+export const packages = [
+  { slug: "executive-reset", name: { en: "Executive Reset", es: "Renovación Ejecutiva" }, description: { en: "Signature haircut, beard sculpt, hot towel, shampoo, and styling consultation.", es: "Corte signature, diseño de barba, toalla caliente, champú y consulta de peinado." }, minutes: 105, from: 125 },
+  { slug: "hair-beard", name: { en: "Hair & Beard Ritual", es: "Ritual de Cabello y Barba" }, description: { en: "A coordinated haircut and beard service with conditioning and finishing.", es: "Corte y barba coordinados con acondicionamiento y acabado." }, minutes: 75, from: 85 },
+  { slug: "father-son", name: { en: "Father & Son", es: "Padre e Hijo" }, description: { en: "Two coordinated appointments with age-appropriate service and shared lounge time.", es: "Dos citas coordinadas con servicio apropiado para cada edad y tiempo compartido." }, minutes: 90, from: 90 },
+  { slug: "wedding-grooming", name: { en: "Wedding Grooming", es: "Grooming para Boda" }, description: { en: "Consultation, trial schedule, event-week services, and group coordination.", es: "Consulta, prueba, servicios de la semana del evento y coordinación de grupo." }, minutes: 120, from: 175 },
+  { slug: "vip-after-hours", name: { en: "VIP After Hours", es: "VIP Fuera de Horario" }, description: { en: "A private request-based appointment outside standard hours, subject to approval.", es: "Cita privada fuera del horario regular, sujeta a aprobación." }, minutes: 90, from: 185 },
+] as const;
+
+export const faqs: { question: Bi; answer: Bi; category: string }[] = [
+  { category: "booking", question: { en: "Do you accept walk-ins?", es: "¿Aceptan clientes sin cita?" }, answer: { en: "Yes, when capacity allows. Appointments receive priority, and the digital queue will show the current status once activated.", es: "Sí, cuando la capacidad lo permite. Las citas tienen prioridad y la fila digital mostrará el estado cuando esté activa." } },
+  { category: "booking", question: { en: "Is a deposit required?", es: "¿Se requiere depósito?" }, answer: { en: "Selected services require a deposit that is applied to the final total. The exact amount appears before confirmation.", es: "Algunos servicios requieren depósito que se aplica al total final. El monto exacto aparece antes de confirmar." } },
+  { category: "booking", question: { en: "How early should I arrive?", es: "¿Con cuánta anticipación debo llegar?" }, answer: { en: "Arrive five to ten minutes early for check-in and consultation, especially for a first visit.", es: "Llega de cinco a diez minutos antes para registrarte y consultar, especialmente en tu primera visita." } },
+  { category: "services", question: { en: "Can you help me choose a service?", es: "¿Pueden ayudarme a elegir un servicio?" }, answer: { en: "Yes. Choose the closest service and add a note, or use the concierge to receive a rules-based recommendation.", es: "Sí. Elige el servicio más cercano y agrega una nota, o usa el concierge para una recomendación basada en reglas." } },
+  { category: "services", question: { en: "Do you work with curly or longer hair?", es: "¿Trabajan con cabello rizado o largo?" }, answer: { en: "Yes. Select the dedicated curly-hair or long-hair service so enough time is reserved.", es: "Sí. Elige el servicio para cabello rizado o largo para reservar suficiente tiempo." } },
+  { category: "policies", question: { en: "What is the cancellation policy?", es: "¿Cuál es la política de cancelación?" }, answer: { en: "Please change or cancel within the window shown during booking. Late changes and no-shows may affect the deposit or incur a fee.", es: "Cambia o cancela dentro del plazo mostrado al reservar. Cambios tardíos y ausencias pueden afectar el depósito o generar cargo." } },
+  { category: "membership", question: { en: "Are memberships active now?", es: "¿Las membresías están activas?" }, answer: { en: "Membership architecture is ready, but billing and final benefits remain feature-flagged until owner and Square approval.", es: "La arquitectura está lista, pero la facturación y beneficios finales permanecen desactivados hasta aprobación del propietario y Square." } },
+  { category: "accessibility", question: { en: "Can I request an accommodation?", es: "¿Puedo solicitar una adaptación?" }, answer: { en: "Yes. Contact the lounge before your appointment so the team can prepare reasonable mobility, sensory, or communication support.", es: "Sí. Comunícate antes de tu cita para que el equipo prepare apoyo razonable de movilidad, sensorial o comunicación." } },
+];
+
+export const journalPosts = [
+  { slug: "how-often-to-book-a-fade", title: { en: "How Often Should You Rebook a Fade?", es: "¿Cada Cuánto Debes Retocar un Fade?" }, excerpt: { en: "A practical guide to keeping the silhouette clean without overbooking.", es: "Guía práctica para mantener la silueta limpia sin reservar de más." }, publishedAt: "2026-07-18", category: "Maintenance", readingMinutes: 4 },
+  { slug: "beard-shape-and-face-balance", title: { en: "Beard Shape and Face Balance", es: "Forma de Barba y Equilibrio Facial" }, excerpt: { en: "Why density, jawline, neckline, and maintenance matter more than copying a reference exactly.", es: "Por qué densidad, mandíbula, cuello y mantenimiento importan más que copiar una referencia." }, publishedAt: "2026-07-10", category: "Beard", readingMinutes: 5 },
+  { slug: "prepare-for-your-first-lounge-visit", title: { en: "Preparing for Your First Lounge Visit", es: "Cómo Prepararte para tu Primera Visita" }, excerpt: { en: "What to bring, how to explain the result you want, and what happens in consultation.", es: "Qué traer, cómo explicar el resultado y qué ocurre en la consulta." }, publishedAt: "2026-07-02", category: "Experience", readingMinutes: 3 },
+] as const;
+
 export const copy = {
   common: {
     book: { en: "Reserve a chair", es: "Reserva una silla" },
@@ -247,64 +375,48 @@ export const copy = {
     minutes: { en: "min", es: "min" },
     closed: { en: "Closed", es: "Cerrado" },
     scrollHint: { en: "Scroll to discover", es: "Desplázate para descubrir" },
-    confirmNote: {
-      en: "Pricing and hours are being finalized with the shop.",
-      es: "Los precios y el horario se están finalizando con la barbería.",
-    },
   },
   services: {
     eyebrow: { en: "The Menu", es: "El Menú" },
     title: { en: "Services", es: "Servicios" },
-    lead: {
-      en: "Six ways to sit down. Every one of them ends with a hot towel and a straight edge.",
-      es: "Seis maneras de sentarse. Todas terminan con toalla caliente y filo recto.",
-    },
+    lead: { en: "Precision cuts, beard rituals, color, texture, and detailed grooming, organized around the result you want.", es: "Cortes de precisión, rituales de barba, color, textura y grooming detallado según el resultado que deseas." },
   },
   barbers: {
     eyebrow: { en: "The Chairs", es: "Las Sillas" },
     title: { en: "Barbers", es: "Barberos" },
-    lead: {
-      en: "Five chairs, five hands, one standard. Choose a barber or let us match you.",
-      es: "Cinco sillas, cinco manos, un estándar. Elige barbero o deja que te recomendemos.",
-    },
+    lead: { en: "Choose your preferred chair or let the lounge match the service to the right specialist.", es: "Elige tu silla preferida o deja que el salón conecte el servicio con el especialista adecuado." },
   },
   membership: {
     eyebrow: { en: "Standing Appointments", es: "Citas Fijas" },
     title: { en: "Membership", es: "Membresía" },
-    lead: {
-      en: "For the men who would rather not think about it. A chair held, a rhythm kept.",
-      es: "Para quienes prefieren no pensarlo. Una silla apartada, un ritmo constante.",
-    },
-    note: {
-      en: "Memberships open with the shop. Add your name and we will reach out first.",
-      es: "Las membresías abren con la barbería. Deja tu nombre y te contactamos primero.",
-    },
+    lead: { en: "A consistent grooming rhythm with priority access, planned maintenance, and member benefits.", es: "Un ritmo constante de grooming con acceso prioritario, mantenimiento planificado y beneficios." },
+    note: { en: "Plans shown are curated launch proposals. Billing remains disabled until final owner and Square approval.", es: "Los planes mostrados son propuestas de lanzamiento. La facturación permanece desactivada hasta aprobación final." },
   },
   visit: {
-    eyebrow: { en: "Find Us", es: "Encuéntranos" },
-    title: { en: "Visit", es: "Visítanos" },
-    lead: {
-      en: "Suite 106, off Tilton Road. Park at the door and walk straight in.",
-      es: "Suite 106, sobre Tilton Road. Estaciónate en la puerta y entra directo.",
-    },
+    eyebrow: { en: "Northfield, New Jersey", es: "Northfield, Nueva Jersey" },
+    title: { en: "Visit the Lounge", es: "Visita el Salón" },
+    lead: { en: "Suite 106 on Tilton Road, with complimentary parking directly outside.", es: "Suite 106 en Tilton Road, con estacionamiento gratuito justo afuera." },
     hoursTitle: { en: "Hours", es: "Horario" },
     findTitle: { en: "Getting here", es: "Cómo llegar" },
-    parking: {
-      en: "Free parking directly in front of the suite.",
-      es: "Estacionamiento gratuito justo frente a la suite.",
-    },
-    directions: { en: "Open in Maps", es: "Abrir en Maps" },
+    parking: business.parking,
+    directions: { en: "Open directions", es: "Abrir indicaciones" },
   },
   about: {
     eyebrow: { en: "The Room", es: "El Salón" },
-    title: { en: "About", es: "Nosotros" },
-    lead: {
-      en: "A quiet room poured in brass and leather, built for the oldest trade there is.",
-      es: "Un salón silencioso en latón y cuero, hecho para el oficio más antiguo que existe.",
-    },
-    body: {
-      en: "Luxury Barber Lounge was built around a simple idea: that a haircut is worth an hour, not twenty minutes. Low light, good conversation, and a barber who knows your name and how you wear it. Everything here — the chairs, the towels, the pace — is arranged so you leave sharper than you arrived, and in no particular hurry to.",
-      es: "Luxury Barber Lounge nació de una idea simple: que un corte merece una hora, no veinte minutos. Luz baja, buena conversación y un barbero que conoce tu nombre y cómo lo llevas. Todo aquí — las sillas, las toallas, el ritmo — está dispuesto para que salgas más afilado de lo que llegaste, y sin ninguna prisa por hacerlo.",
-    },
+    title: { en: "Built Around the Chair", es: "Creado Alrededor de la Silla" },
+    lead: { en: "A polished room for precision work, genuine conversation, and service that never feels rushed.", es: "Un espacio pulido para trabajo preciso, conversación auténtica y servicio sin prisa." },
+    body: { en: "Luxury Barber Lounge is designed around a simple standard: every guest should understand the service, feel considered in the chair, and leave with a result that fits real life. The atmosphere is elevated, but the purpose remains practical: precise grooming, consistent care, and a relationship worth returning to.", es: "Luxury Barber Lounge se basa en un estándar simple: cada cliente debe entender el servicio, sentirse atendido y salir con un resultado que funcione en la vida real. El ambiente es elevado, pero el propósito es práctico: grooming preciso, cuidado constante y una relación que vale la pena repetir." },
   },
 } as const;
+
+export function findService(slug: string) {
+  return services.find((item) => item.slug === slug);
+}
+
+export function findBarber(slug: string) {
+  return barbers.find((item) => item.slug === slug);
+}
+
+export function findJournalPost(slug: string) {
+  return journalPosts.find((item) => item.slug === slug);
+}

@@ -2,7 +2,7 @@
 
 import { MapPin, Phone, ArrowUpRight } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
-import { Reveal, Scene3D, Layer } from "@/components/motion";
+import { Reveal, Scene3D } from "@/components/motion";
 import { useLang } from "@/lib/i18n/context";
 import { business, copy, hours } from "@/lib/content/site";
 
@@ -96,13 +96,6 @@ export function VisitView() {
           </Reveal>
         </div>
 
-        <Layer z={-150} drift={34}>
-          <Reveal variant="fade" className="block">
-            <p className="mt-14 text-[11px] tracking-[0.26em] uppercase text-[var(--color-bone-muted)]">
-              {copy.common.confirmNote[lang]}
-            </p>
-          </Reveal>
-        </Layer>
       </Scene3D>
     </>
   );

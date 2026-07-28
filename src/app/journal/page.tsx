@@ -1,0 +1,9 @@
+"use client";
+import Link from "next/link";
+import { ArrowUpRight, Clock3 } from "lucide-react";
+import { PageHero } from "@/components/PageHero";
+import { journalPosts } from "@/lib/content/site";
+import { useLang } from "@/lib/i18n/context";
+import { CtaBand } from "@/components/public/PublicUI";
+import { Reveal } from "@/components/motion";
+export default function JournalPage(){const {lang}=useLang();return <><PageHero eyebrow={{en:"The grooming journal",es:"El diario de grooming"}} title={{en:"Notes From the Chair",es:"Notas Desde la Silla"}} lead={{en:"Practical guidance on maintenance, preparation, beard balance, and making a service work beyond appointment day.",es:"Guía práctica sobre mantenimiento, preparación, barba y cómo hacer que el servicio funcione después de la cita."}}/><main className="mx-auto max-w-6xl px-6 pb-28 sm:px-10"><div className="grid gap-6 md:grid-cols-3">{journalPosts.map((post,index)=><Reveal key={post.slug} delay={index*70}><article className="h-full border border-[var(--color-ink-line)] bg-[var(--color-ink-soft)]/70 p-7"><p className="text-[9px] tracking-[.26em] uppercase text-[var(--color-brass)]">{post.category}</p><h2 className="font-display mt-4 text-3xl leading-tight">{post.title[lang]}</h2><p className="mt-4 text-sm leading-7 text-[var(--color-bone-muted)]">{post.excerpt[lang]}</p><div className="mt-7 flex items-center justify-between border-t border-[var(--color-ink-line)] pt-5"><span className="flex items-center gap-2 text-xs text-[var(--color-bone-muted)]"><Clock3 className="h-4 w-4"/>{post.readingMinutes} min</span><Link href={`/journal/${post.slug}`} aria-label={`Read ${post.title.en}`} className="text-[var(--color-brass)]"><ArrowUpRight className="h-5 w-5"/></Link></div></article></Reveal>)}</div></main><CtaBand eyebrow="Put the guidance to work" title="A useful article is not a substitute for a clear consultation." /></>}

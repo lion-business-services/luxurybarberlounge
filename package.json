@@ -1,12 +1,27 @@
 {
   "name": "luxury-barber-lounge",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
+  "description": "Luxury Barber Lounge public website and role-aware operating platform.",
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types tests/unit/*.test.ts",
+    "test:integration": "node --test --experimental-strip-types tests/integration/*.test.ts",
+    "validate:content": "node --experimental-strip-types scripts/validate-content.ts",
+    "validate:repository": "node scripts/validate-repository.mjs",
+    "format:check": "node scripts/check-format.mjs",
+    "check": "npm run check:source && npm run build",
+    "validate:migrations": "node scripts/validate-migrations.mjs",
+    "validate:routes": "node scripts/validate-routes.mjs",
+    "scan:secrets": "node scripts/scan-secrets.mjs",
+    "check:source": "npm run format:check && npm run lint && npm run typecheck && npm run validate:content && npm run validate:migrations && npm run validate:routes && npm run validate:repository && npm run scan:secrets && npm run test && npm run test:integration"
   },
   "dependencies": {
     "@studio-freight/lenis": "^1.0.42",
@@ -28,5 +43,6 @@
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
     "typescript": "^5"
-  }
+  },
+  "type": "module"
 }

@@ -1,67 +1,170 @@
 # Luxury Barber Lounge
 
-A bilingual (EN/ES) marketing site for Luxury Barber Lounge — an invitation-grade barbershop.
+Production-oriented Next.js website and role-aware operating-platform foundation for **Luxury Barber Lounge**, 801 Tilton Road, Suite 106, Northfield, New Jersey.
 
-## Stack
+The repository preserves the existing cinematic black, ivory, brass, bronze, and oxblood visual system while completing the public information architecture, bilingual content, service catalog, booking and queue development providers, portal interfaces, deterministic attribution and commission logic, Supabase migrations, RLS, provider abstractions, tests, and deployment documentation.
 
-- [Next.js 16](https://nextjs.org) (App Router) · React 19 · TypeScript
-- Tailwind CSS v4
-- [Supabase JS](https://supabase.com) (client)
-- [lucide-react](https://lucide.dev) for icons
+## What is included
 
-## Local development
+### Public experience
+
+- Cinematic, immediately visible scroll-to-discover homepage
+- Services catalog and dynamic service pages
+- Barber directory and dynamic barber profiles
+- Booking request experience with provider abstraction
+- Honest walk-in/queue states and kiosk interfaces
+- Memberships, packages, gift cards, gallery, reviews, events, weddings, products, careers, FAQ, journal, policies, contact, and Visit pages
+- English and Spanish content support
+- Local SEO metadata, sitemap, robots, structured data, Open Graph assets, accessibility states, and reduced-motion behavior
+
+### Role-aware workspaces
+
+- Client portal
+- Barber portal
+- Reception portal
+- Owner/admin CRM and system-control portal
+- Conservative production portal gate with opt-in demo mode
+
+### Business platform foundation
+
+- Supabase browser and server clients
+- Ordered Postgres migrations
+- Role and permission model
+- Row Level Security policies
+- Storage buckets and policies
+- Seed data for the verified business, 31 services, two clearly marked demo barber profiles, memberships, templates, and feature flags
+- Square booking provider abstraction and verified-webhook inbox
+- Development booking provider for credential-free testing
+- Deterministic attribution and commission engines
+- CRM, automation, notification, audit, reconciliation, dispute, and queue schemas
+- Development email, SMS, and AI adapters
+- Integration-health endpoints
+
+## Technology
+
+- Next.js 16 App Router
+- React 19
+- TypeScript strict mode
+- Tailwind CSS 4
+- Motion for React
+- GSAP for isolated cinematic sequences
+- Lenis with reduced-motion and device guardrails
+- Supabase Postgres/Auth/Storage architecture
+- Square server-side adapter architecture
+- Node test runner for deterministic business logic
+
+## Requirements
+
+- Node.js 20.9 or later. Node 22 is recommended and recorded in `.nvmrc`.
+- npm 10 or later
+- A clean dependency installation. Do not reuse a `node_modules` folder copied from another operating system.
+
+## Local setup
 
 ```bash
-npm install
-cp .env.local.example .env.local   # then fill in real values
+cp .env.example .env.local
+npm ci
 npm run dev
 ```
 
-Open <http://localhost:3000>.
+Open `http://localhost:3000`.
 
-### Environment variables
+Credential-dependent features remain in safe development mode until their flags and provider credentials are configured. The public website does not require Square, Supabase, email, SMS, or AI credentials to render.
 
-| Name | Purpose |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public API key |
+## Quality commands
 
-`.env.local` is gitignored. Use `.env.local.example` as a template.
-
-## Project layout
-
-```
-src/
-  app/                       App Router routes
-    layout.tsx               Root layout (fonts, providers, header, footer)
-    page.tsx                 Home / hero
-    services|barbers|membership|visit|about/
-                             Route stubs (Coming Soon)
-    globals.css              Brand tokens + Tailwind v4 theme
-  components/
-    Header.tsx               Sticky header + mobile menu
-    Footer.tsx               NAP, hours, socials
-    Logo.tsx                 Brand mark
-    LanguageToggle.tsx       EN/ES toggle
-    StubPage.tsx             Shared "Coming Soon" stub
-    SocialIcons.tsx          Brand-icon SVGs (lucide v1 dropped brand marks)
-  lib/
-    supabase.ts              Supabase client
-    i18n/
-      dict.ts                EN/ES copy
-      context.tsx            LangProvider + useLang() hook
+```bash
+npm run format:check
+npm run lint
+npm run typecheck
+npm run validate:content
+npm test
+npm run test:integration
+npm run build
 ```
 
-## Brand
+Run every source-level gate without invoking the platform compiler:
 
-- **Ink** `#0A0A0A` · **Brass** `#B8862A` · **Oxblood** `#722F37` · **Bone** `#EFE7D8`
-- Display: **Playfair Display** · Body: **Inter** — both via `next/font`
+```bash
+npm run check:source
+```
 
-## Scripts
+Run the complete release gate, including the production build, in a clean environment:
 
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Local dev server |
-| `npm run build` | Production build |
-| `npm start` | Run production build |
-| `npm run lint` | ESLint |
+```bash
+npm run check
+```
+
+## Supabase
+
+Migrations are stored in `supabase/migrations` and must be applied in timestamp order. Seed data is in `supabase/seed/seed.sql`.
+
+```bash
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
+supabase db seed
+```
+
+Review `docs/setup/supabase.md`, `docs/architecture/database.md`, and `docs/architecture/auth-and-permissions.md` before applying changes to a production project.
+
+## Feature flags
+
+The default public build is deliberately honest:
+
+- Membership comparison is visible, but billing is disabled.
+- Walk-in queue and kiosk are disabled until operations are ready.
+- Square live booking is disabled until catalog and team mappings are verified.
+- Product commerce and gift-card purchase are disabled until Square commerce is activated.
+- AI concierge uses approved deterministic content when no provider is configured.
+- Staff portals are closed in production unless a server session exists; seeded portal demos require explicit `NEXT_PUBLIC_PORTAL_DEMO_MODE=true`.
+
+See `.env.example` and `docs/launch/credential-activation.md`.
+
+## Canonical business content
+
+Public business information comes from `src/lib/content/site.ts` so the footer, Visit page, mobile actions, metadata, structured data, emails, and portal interfaces cannot drift apart.
+
+Confirmed values:
+
+- Luxury Barber Lounge
+- 801 Tilton Road, Suite 106, Northfield, NJ 08225
+- (609) 384-5171
+- info@theluxurybarberlounge.com
+- https://www.theluxurybarberlounge.com
+
+Hours, service prices, deposits, memberships, policy terms, accessibility details, and barber biographies remain owner-confirmation fields and are listed in `docs/launch/content-replacement.md`.
+
+## Deployment
+
+The project is Vercel-compatible and does not require committed secrets.
+
+1. Push the repository to GitHub.
+2. Import or use the existing Vercel project.
+3. Set environment variables from `.env.example`.
+4. Leave credential-dependent feature flags disabled until their activation checklists pass.
+5. Deploy a Preview.
+6. Run the QA and production launch checklists.
+7. Promote only after `npm run check` succeeds in a clean Linux environment.
+
+See `docs/launch/production-checklist.md`.
+
+## Documentation map
+
+- `CLAUDE.md` — coding and repository rules
+- `docs/architecture/system.md` — application boundaries
+- `docs/architecture/database.md` — tables and migrations
+- `docs/architecture/auth-and-permissions.md` — roles and RLS
+- `docs/architecture/motion.md` — animation guardrails
+- `docs/setup/*` — local and provider setup
+- `docs/operations/*` — attribution, commission, walk-in, and automation behavior
+- `docs/launch/*` — content, credentials, QA, and production launch
+- `docs/security.md` — security model
+- `docs/testing.md` — test strategy
+- `docs/troubleshooting.md` — common failures
+- `docs/implementation-report.md` — delivered scope and implementation status
+- `docs/validation-report.md` — exact release-gate results and compiler-environment note
+- `docs/assumptions.md` — explicit assumptions and owner approvals
+
+## Important operational boundary
+
+The commission and reconciliation modules calculate and report amounts. They do not transfer funds or represent certified payroll software. Square remains the intended source of operational and financial truth when connected.

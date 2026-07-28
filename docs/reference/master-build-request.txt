@@ -1,0 +1,816 @@
+You are an elite multidisciplinary digital product team working as one unified system.
+
+You are simultaneously:
+- a world-class luxury brand strategist
+- a top-tier UI/UX designer
+- a senior frontend engineer
+- a senior backend engineer
+- a database architect
+- a Supabase architect
+- a Vercel deployment architect
+- a GitHub codebase maintainer
+- a motion designer
+- a Framer Motion / GSAP / scroll-animation specialist
+- a 3D web experience designer
+- a conversion strategist
+- a CRM and automation architect
+- a barber-industry digital product consultant
+- an SEO strategist
+- an accessibility specialist
+- a QA engineer
+- a performance optimization expert
+- a security expert
+- a documentation writer
+- and a product finisher with obsessive attention to detail
+
+Your task is to fully build, enhance, complete, and production-ready the entire Luxury Barber Lounge website and digital platform in one go.
+
+Do not give me phases.
+Do not give me just recommendations.
+Do not stop at mockups.
+Do not stop at the homepage.
+Do not return partial thinking.
+Do not leave major workflows unfinished.
+Do not behave like this is a concept piece.
+
+I want a complete, thorough, hyper polished, hyper responsive, hyper luxurious, hyper converting, hyper attractive, hyper smooth, hyper interactive, and hyper professional final build.
+
+You may use all available resources, all available skills, all available reasoning, all available design and engineering methods, and all relevant research needed to make this the world’s best luxury barber website and operating platform.
+
+==================================================
+PRIMARY MISSION
+==================================================
+
+Take the current Luxury Barber Lounge project, the uploaded codebase zip, the uploaded logo, the uploaded service reference image(s), and the uploaded website audit as your starting references.
+
+Use the audit as a strong reference baseline, but do not be limited by it. You are allowed and expected to improve beyond it wherever necessary.
+
+I want you to implement:
+1. everything the audit said should be fixed or built
+2. everything needed to make this a truly world-class luxury barber website
+3. everything needed to make it highly converting, operationally useful, and future-ready
+4. everything needed to make it visually unforgettable and functionally complete
+
+The final output must be a complete digital platform, not merely a promotional site.
+
+==================================================
+WHAT YOU MUST DO
+==================================================
+
+You must inspect and use:
+- the existing codebase zip
+- the uploaded logo
+- the uploaded service image / service reference material
+- the website audit
+- any existing brand materials or screenshots
+- any current website structure already present
+- any current animation system already present
+
+You must:
+- preserve what is already strong
+- improve what is weak
+- remove what is fake, placeholder-like, broken, incomplete, or misleading
+- complete the site and all core business systems properly
+- create professional curated placeholder content where real content is not finalized yet
+- use realistic placeholder barber images, bios, pricing, services, memberships, and operational content where needed
+- clearly structure things so content can be easily replaced later
+- document assumptions and editable fields
+
+If existing implementation is strong, enhance it.
+If existing implementation is weak, rebuild it cleanly.
+If parts are broken, fix them.
+If important parts are missing, create them fully.
+
+==================================================
+ULTIMATE GOAL
+==================================================
+
+Build the world’s best luxury barber website and barber business platform.
+
+It must feel:
+- luxurious
+- cinematic
+- editorial
+- premium
+- distinctive
+- immersive
+- highly modern
+- masculine but welcoming
+- polished
+- credible
+- conversion-driven
+- operationally intelligent
+- visually stunning
+- smooth and premium on every device
+
+It must not feel:
+- generic
+- template-based
+- cluttered
+- fake-luxury
+- gimmicky
+- slow
+- laggy
+- incomplete
+- decorative-only
+- over-animated in a harmful way
+- broken on mobile
+- “pretty but unusable”
+
+==================================================
+NON-NEGOTIABLE CREATIVE DIRECTION
+==================================================
+
+The Luxury Barber Lounge brand aesthetic must be deeply reflected across the full experience.
+
+Use the uploaded logo and build the entire brand system around it.
+
+Logo requirements:
+- Use the logo with a transparent background
+- Never place it in an ugly square or boxed background
+- Clean or isolate the logo if needed
+- Use it elegantly across the website and portals
+- Use proper scaling, spacing, and responsive behavior
+- Create favicon/app icon usage where appropriate
+- Maintain premium feel and fidelity
+
+Brand direction:
+- near-black and black luxury backgrounds
+- gold, brass, champagne, bronze metallic accents
+- warm ivory typography
+- refined editorial serif and a clean highly-legible sans font pairing
+- premium lounge atmosphere
+- subtle richness and sophistication
+- luxurious but not cheesy
+- dark and cinematic but highly readable
+- premium masculine elegance
+- polished high-end barbershop identity
+
+==================================================
+EXTREME EMPHASIS ON 3D MOTION, SCROLL STORYTELLING, AND RESPONSIVE ANIMATION
+==================================================
+
+This is one of the most important parts.
+
+The entire website must have world-class, hyper smooth, highly responsive, deeply immersive animation design.
+
+I want:
+- hyper smooth scroll-to-discover sections
+- luxury storytelling through animation
+- immersive scene transitions
+- strong but elegant 3D-feeling depth
+- premium parallax and layered depth
+- cinematic motion
+- smooth reveal choreography
+- motion-based section transitions
+- premium hover states
+- tactile microinteractions
+- luxury scroll-linked animation
+- refined loading transitions
+- subtle light effects
+- dimensional interface behavior
+- elegant motion for hero, services, barber sections, gallery, memberships, testimonials, and CTA moments
+
+You must interpret “3D / 4D / 6D / 12D” as:
+- spatial layering
+- depth illusion
+- perspective transforms
+- subtle 3D object behavior
+- immersive motion hierarchy
+- scroll-reactive storytelling
+- cinematic section choreography
+- premium visual depth
+- interactive dimensionality
+- motion-rich luxury polish
+
+If needed, use or improve:
+- Framer Motion
+- GSAP
+- Lenis
+- scroll-linked transforms
+- layered reveal systems
+- high-end motion primitives
+- subtle canvas or WebGL only if truly beneficial
+- image depth effects
+- lighting overlays
+- elegant animated lines
+- refined cursor or pointer interactions only if they are flawless and not laggy
+- 3D cards or spatial content blocks only if they feel premium and useful
+
+Important:
+- animations must be meaningful, not random
+- motion must support content, not distract from it
+- everything must remain readable and usable
+- the site must remain fast and responsive
+- mobile must have adaptive motion, not a broken desktop clone
+- reduce heavy effects on low-power devices
+- respect reduced-motion preferences
+- never sacrifice performance for gimmicks
+- no stutter
+- no scroll hijacking
+- no unstable magnetic cursor
+- no jerky transitions
+- no empty sections that only animate but say nothing
+
+The final animation system must feel:
+- luxurious
+- state-of-the-art
+- smooth as silk
+- responsive and alive
+- premium and addictive
+- elegant and executive-level
+
+==================================================
+RESPONSIVENESS REQUIREMENTS
+==================================================
+
+The website and portals must be hyper responsive and flawless across:
+- mobile phones
+- large phones
+- tablets
+- kiosk/tablet mode
+- laptops
+- desktops
+- large displays
+
+Requirements:
+- no broken layouts
+- no overlapping text
+- no cut-off UI
+- no unusable tables
+- no tiny buttons
+- no hover-only critical interactions
+- responsive typography
+- responsive spacing
+- responsive navigation
+- responsive dashboards
+- responsive motion density
+- adaptive loading
+- mobile-optimized animations
+- touch-friendly interactions
+- sticky mobile booking actions where useful
+- ultra polished mobile menu and CTA behavior
+
+The mobile experience must feel premium, not downgraded.
+
+==================================================
+PLATFORM SCOPE
+==================================================
+
+Build the entire public luxury website and the internal digital business platform.
+
+The platform must include:
+
+PUBLIC WEBSITE
+- Home
+- Services overview
+- Individual service pages
+- Barbers directory
+- Individual barber pages
+- Booking page
+- Walk-in / queue page
+- Membership page
+- Packages page
+- Gift cards page
+- Gallery
+- Reviews / testimonials
+- About
+- Contact
+- Visit / location page
+- FAQ
+- Blog / grooming journal
+- Careers / join the team
+- Events / group grooming / wedding grooming if beneficial
+- Products page if beneficial
+- Policies pages
+- Privacy
+- Terms
+- SMS terms
+- Accessibility statement
+- Cookie or consent preference handling where needed
+- Authentication pages
+- proper 404 / error handling
+
+CLIENT PORTAL
+- dashboard
+- appointments
+- rebooking
+- favorite barber
+- queue status
+- membership
+- rewards or referrals
+- grooming preferences
+- profile
+- notifications
+- feedback
+- account controls
+
+BARBER PORTAL
+- dashboard
+- today’s schedule
+- calendar
+- clients
+- queue
+- portfolio
+- profile
+- notifications
+- performance
+- commissions
+- disputes
+
+RECEPTION / FRONT DESK PORTAL
+- schedule
+- client lookup
+- check-in
+- walk-in creation
+- queue management
+- barber assignment
+- appointment handling
+- status management
+- limited operational notes
+
+OWNER / ADMIN / CRM PORTAL
+- executive dashboard
+- bookings
+- walk-ins
+- queue
+- clients
+- barbers
+- services
+- memberships
+- packages
+- gallery
+- content management
+- reviews
+- automations
+- campaigns
+- integrations
+- webhooks
+- analytics
+- users
+- roles and permissions
+- audit logs
+- settings
+
+This must be a truly premium barber operating platform.
+
+==================================================
+BOOKING + BUSINESS LOGIC
+==================================================
+
+The business must be treated as a real operating system, not just a brochure.
+
+Use Square as the operational / financial source of truth where appropriate.
+Use Supabase as the full platform data layer, extension layer, auth layer, portal layer, automation layer, and business intelligence layer.
+
+If the codebase already has a structure, improve it.
+If not, create it properly.
+
+Square-related expectations:
+- booking readiness
+- services / catalog mapping
+- barber/team mapping
+- availability handling
+- appointments
+- deposits
+- customers
+- orders
+- payments
+- tips
+- refunds
+- webhook architecture
+- status tracking
+- integration status
+- production-ready abstraction
+- sandbox-ready behavior where live credentials are unavailable
+
+Supabase-related expectations:
+- proper database schema
+- auth
+- row level security
+- role architecture
+- client profiles
+- staff profiles
+- content tables
+- booking extension tables
+- queue tables
+- commission and attribution data
+- automations
+- notifications
+- audit logs
+- settings
+- portals
+- media handling
+- admin content management
+- analytics support
+- permissions
+
+==================================================
+COMPLETE BUSINESS FUNCTIONALITY TO IMPLEMENT
+==================================================
+
+Implement or fully architect and integrate all of the following:
+
+1. Public conversion website
+2. Realistic and editable curated content
+3. Service catalog and service pages
+4. Barber listing and barber profile pages
+5. High-converting booking experience
+6. Walk-in queue experience
+7. Memberships / packages / upsells
+8. Gift cards readiness
+9. Gallery and visual portfolio
+10. Reviews and trust signals
+11. Contact and visit experience
+12. FAQ
+13. Policy pages
+14. Client account system
+15. Client portal
+16. Barber portal
+17. Front-desk/reception workflow
+18. Owner/admin CRM dashboard
+19. Role-based access
+20. Supabase auth and data structure
+21. Square integration layer
+22. Webhook handling architecture
+23. Notification / SMS / email architecture
+24. Automation engine
+25. Campaign and CRM capabilities
+26. AI concierge architecture
+27. Admin AI assistance architecture
+28. Reporting and analytics
+29. SEO and local SEO
+30. accessibility
+31. performance optimization
+32. testing
+33. documentation
+34. deployment readiness
+
+==================================================
+CLIENT EXPERIENCE REQUIREMENTS
+==================================================
+
+The client-facing experience must be:
+- luxurious
+- simple
+- elegant
+- intuitive
+- convenient
+- frictionless
+- high-trust
+- highly converting
+
+Client booking flow should feel premium and smooth.
+
+The site should help the client:
+- discover the shop
+- understand the luxury positioning
+- see the services
+- view barbers
+- choose the right barber
+- understand pricing
+- understand memberships
+- book
+- rebook
+- join queue
+- contact the shop
+- trust the brand
+- feel excited
+
+==================================================
+ADMIN / CRM EXPECTATIONS
+==================================================
+
+The admin portal must be top-tier, luxurious, and operationally powerful.
+
+Think of it as a premium barber CRM / operating dashboard.
+
+It must feel:
+- elegant
+- executive-level
+- well-organized
+- responsive
+- premium
+- intelligent
+- actionable
+- powerful but clean
+
+It should support:
+- customer records
+- barber management
+- appointment oversight
+- queue oversight
+- revenue or booking visibility
+- memberships
+- services and pricing
+- gallery and content management
+- campaigns and automations
+- webhook and integration visibility
+- role permissions
+- notifications
+- reports
+- auditability
+- settings
+- feature controls
+
+==================================================
+AUTOMATION REQUIREMENTS
+==================================================
+
+I want hyper AI automations and hyper business automations.
+
+This includes architecture and implementation or strong ready-to-activate infrastructure for:
+- booking confirmations
+- reminder flows
+- cancellation and reschedule flows
+- no-show follow-up
+- post-appointment thank-you
+- review requests
+- rebooking reminders
+- membership upsell flows
+- referral flows
+- lapsed-client win-back
+- birthday automations
+- barber notifications
+- daily summaries
+- weekly summaries
+- owner alerts
+- webhook failure alerts
+- queue updates
+- admin review escalation
+- campaign actions
+- AI concierge support flows
+- admin AI summary tools
+
+All automations must be cleanly structured, role-safe, consent-aware, configurable, and professionally designed.
+
+==================================================
+CONTENT EXPECTATIONS
+==================================================
+
+Since final content may be updated later, create professional, conversion-optimized, ready-to-use curated content for now.
+
+You are allowed to create:
+- service names
+- service descriptions
+- service pricing
+- service durations
+- barber profiles
+- membership tiers
+- package offers
+- FAQ content
+- review/testimonial placeholders that are clearly demo-only if necessary
+- about content
+- contact content
+- policy drafts
+- blog article starters
+- CTA copy
+- feature descriptions
+- portal labels
+- admin dashboard labels
+- automation content
+- SMS templates
+- email templates
+
+The content must be:
+- luxury
+- polished
+- conversion-driven
+- realistic
+- high-end
+- not cheesy
+- not generic
+- not filler
+- aligned with the brand
+
+Everything should be easy to replace later.
+
+==================================================
+DESIGN / UX REQUIREMENTS
+==================================================
+
+The whole experience must be world-class.
+
+Use:
+- premium layout rhythm
+- editorial storytelling
+- beautiful contrast
+- strong hierarchy
+- refined section flow
+- memorable CTA moments
+- clean data presentation
+- elegant dashboard design
+- rich but restrained detailing
+- premium cards and modules
+- strong luxury photography usage
+- realistic imagery or AI-generated imagery where useful
+- cinematic barber-related scenes if needed
+- high-end visual consistency
+- perfectly aligned spacing and balance
+
+You are allowed to:
+- create or generate supportive imagery
+- create or generate visual placeholders
+- create or generate cinematic scenes
+- create or generate service visuals
+- create or generate brand-enhancing visuals
+- create subtle ambient visual elements
+- create icons and illustrations if needed
+
+But the final site must still feel professional and believable.
+
+==================================================
+SEO + LOCAL SEO REQUIREMENTS
+==================================================
+
+Implement strong SEO and local SEO.
+
+This includes:
+- metadata
+- page titles
+- descriptions
+- OG tags
+- structured data
+- sitemap readiness
+- canonical handling
+- clean URLs
+- internal linking
+- service-based SEO pages
+- barber-based SEO content
+- location-based local optimization
+- Google Business alignment
+- NAP consistency
+- review and FAQ markup where appropriate
+- accessible and indexable structure
+
+==================================================
+SECURITY + DATA REQUIREMENTS
+==================================================
+
+Treat this as a real business platform.
+
+Use strong architecture and safe practices:
+- role-based access
+- secure auth flows
+- protected routes
+- environment-based credentials
+- no exposed secrets
+- RLS
+- safe file uploads
+- signed access where needed
+- audit logging
+- secure webhook handling
+- resilient integration architecture
+- clean validation
+- proper error handling
+- admin safety
+- server/client separation
+
+==================================================
+ACCESSIBILITY + PERFORMANCE REQUIREMENTS
+==================================================
+
+This must be excellent in accessibility and performance.
+
+Accessibility:
+- semantic HTML
+- keyboard navigation
+- focus states
+- readable contrast
+- reduced motion support
+- screen reader basics
+- accessible forms
+- good interactive affordances
+
+Performance:
+- excellent responsiveness
+- smooth but efficient animation
+- optimized images
+- efficient rendering
+- reduced mobile overhead
+- avoid wasteful animation loops
+- fast page loading
+- proper component structure
+- avoid unnecessary dependency clutter
+- preserve premium feel without slowing the site down
+
+==================================================
+AUDIT USAGE INSTRUCTION
+==================================================
+
+Use the uploaded audit as a strong implementation guide.
+
+Specifically:
+- correct inconsistent business information
+- remove placeholder public identities and incomplete public-facing content
+- replace fake or misleading technical language from public pages
+- fix conversion issues
+- improve booking UX
+- improve walk-in messaging and real functionality
+- centralize business settings
+- improve Supabase implementation
+- build actual portal foundations
+- improve Square integration architecture
+- complete automations
+- strengthen SEO, performance, and production readiness
+
+However:
+Do not limit yourself only to what the audit said.
+Improve everything necessary beyond the audit too.
+
+==================================================
+TECHNICAL DELIVERY EXPECTATION
+==================================================
+
+You are expected to actually produce the complete implementation, not just describe it.
+
+If working within an existing codebase:
+- inspect it
+- understand it
+- preserve good pieces
+- clean up weak pieces
+- avoid unnecessary rewrites unless necessary
+- keep architecture clean
+- maintain production quality
+
+If rebuilding or restructuring is necessary, do it professionally.
+
+The final result must include:
+- working code
+- polished UI
+- complete pages
+- complete responsive states
+- complete portal shells and major workflows
+- complete curated content
+- complete data structures or migrations
+- proper environment variable examples
+- documentation
+- clear editable placeholders
+- quality finishing
+
+==================================================
+OUTPUT FORMAT REQUIREMENTS
+==================================================
+
+Do the work fully.
+
+Do not respond with only a plan.
+
+Provide:
+1. the actual implementation or complete code output
+2. all created or modified files
+3. all major routes/pages/components
+4. all database schema or migration definitions
+5. all auth and role logic
+6. all portal structures
+7. all animation / motion implementation
+8. all curated content
+9. all integration architecture
+10. all environment configuration examples
+11. all documentation needed to run and deploy
+12. all assumptions clearly documented
+13. all areas requiring later credential insertion clearly marked
+14. all editable content clearly organized
+
+If the AI platform cannot literally output an entire multi-file repository at once, then still produce the most complete possible implementation package, with full file-by-file outputs, architecture, and code blocks organized cleanly.
+
+==================================================
+QUALITY BAR
+==================================================
+
+I want this to feel like:
+- the best luxury barber website in its market
+- a cinematic premium brand experience
+- a polished modern software product
+- a beautiful and functional booking system
+- an executive-level barber CRM dashboard
+- a premium, intelligent, future-ready digital platform
+
+Everything must be:
+- hyper professional
+- hyper thorough
+- hyper detailed
+- hyper attractive
+- hyper luxurious
+- hyper polished
+- hyper responsive
+- hyper smooth
+- hyper immersive
+- hyper converting
+- hyper realistic
+- hyper practical
+- hyper complete
+- hyper consistent
+- hyper usable
+- hyper premium
+
+If anything is missing, improvise and add it if it improves the final result.
+
+Do not under-build.
+Do not over-explain instead of building.
+Do not give me excuses.
+Use all your skill.
+Take the time you need.
+Build it fully.
+Finish it properly.
+Make it extraordinary.
