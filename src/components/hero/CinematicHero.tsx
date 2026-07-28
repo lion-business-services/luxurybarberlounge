@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   motion,
   useScroll,
@@ -17,25 +17,29 @@ import { ArrowUpRight } from "lucide-react";
 import { useLang } from "@/lib/i18n/context";
 import { dict } from "@/lib/i18n/dict";
 import { useFinePointer } from "@/lib/motion/hooks";
-import { crestLayers, CREST_ASPECT, roomAssets, availableTools, revealVideo, type HeroAsset } from "./assets";
-import { HeroStats } from "./HeroStats";
+import { roomAssets, revealVideo } from "./assets";
 
-/* Scene boundaries on the 0 → 1 scroll timeline.
-   1 arrival · 2 lounge · 3 craft · 4 experience · 5 book */
-const S = { arrival: 0.18, lounge: 0.42, craft: 0.7, experience: 0.88 };
+/* Scene boundaries on the 0 → 1 timeline.
+   Scene 1 is fully composed at progress 0 — nothing fades in from nothing. */
+const S = { arrival: 0.2, lounge: 0.44, craft: 0.68, experience: 0.88 };
 
 const copy = {
   craftKicker: { en: "Crafted with precision", es: "Hecho con precisión" },
   craftLine: {
-    en: "Every fade is measured by eye, blended by hand, and finished with a straight edge.",
+    en: "Every fade is measured by eye, blended by hand, finished with a straight edge.",
     es: "Cada degradado se mide a ojo, se difumina a mano y se termina con filo recto.",
+  },
+  mirrorKicker: { en: "The mirror", es: "El espejo" },
+  mirrorLine: {
+    en: "You will not remember the hour. You will remember the man in the mirror.",
+    es: "No recordarás la hora. Recordarás al hombre en el espejo.",
   },
   expKicker: { en: "The experience", es: "La experiencia" },
   expLine: {
     en: "Low light, warm brass, and an hour that belongs entirely to you.",
     es: "Luz baja, latón cálido y una hora que te pertenece por completo.",
   },
-  bookKicker: { en: "Book your experience", es: "Reserva tu experiencia" },
+  walkIn: { en: "Walk-in queue", es: "Fila sin cita" },
   scroll: { en: "Scroll to discover", es: "Desplázate para descubrir" },
 };
 
@@ -45,7 +49,6 @@ export function CinematicHero() {
   const fine = useFinePointer();
   const shellRef = useRef<HTMLDivElement>(null);
 
-  // Coarse breakpoint, resolved after mount to avoid hydration mismatch.
   const [compact, setCompact] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
@@ -55,13 +58,10 @@ export function CinematicHero() {
     return () => mq.removeEventListener("change", apply);
   }, []);
 
-  const { scrollYProgress } = useScroll({
-    target: shellRef,
-    offset: ["start start", "end end"],
-  });
+  const { scrollYProgress } = useScroll({ target: shellRef, offset: ["start start", "end end"] });
   const p = useSpring(scrollYProgress, { stiffness: 140, damping: 30, mass: 0.4 });
 
-  /* ---------------- pointer depth (desktop, in-view only) ---------------- */
+  /* ------------------------- pointer depth ------------------------- */
   const mx = useMotionValue(0);
   const my = useMotionValue(0);
   const px = useSpring(mx, { stiffness: 90, damping: 18, mass: 0.5 });
@@ -100,212 +100,118 @@ export function CinematicHero() {
     };
   }, [fine, reduced, mx, my]);
 
-  /* ------------------------------ scene 1 ------------------------------- */
-  const crestScale = useTransform(p, [0, S.arrival, S.lounge, S.experience, 1], [1.18, 1, 0.62, 0.58, 0.92]);
-  const crestY = useTransform(p, [0, S.arrival, S.lounge, S.craft, 1], ["6%", "0%", "-16%", "-18%", "-4%"]);
-  const crestBlur = useTransform(p, [0, S.arrival * 0.7], [10, 0]);
-  const crestFilter = useMotionTemplate`blur(${crestBlur}px)`;
-  const crestOpacity = useTransform(p, [0, 0.06, S.arrival, S.craft, S.experience, 1], [0, 0.42, 0.34, 0.5, 0.42, 1]);
+  /* --------------------------- scene tracks ---------------------------
+     Every scene-1 value STARTS at its visible state. The first viewport is a
+     finished composition; scrolling changes it rather than creating it. */
 
-  const introOpacity = useTransform(p, [0, 0.04, S.arrival, S.lounge * 0.92], [0, 1, 1, 0]);
-  const introY = useTransform(p, [S.arrival, S.lounge * 0.92], ["0%", "-8%"]);
+  const openOpacity = useTransform(p, [0, S.arrival, S.lounge], [0.62, 0.5, 0]);
+  const openScale = useTransform(p, [0, S.lounge], [1.06, 1.18]);
+  const openY = useTransform(p, [0, S.lounge], ["0%", "-6%"]);
 
-  const sweepX = useTransform(p, [0, S.arrival], ["-140%", "160%"]);
+  const introOpacity = useTransform(p, [0, S.arrival, S.lounge * 0.94], [1, 1, 0]);
+  const introY = useTransform(p, [0, S.lounge * 0.94], ["0%", "-9%"]);
 
-  /* ------------------------------ scene 2 ------------------------------- */
-  const chairOpacity = useTransform(p, [S.arrival, S.arrival + 0.08, S.craft, S.craft + 0.08], [0, 0.55, 0.55, 0]);
-  const chairScale = useTransform(p, [S.arrival, S.craft], [1.22, 1.04]);
-  const chairY = useTransform(p, [S.arrival, S.craft], ["4%", "-5%"]);
+  const chairOpacity = useTransform(p, [S.arrival, S.lounge, S.craft, S.craft + 0.06], [0, 0.62, 0.55, 0]);
+  const chairScale = useTransform(p, [S.arrival, S.craft], [1.2, 1.02]);
 
-  /* ------------------------------ scene 3 ------------------------------- */
-  const craftOpacity = useTransform(p, [S.lounge, S.lounge + 0.07, S.craft - 0.03, S.craft + 0.02], [0, 1, 1, 0]);
-  const craftY = useTransform(p, [S.lounge, S.craft], ["14%", "-6%"]);
+  const toolsOpacity = useTransform(p, [S.lounge, S.lounge + 0.06, S.craft, S.craft + 0.05], [0, 0.6, 0.55, 0]);
+  const toolsScale = useTransform(p, [S.lounge, S.craft], [1.16, 1.02]);
+  const craftOpacity = useTransform(p, [S.lounge + 0.02, S.lounge + 0.08, S.craft - 0.02, S.craft + 0.03], [0, 1, 1, 0]);
+  const craftY = useTransform(p, [S.lounge, S.craft], ["10%", "-5%"]);
 
-  /* ------------------------------ scene 4 ------------------------------- */
-  const wallOpacity = useTransform(p, [S.craft, S.craft + 0.07, S.experience + 0.04, 1], [0, 0.42, 0.34, 0.16]);
-  const wallScale = useTransform(p, [S.craft, 1], [1.14, 1.02]);
-  const expOpacity = useTransform(p, [S.craft + 0.02, S.craft + 0.09, S.experience - 0.02, S.experience + 0.03], [0, 1, 1, 0]);
-  const expY = useTransform(p, [S.craft, S.experience], ["12%", "-4%"]);
-  const warmth = useTransform(p, [S.craft, S.experience], [0, 0.22]);
-  const warmGlow = useMotionTemplate`radial-gradient(circle at 50% 42%, rgba(184,134,42,${warmth}), transparent 62%)`;
+  const mirrorOpacity = useTransform(p, [S.craft, S.craft + 0.05, S.experience, S.experience + 0.05], [0, 0.5, 0.45, 0.2]);
+  const mirrorScale = useTransform(p, [S.craft, 1], [1.14, 1.02]);
+  const mirrorTextOpacity = useTransform(p, [S.craft + 0.01, S.craft + 0.07, S.experience - 0.02, S.experience + 0.02], [0, 1, 1, 0]);
+  const mirrorTextY = useTransform(p, [S.craft, S.experience], ["10%", "-4%"]);
 
-  /* ------------------------------ scene 5 ------------------------------- */
-  const videoOpacity = useTransform(p, [0, 0.05, S.arrival, S.lounge * 0.9], [0, 0.5, 0.42, 0]);
-  const toolsOpacity = useTransform(p, [S.lounge, S.lounge + 0.07, S.craft - 0.02, S.craft + 0.04], [0, 0.5, 0.5, 0]);
-  const toolsScale = useTransform(p, [S.lounge, S.craft], [1.18, 1.03]);
-  const advanceOpacity = useTransform(p, [S.experience, S.experience + 0.06, 1], [0, 0.28, 0.24]);
+  const advanceOpacity = useTransform(p, [S.experience, S.experience + 0.05, 1], [0, 0.34, 0.3]);
+  const warmth = useTransform(p, [S.craft, 1], [0, 0.2]);
+  const warmGlow = useMotionTemplate`radial-gradient(circle at 50% 45%, rgba(184,134,42,${warmth}), transparent 64%)`;
+  const bookOpacity = useTransform(p, [S.experience, S.experience + 0.04, 1], [0, 1, 1]);
+  const bookY = useTransform(p, [S.experience, 1], ["14%", "0%"]);
 
-  const bookOpacity = useTransform(p, [S.experience, S.experience + 0.05, 1], [0, 1, 1]);
-  const bookY = useTransform(p, [S.experience, 1], ["16%", "0%"]);
+  const cueOpacity = useTransform(p, [0, 0.08, 0.14], [1, 1, 0]);
 
-  const cueOpacity = useTransform(p, [0, 0.1, 0.15], [1, 1, 0]);
-
-  /* ----------------------- reduced motion / static ---------------------- */
+  /* ------------------------- reduced motion ------------------------- */
   if (reduced) {
     return (
       <section className="relative overflow-hidden border-b border-[var(--color-ink-line)]">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 [background:radial-gradient(circle_at_20%_-10%,rgba(184,134,42,0.12),transparent_55%),radial-gradient(circle_at_85%_110%,rgba(114,47,55,0.18),transparent_60%)]"
-        />
-        <div className="relative mx-auto grid max-w-6xl gap-14 px-6 py-24 sm:px-10 md:grid-cols-12">
-          <div className="md:col-span-7">
-            <HeroCopy lang={lang} />
-          </div>
-          <div className="md:col-span-5">
-            <div className="relative mx-auto w-[70%] max-w-[320px]" style={{ aspectRatio: CREST_ASPECT }}>
-              <Image
-                src="/brand/lbl-logo-full.webp"
-                alt="Luxury Barber Lounge"
-                fill
-                sizes="(max-width: 768px) 70vw, 320px"
-                className="object-contain"
-                priority
-              />
-            </div>
-            <HeroStats lang={lang} className="mt-12" />
-          </div>
+        <div aria-hidden className="absolute inset-0">
+          <Image src={roomAssets.wall.src} alt="" fill sizes="100vw" className="object-cover opacity-40" priority />
+          <div className="absolute inset-0 bg-[var(--color-ink)]/70" />
+        </div>
+        <div className="relative mx-auto max-w-6xl px-6 py-28 sm:px-10">
+          <HeroCopy lang={lang} />
         </div>
       </section>
     );
   }
-
-  /* --------------------------- cinematic build -------------------------- */
-  // Shorter travel on phones so the pin never feels like a trap.
-  const shellHeight = compact ? "180vh" : "260vh";
 
   return (
     <section
       ref={shellRef}
       aria-label="Luxury Barber Lounge"
       className="relative"
-      style={{ height: shellHeight }}
+      style={{ height: compact ? "190vh" : "280vh" }}
     >
       <div className="sticky top-0 h-[100svh] overflow-hidden">
-        {/* ---- ambient base, unchanged from the existing design ---- */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 [background:radial-gradient(circle_at_20%_-10%,rgba(184,134,42,0.12),transparent_55%),radial-gradient(circle_at_85%_110%,rgba(114,47,55,0.18),transparent_60%)]"
-        />
-
-        {/* ---- scene 2: the lounge chair, behind everything ---- */}
-        {roomAssets.chair.present && (
-          <motion.div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{ opacity: chairOpacity, scale: chairScale, y: chairY }}
-          >
-            <Image
-              src={roomAssets.chair.src}
-              alt=""
-              fill
-              sizes="100vw"
-              className="object-cover"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 bg-[var(--color-ink)]/55" />
+        {/* ---------- SCENE 1 · composed at rest ---------- */}
+        <ParallaxMedia px={px} py={py} depth={14}>
+          <motion.div className="absolute inset-0" style={{ opacity: openOpacity, scale: openScale, y: openY }}>
+            <Image src={roomAssets.wall.src} alt="" fill sizes="100vw" className="object-cover" priority />
+            <div className="absolute inset-0 bg-[var(--color-ink)]/62" />
           </motion.div>
-        )}
+        </ParallaxMedia>
 
-        {/* ---- scene 1: golden-crest reveal loop (desktop only) ---- */}
         {fine && !compact && (
-          <motion.div aria-hidden className="pointer-events-none absolute inset-0" style={{ opacity: videoOpacity }}>
+          <motion.div aria-hidden className="pointer-events-none absolute inset-0" style={{ opacity: openOpacity }}>
             <AmbientVideo />
-            <div className="absolute inset-0 bg-[var(--color-ink)]/45" />
+            <div className="absolute inset-0 bg-[var(--color-ink)]/58" />
           </motion.div>
         )}
 
-        {/* ---- scene 3: the craft — tools on marble ---- */}
-        {roomAssets.tools.present && (
-          <motion.div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{ opacity: toolsOpacity, scale: toolsScale }}
-          >
+        {/* ---------- SCENE 2 · the chair ---------- */}
+        <ParallaxMedia px={px} py={py} depth={22}>
+          <motion.div className="absolute inset-0" style={{ opacity: chairOpacity, scale: chairScale }}>
+            <Image src={roomAssets.chair.src} alt="" fill sizes="100vw" className="object-cover" loading="lazy" />
+            <div className="absolute inset-0 bg-[var(--color-ink)]/58" />
+          </motion.div>
+        </ParallaxMedia>
+
+        {/* ---------- SCENE 3 · the tools ---------- */}
+        <ParallaxMedia px={px} py={py} depth={30}>
+          <motion.div className="absolute inset-0" style={{ opacity: toolsOpacity, scale: toolsScale }}>
             <Image src={roomAssets.tools.src} alt="" fill sizes="100vw" className="object-cover" loading="lazy" />
-            <div className="absolute inset-0 bg-[var(--color-ink)]/55" />
+            <div className="absolute inset-0 bg-[var(--color-ink)]/58" />
           </motion.div>
-        )}
+        </ParallaxMedia>
 
-        {/* ---- scene 5: the room ahead ---- */}
-        {roomAssets.advance.present && (
-          <motion.div aria-hidden className="pointer-events-none absolute inset-0" style={{ opacity: advanceOpacity }}>
-            <Image src={roomAssets.advance.src} alt="" fill sizes="100vw" className="object-cover" loading="lazy" />
+        {/* ---------- SCENE 4 · the mirror ---------- */}
+        <ParallaxMedia px={px} py={py} depth={24}>
+          <motion.div className="absolute inset-0" style={{ opacity: mirrorOpacity, scale: mirrorScale }}>
+            <Image src={roomAssets.mirror.src} alt="" fill sizes="100vw" className="object-cover" loading="lazy" />
             <div className="absolute inset-0 bg-[var(--color-ink)]/60" />
           </motion.div>
-        )}
+        </ParallaxMedia>
 
-        {/* ---- scene 4: the crest wall ---- */}
-        {roomAssets.mirror.present && (
-          <motion.div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{ opacity: wallOpacity, scale: wallScale }}
-          >
-            <Image
-              src={roomAssets.mirror.src}
-              alt=""
-              fill
-              sizes="100vw"
-              className="object-cover"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 bg-[var(--color-ink)]/60" />
-          </motion.div>
-        )}
-
-        {/* warm gold wash for scene 4 */}
-        <motion.div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: warmGlow }} />
-
-        {/* ---- the crest, built from real depth planes ---- */}
-        <motion.div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 grid place-items-center md:place-items-start md:justify-items-end md:pr-[6vw]"
-          style={{ opacity: crestOpacity, scale: crestScale, y: crestY, filter: crestFilter }}
-        >
-          <div
-            className="relative mt-[6vh] w-[52vw] max-w-[380px] md:mt-[14vh] md:w-[27vw]"
-            style={{ aspectRatio: CREST_ASPECT, perspective: 1200 }}
-          >
-            <CrestPlane src={crestLayers.ring} depth={-26} px={px} py={py} />
-            <CrestPlane src={crestLayers.crest} depth={8} px={px} py={py} priority />
-            <CrestPlane src={crestLayers.flourish} depth={20} px={px} py={py} />
-            <CrestPlane src={crestLayers.crown} depth={34} px={px} py={py} priority />
-            <CrestPlane src={crestLayers.lounge} depth={-12} px={px} py={py} />
-
-            {/* scene 1: metallic sweep across the crest */}
-            <motion.span
-              className="pointer-events-none absolute inset-0"
-              style={{
-                x: sweepX,
-                backgroundImage:
-                  "linear-gradient(104deg, transparent 40%, rgba(232,200,122,0.5) 50%, transparent 60%)",
-                WebkitMaskImage: "url(/brand/lbl-logo-full.png)",
-                maskImage: "url(/brand/lbl-logo-full.png)",
-                WebkitMaskSize: "contain",
-                maskSize: "contain",
-                WebkitMaskRepeat: "no-repeat",
-                maskRepeat: "no-repeat",
-                WebkitMaskPosition: "center",
-                maskPosition: "center",
-              }}
-            />
-          </div>
+        {/* ---------- SCENE 5 · the room ahead ---------- */}
+        <motion.div aria-hidden className="pointer-events-none absolute inset-0" style={{ opacity: advanceOpacity }}>
+          <Image src={roomAssets.advance.src} alt="" fill sizes="100vw" className="object-cover" loading="lazy" />
+          <div className="absolute inset-0 bg-[var(--color-ink)]/64" />
         </motion.div>
 
-        {/* ---- optional tool planes (scene 3). Absent by design today. ---- */}
-        {availableTools.map((tool, i) => (
-          <ToolPlane key={tool.src} tool={tool} index={i} progress={p} opacity={craftOpacity} />
-        ))}
+        <motion.div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: warmGlow }} />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 [background:radial-gradient(circle_at_20%_-10%,rgba(184,134,42,0.14),transparent_55%),radial-gradient(circle_at_85%_110%,rgba(114,47,55,0.2),transparent_60%)]"
+        />
 
-        {/* ================= copy layers ================= */}
+        {/* ================= copy ================= */}
         <div className="relative z-10 mx-auto flex h-full max-w-6xl items-center px-6 sm:px-10">
-          {/* scene 1 */}
           <motion.div style={{ opacity: introOpacity, y: introY }} className="max-w-2xl">
             <HeroCopy lang={lang} />
           </motion.div>
 
-          {/* scene 3 */}
           <motion.div
             style={{ opacity: craftOpacity, y: craftY }}
             className="pointer-events-none absolute inset-x-6 top-1/2 -translate-y-1/2 sm:inset-x-10"
@@ -313,23 +219,19 @@ export function CinematicHero() {
             <SceneMessage kicker={copy.craftKicker[lang]} line={copy.craftLine[lang]} />
           </motion.div>
 
-          {/* scene 4 */}
           <motion.div
-            style={{ opacity: expOpacity, y: expY }}
+            style={{ opacity: mirrorTextOpacity, y: mirrorTextY }}
             className="pointer-events-none absolute inset-x-6 top-1/2 -translate-y-1/2 sm:inset-x-10"
           >
-            <SceneMessage kicker={copy.expKicker[lang]} line={copy.expLine[lang]} />
+            <SceneMessage kicker={copy.mirrorKicker[lang]} line={copy.mirrorLine[lang]} />
           </motion.div>
 
-          {/* scene 5 */}
-          <motion.div
-            style={{ opacity: bookOpacity, y: bookY }}
-            className="absolute inset-x-6 bottom-[14svh] sm:inset-x-10"
-          >
-            <p className="text-[11px] tracking-[0.36em] uppercase text-[var(--color-brass)]">
-              {copy.bookKicker[lang]}
+          <motion.div style={{ opacity: bookOpacity, y: bookY }} className="absolute inset-x-6 bottom-[16svh] sm:inset-x-10">
+            <p className="text-[11px] tracking-[0.36em] uppercase text-[var(--color-brass)]">{copy.expKicker[lang]}</p>
+            <p className="font-display mt-4 max-w-lg text-2xl italic leading-snug text-[var(--color-bone)] md:text-3xl">
+              {copy.expLine[lang]}
             </p>
-            <div className="mt-6 flex flex-wrap items-center gap-4">
+            <div className="mt-8 flex flex-wrap items-center gap-4">
               <Link
                 href="/book"
                 data-magnetic="true"
@@ -343,13 +245,12 @@ export function CinematicHero() {
                 data-magnetic="true"
                 className="inline-flex items-center gap-3 rounded-full border border-[var(--color-ink-line)] px-7 py-4 text-[12px] tracking-[0.24em] uppercase text-[var(--color-bone)] transition-colors duration-300 hover:border-[var(--color-brass)] hover:text-[var(--color-brass)]"
               >
-                {lang === "es" ? "Fila sin cita" : "Walk-in queue"}
+                {copy.walkIn[lang]}
               </Link>
             </div>
           </motion.div>
         </div>
 
-        {/* ---- scroll cue ---- */}
         <motion.div
           aria-hidden
           style={{ opacity: cueOpacity }}
@@ -373,10 +274,28 @@ export function CinematicHero() {
 
 /* --------------------------------------------------------------- helpers */
 
-/**
- * Muted, looping, poster-backed ambient video. Plays only while on screen;
- * autoplay failures (low-power mode) fall back silently to the poster.
- */
+/** Drifts a media layer against the pointer; deeper layers move further. */
+function ParallaxMedia({
+  children,
+  px,
+  py,
+  depth,
+}: {
+  children: ReactNode;
+  px: MotionValue<number>;
+  py: MotionValue<number>;
+  depth: number;
+}) {
+  const x = useTransform(px, [-1, 1], [depth, -depth]);
+  const y = useTransform(py, [-1, 1], [depth * 0.6, -depth * 0.6]);
+  return (
+    <motion.div aria-hidden className="pointer-events-none absolute inset-0" style={{ x, y }}>
+      {children}
+    </motion.div>
+  );
+}
+
+/** Muted, poster-backed ambient loop. Pauses offscreen; autoplay failure falls back to the poster. */
 function AmbientVideo() {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
@@ -384,12 +303,8 @@ function AmbientVideo() {
     if (!v) return;
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (!v) return;
-        if (entry?.isIntersecting) {
-          v.play().catch(() => {});
-        } else {
-          v.pause();
-        }
+        if (entry?.isIntersecting) v.play().catch(() => {});
+        else v.pause();
       },
       { threshold: 0.05 },
     );
@@ -411,78 +326,11 @@ function AmbientVideo() {
   );
 }
 
-/** One depth plane of the crest, offset by pointer position in proportion to depth. */
-function CrestPlane({
-  src,
-  depth,
-  px,
-  py,
-  priority,
-}: {
-  src: string;
-  depth: number;
-  px: MotionValue<number>;
-  py: MotionValue<number>;
-  priority?: boolean;
-}) {
-  // Max ~14px translation and ~1.6deg rotation, per spec.
-  const x = useTransform(px, [-1, 1], [-depth * 0.42, depth * 0.42]);
-  const y = useTransform(py, [-1, 1], [-depth * 0.3, depth * 0.3]);
-  const rotateY = useTransform(px, [-1, 1], [-1.6, 1.6]);
-  const rotateX = useTransform(py, [-1, 1], [1.2, -1.2]);
-  return (
-    <motion.div className="absolute inset-0" style={{ x, y, rotateX, rotateY, z: depth }}>
-      <Image
-        src={src}
-        alt=""
-        fill
-        sizes="(max-width: 768px) 62vw, 34vw"
-        className="object-contain"
-        priority={priority}
-      />
-    </motion.div>
-  );
-}
-
-/** One optional tool cut-out on its own depth plane. Hooks stay at component top level. */
-function ToolPlane({
-  tool,
-  index,
-  progress,
-  opacity,
-}: {
-  tool: HeroAsset;
-  index: number;
-  progress: MotionValue<number>;
-  opacity: MotionValue<number>;
-}) {
-  const from = 40 + index * 18;
-  const y = useTransform(progress, [S.lounge, S.craft], [`${from}px`, `${-from}px`]);
-  return (
-    <motion.div
-      aria-hidden
-      className="pointer-events-none absolute inset-0 grid place-items-center"
-      style={{ opacity, y }}
-    >
-      <Image
-        src={tool.src}
-        alt=""
-        width={tool.width}
-        height={tool.height}
-        className="w-[18vw] max-w-[220px]"
-        loading="lazy"
-      />
-    </motion.div>
-  );
-}
-
 function SceneMessage({ kicker, line }: { kicker: string; line: string }) {
   return (
     <div className="max-w-xl">
       <p className="text-[11px] tracking-[0.36em] uppercase text-[var(--color-brass)]">{kicker}</p>
-      <p className="font-display mt-6 text-3xl leading-snug italic text-[var(--color-bone)] md:text-4xl">
-        {line}
-      </p>
+      <p className="font-display mt-6 text-3xl leading-snug italic text-[var(--color-bone)] md:text-4xl">{line}</p>
     </div>
   );
 }
@@ -505,7 +353,7 @@ function HeroCopy({ lang }: { lang: "en" | "es" }) {
       <p className="font-display mt-8 max-w-xl text-xl italic leading-relaxed text-[var(--color-bone)]/85 md:text-2xl">
         {dict.hero.tagline[lang]}
       </p>
-      <div className="mt-10 flex flex-wrap items-center gap-5">
+      <div className="mt-10 flex flex-wrap items-center gap-4">
         <Link
           href="/book"
           data-magnetic="true"
@@ -514,9 +362,13 @@ function HeroCopy({ lang }: { lang: "en" | "es" }) {
           {dict.hero.cta[lang]}
           <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden />
         </Link>
-        <span className="text-[11px] tracking-[0.28em] uppercase text-[var(--color-bone-muted)]">
-          {dict.hero.eyebrow[lang]}
-        </span>
+        <Link
+          href="/walk-ins"
+          data-magnetic="true"
+          className="inline-flex items-center gap-3 rounded-full border border-[var(--color-ink-line)] px-6 py-3.5 text-[12px] tracking-[0.24em] uppercase text-[var(--color-bone)] transition-colors duration-300 hover:border-[var(--color-brass)] hover:text-[var(--color-brass)]"
+        >
+          {copy.walkIn[lang]}
+        </Link>
       </div>
     </>
   );
