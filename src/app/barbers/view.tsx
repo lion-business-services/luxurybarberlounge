@@ -51,7 +51,7 @@ export function BarbersView() {
           <div className="border border-[var(--color-ink-line)] p-8 text-center">
             <p className="text-[10px] tracking-[0.3em] uppercase text-[var(--color-brass)]">{lang === "es" ? "¿No estás seguro?" : "Not sure who to choose?"}</p>
             <h2 className="font-display mt-4 text-3xl">{lang === "es" ? "Reserva la mejor disponibilidad." : "Book the best available chair."}</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-[var(--color-bone-muted)]">{lang === "es" ? "Selecciona tu servicio y el lounge te ayudará a encontrar una silla adecuada. La disponibilidad en vivo se activará con Square." : "Choose your service and the lounge will help match you with a suitable chair. Live availability activates with Square."}</p>
+            <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-[var(--color-bone-muted)]">{lang === "es" ? "Selecciona tu servicio y el lounge te ayudará a encontrar una silla adecuada para tu cita." : "Choose your service and the lounge will help match you with a suitable chair for your appointment."}</p>
             <Link href="/book?barber=best-available" data-magnetic="true" className="mt-7 inline-flex rounded-full bg-[var(--color-brass)] px-7 py-3 text-[10px] tracking-[0.25em] uppercase text-[var(--color-ink)]">{lang === "es" ? "Mejor disponible" : "Best available"}</Link>
           </div>
         </Reveal>
