@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   },
   description:
     "An invitation-grade barbershop. Old-world craft, modern grooming, by appointment.",
-  metadataBase: new URL("https://luxurybarberlounge.com"),
+  metadataBase: new URL("https://www.theluxurybarberlounge.com"),
   openGraph: {
     title: "Luxury Barber Lounge",
     description:
