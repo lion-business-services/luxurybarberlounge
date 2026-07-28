@@ -20,7 +20,7 @@ export function ScrollDiscover() {
 
   return (
     <section ref={ref} className="discover-scene min-h-[140vh] border-y border-[var(--color-ink-line)]">
-      <div className="sticky top-20 mx-auto flex min-h-[calc(100vh-5rem)] max-w-6xl items-center px-6 sm:px-10">
+      <div className="sticky top-20 mx-auto flex min-h-[calc(100svh-5rem)] max-w-6xl items-center px-6 sm:px-10">
         <div className="grid w-full gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <div>
             <p className="section-kicker">Scroll to discover</p>

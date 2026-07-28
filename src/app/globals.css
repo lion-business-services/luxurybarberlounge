@@ -414,3 +414,91 @@ body {
   .lbl-crest3d-plane { transform: none !important; }
   .lbl-crest3d-sheen { animation: none !important; opacity: 0 !important; }
 }
+
+/* ==========================================================================
+   RESPONSIVE LAYER
+   Fluid type, safe areas, and the mobile booking bar.
+   ========================================================================== */
+
+/* Nothing may ever scroll sideways. */
+/* overflow-x: clip — NOT hidden. `hidden` makes html/body a scroll container,
+   which silently breaks position: sticky on the pinned hero. `clip` does not. */
+html, body { max-width: 100%; overflow-x: clip; }
+*, *::before, *::after { min-width: 0; }
+
+/* Fluid display type: scales continuously from 375px to wide desktop instead
+   of jumping at breakpoints, so the headline never wraps awkwardly mid-word. */
+.fluid-display {
+  font-size: clamp(2.35rem, 10.5vw, 7.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+.fluid-lede {
+  font-size: clamp(1.0625rem, 2.6vw, 1.5rem);
+  line-height: 1.55;
+}
+.fluid-scene {
+  font-size: clamp(1.5rem, 5.2vw, 2.5rem);
+  line-height: 1.25;
+}
+
+/* Safe areas — notched phones and the home indicator. */
+.safe-b { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-x {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* ------------------------------------------- persistent mobile action bar */
+
+.mobile-actions {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.25fr;
+  gap: 1px;
+  background: var(--color-ink-line);
+  border-top: 1px solid var(--color-ink-line);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  backdrop-filter: blur(10px);
+}
+.mobile-actions > a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  /* 56px keeps every target comfortably above the 44px minimum. */
+  min-height: 56px;
+  padding: 10px 6px;
+  background: color-mix(in srgb, var(--color-ink) 92%, transparent);
+  color: var(--color-bone);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.mobile-actions > a svg { width: 16px; height: 16px; }
+.mobile-actions > a.primary {
+  background: var(--color-brass);
+  color: var(--color-ink);
+  font-weight: 500;
+}
+.mobile-actions > a:focus-visible {
+  outline: 2px solid var(--color-brass-light);
+  outline-offset: -3px;
+}
+
+/* Give page content room so the bar never covers the last line or a CTA. */
+@media (max-width: 767px) {
+  body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* --------------------------------------------------------- small screens */
+
+/* Short landscape phones: keep the pinned stage usable. */
+@media (max-height: 560px) and (orientation: landscape) {
+  .fluid-display { font-size: clamp(2rem, 6vw, 3rem); }
+}

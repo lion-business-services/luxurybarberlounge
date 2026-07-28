@@ -3,7 +3,8 @@
 import { ArrowUpRight, Scissors, ShieldCheck, Clock, Crown } from "lucide-react";
 import { useLang } from "@/lib/i18n/context";
 import { Reveal } from "@/components/motion";
-import { SectionScene, ParallaxBackdrop } from "@/components/motion/SectionScene";
+import { SectionScene } from "@/components/motion/SectionScene";
+import { HomeAtmosphere } from "@/components/motion/HomeAtmosphere";
 import { barbers, services } from "@/lib/content/site";
 import MagneticButton from "@/components/motion/MagneticButton";
 import { CinematicHero } from "@/components/hero/CinematicHero";
@@ -12,13 +13,13 @@ export default function Home() {
   const { lang } = useLang();
 
   return (
-    <div className="bg-[var(--color-ink)] text-[var(--color-bone)]">
+    <div className="relative text-[var(--color-bone)]">
+      <HomeAtmosphere />
       {/* HERO SECTION — cinematic scroll sequence */}
       <CinematicHero />
 
       {/* FEATURED SERVICES REEL */}
       <SectionScene className="border-t border-[var(--color-ink-line)] py-28 px-6 sm:px-10">
-        <ParallaxBackdrop src="/hero/craft-tools.webp" opacity={0.16} />
         <div className="relative mx-auto max-w-6xl">
           <Reveal variant="fade">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 gap-6">
@@ -75,8 +76,7 @@ export default function Home() {
       </SectionScene>
 
       {/* MASTER BARBERS SHOWCASE */}
-      <SectionScene intensity={1.15} className="border-t border-[var(--color-ink-line)] py-28 px-6 sm:px-10 bg-black/40">
-        <ParallaxBackdrop src="/hero/mirror-station.webp" opacity={0.14} />
+      <SectionScene intensity={1.15} className="border-t border-[var(--color-ink-line)] py-28 px-6 sm:px-10 bg-black/25">
         <div className="relative mx-auto max-w-6xl">
           <Reveal>
             <div className="text-center max-w-2xl mx-auto mb-20 space-y-4">
@@ -138,7 +138,6 @@ export default function Home() {
 
       {/* MEMBERSHIP INVITATION CTA */}
       <SectionScene intensity={0.85} className="border-t border-[var(--color-ink-line)] py-32 px-6 sm:px-10 overflow-hidden">
-        <ParallaxBackdrop src="/hero/scene-advance.webp" opacity={0.2} />
         <div className="absolute inset-0 bg-[var(--color-oxblood)]/10 pointer-events-none" />
         <div className="mx-auto max-w-4xl text-center relative z-10 space-y-8">
           <Reveal>

@@ -3,6 +3,7 @@ import { Playfair_Display, Inter } from "next/font/google";
 import "./globals.css";
 import { LangProvider } from "@/lib/i18n/context";
 import { Header } from "@/components/Header";
+import { MobileActions } from "@/components/MobileActions";
 import { MagneticCursor, ScrollProgress } from "@/components/motion";
 import { Footer } from "@/components/Footer";
 import SmoothScroll from "@/components/SmoothScroll";
@@ -64,6 +65,7 @@ export default function RootLayout({
               {children}
             </main>
             <Footer />
+          <MobileActions />
           </SmoothScroll>
         </LangProvider>
       </body>

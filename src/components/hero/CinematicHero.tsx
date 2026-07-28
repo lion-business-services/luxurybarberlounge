@@ -152,7 +152,7 @@ export function CinematicHero() {
       ref={shellRef}
       aria-label="Luxury Barber Lounge"
       className="relative"
-      style={{ height: compact ? "190vh" : "280vh" }}
+      style={{ height: compact ? "170vh" : "280vh" }}
     >
       <div className="sticky top-0 h-[100svh] overflow-hidden">
         {/* ---------- SCENE 1 · composed at rest ---------- */}
@@ -226,7 +226,7 @@ export function CinematicHero() {
             <SceneMessage kicker={copy.mirrorKicker[lang]} line={copy.mirrorLine[lang]} />
           </motion.div>
 
-          <motion.div style={{ opacity: bookOpacity, y: bookY }} className="absolute inset-x-6 bottom-[16svh] sm:inset-x-10">
+          <motion.div style={{ opacity: bookOpacity, y: bookY }} className="safe-b absolute inset-x-6 bottom-[22svh] sm:inset-x-10 sm:bottom-[16svh]">
             <p className="text-[11px] tracking-[0.36em] uppercase text-[var(--color-brass)]">{copy.expKicker[lang]}</p>
             <p className="font-display mt-4 max-w-lg text-2xl italic leading-snug text-[var(--color-bone)] md:text-3xl">
               {copy.expLine[lang]}
@@ -330,7 +330,7 @@ function SceneMessage({ kicker, line }: { kicker: string; line: string }) {
   return (
     <div className="max-w-xl">
       <p className="text-[11px] tracking-[0.36em] uppercase text-[var(--color-brass)]">{kicker}</p>
-      <p className="font-display mt-6 text-3xl leading-snug italic text-[var(--color-bone)] md:text-4xl">{line}</p>
+      <p className="font-display fluid-scene mt-6 italic text-[var(--color-bone)]">{line}</p>
     </div>
   );
 }
@@ -345,12 +345,12 @@ function HeroCopy({ lang }: { lang: "en" | "es" }) {
       <p className="mt-8 text-[11px] tracking-[0.38em] uppercase text-[var(--color-bone-muted)]">
         {dict.hero.eyebrow[lang]}
       </p>
-      <h1 className="font-display mt-6 text-6xl leading-[0.95] tracking-tight text-[var(--color-bone)] md:text-8xl">
+      <h1 className="font-display fluid-display mt-6 text-[var(--color-bone)]">
         Luxury Barber
         <br />
         Lounge
       </h1>
-      <p className="font-display mt-8 max-w-xl text-xl italic leading-relaxed text-[var(--color-bone)]/85 md:text-2xl">
+      <p className="font-display fluid-lede mt-8 max-w-xl italic text-[var(--color-bone)]/85">
         {dict.hero.tagline[lang]}
       </p>
       <div className="mt-10 flex flex-wrap items-center gap-4">
