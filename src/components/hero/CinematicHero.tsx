@@ -105,7 +105,7 @@ export function CinematicHero() {
   const crestY = useTransform(p, [0, S.arrival, S.lounge, S.craft, 1], ["6%", "0%", "-16%", "-18%", "-4%"]);
   const crestBlur = useTransform(p, [0, S.arrival * 0.7], [10, 0]);
   const crestFilter = useMotionTemplate`blur(${crestBlur}px)`;
-  const crestOpacity = useTransform(p, [0, 0.06, S.craft, S.experience, 1], [0, 1, 0.55, 0.42, 1]);
+  const crestOpacity = useTransform(p, [0, 0.06, S.arrival, S.craft, S.experience, 1], [0, 0.42, 0.34, 0.5, 0.42, 1]);
 
   const introOpacity = useTransform(p, [0, 0.04, S.arrival, S.lounge * 0.92], [0, 1, 1, 0]);
   const introY = useTransform(p, [S.arrival, S.lounge * 0.92], ["0%", "-8%"]);
@@ -260,11 +260,11 @@ export function CinematicHero() {
         {/* ---- the crest, built from real depth planes ---- */}
         <motion.div
           aria-hidden
-          className="pointer-events-none absolute inset-0 grid place-items-center"
+          className="pointer-events-none absolute inset-0 grid place-items-center md:place-items-start md:justify-items-end md:pr-[6vw]"
           style={{ opacity: crestOpacity, scale: crestScale, y: crestY, filter: crestFilter }}
         >
           <div
-            className="relative w-[62vw] max-w-[520px] md:w-[34vw]"
+            className="relative mt-[6vh] w-[52vw] max-w-[380px] md:mt-[14vh] md:w-[27vw]"
             style={{ aspectRatio: CREST_ASPECT, perspective: 1200 }}
           >
             <CrestPlane src={crestLayers.ring} depth={-26} px={px} py={py} />

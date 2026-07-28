@@ -37,13 +37,8 @@ export function Logo({
         />
       </span>
       {!compact && (
-        <span className="flex flex-col leading-tight">
-          <span className="font-display text-base text-[var(--color-bone)]">
-            Luxury Barber Lounge
-          </span>
-          <span className="text-[10px] tracking-[0.32em] uppercase text-[var(--color-bone-muted)]">
-            Est. MMXXVI
-          </span>
+        <span className="font-display text-base leading-tight text-[var(--color-bone)]">
+          Luxury Barber Lounge
         </span>
       )}
     </Link>
