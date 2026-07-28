@@ -131,13 +131,14 @@ export function CinematicHero() {
   const bookY = useTransform(p, [S.experience, 1], ["14%", "0%"]);
 
   const cueOpacity = useTransform(p, [0, 0.08, 0.14], [1, 1, 0]);
+  const showAmbientVideo = fine && !compact;
 
   /* ------------------------- reduced motion ------------------------- */
   if (reduced) {
     return (
       <section className="relative overflow-hidden border-b border-[var(--color-ink-line)]">
         <div aria-hidden className="absolute inset-0">
-          <Image src={revealVideo.poster} alt="" fill sizes="100vw" className="object-cover opacity-40" priority />
+          <Image src={roomAssets.wall.src} alt="" fill sizes="100vw" className="object-cover opacity-40" priority />
           <div className="absolute inset-0 bg-[var(--color-ink)]/70" />
         </div>
         <div className="relative mx-auto max-w-6xl px-6 py-28 sm:px-10">
@@ -156,14 +157,16 @@ export function CinematicHero() {
     >
       <div className="sticky top-0 h-[100svh] overflow-hidden">
         {/* ---------- SCENE 1 · composed at rest ---------- */}
-        <ParallaxMedia px={px} py={py} depth={14}>
-          <motion.div className="absolute inset-0" style={{ opacity: openOpacity, scale: openScale, y: openY }}>
-            <Image src={revealVideo.poster} alt="" fill sizes="100vw" className="object-cover" priority />
-            <div className="absolute inset-0 bg-[var(--color-ink)]/62" />
-          </motion.div>
-        </ParallaxMedia>
+        {!showAmbientVideo && (
+          <ParallaxMedia px={px} py={py} depth={14}>
+            <motion.div className="absolute inset-0" style={{ opacity: openOpacity, scale: openScale, y: openY }}>
+              <Image src={roomAssets.wall.src} alt="" fill sizes="100vw" className="object-cover" priority />
+              <div className="absolute inset-0 bg-[var(--color-ink)]/62" />
+            </motion.div>
+          </ParallaxMedia>
+        )}
 
-        {fine && !compact && (
+        {showAmbientVideo && (
           <motion.div aria-hidden className="pointer-events-none absolute inset-0" style={{ opacity: openOpacity }}>
             <AmbientVideo />
             <div className="absolute inset-0 bg-[var(--color-ink)]/58" />
