@@ -45,17 +45,3 @@ Vercel should use the repository root, Node.js 22, `npm ci` or its standard lock
 ## Launch controls
 
 Keep live Square, queue, kiosk, membership billing, gift-card purchasing, SMS, WhatsApp, advanced analytics, and payout-export flags disabled until the relevant credentials, mappings, policies, and owner approvals are complete.
-
-## Post-hero validation addendum
-
-The post-hero release additionally passed:
-
-- complete ESLint scan
-- strict TypeScript scan
-- media existence integration tests
-- approved hero ordering integration test
-- hero source and `public/hero` byte comparison against the supplied archive
-- dead `href="#"` scan
-- modified-source console-log scan
-
-The Next.js production build was invoked again. It reached Next.js startup and then failed only because this isolated Linux container could not download `@next/swc-linux-x64-gnu@16.2.6` from its configured package gateway, which returned HTTP 404. This is an execution-environment package mirror failure, not a source, TypeScript, lint, test, or route failure. Vercel installs the matching compiler package from the public npm registry during its normal lockfile install.

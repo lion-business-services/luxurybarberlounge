@@ -64,6 +64,25 @@ export const experienceCopy = {
       es: "Del escudo en la puerta a la tarjeta en tu bolsillo: un solo estándar en todo lo que tocas.",
     },
   },
+  membership: {
+    kicker: { en: "Membership, by design", es: "Membresía, por diseño" },
+    title: { en: "A standing chair. A kept rhythm.", es: "Una silla apartada. Un ritmo constante." },
+    body: {
+      en: "Priority booking, planned maintenance, and benefits reserved for the regulars of the room.",
+      es: "Reserva prioritaria, mantenimiento planificado y beneficios reservados para los clientes de casa.",
+    },
+    cta: { en: "Explore membership", es: "Conoce la membresía" },
+  },
+  final: {
+    kicker: { en: "Your next visit", es: "Tu próxima visita" },
+    title: { en: "Make the chair yours.", es: "Haz tuya la silla." },
+    body: {
+      en: "Choose a service, a preferred barber, or the first available chair. The lounge confirms the time, the details, and any deposit.",
+      es: "Elige un servicio, tu barbero preferido o la primera silla disponible. El salón confirma la hora, los detalles y cualquier depósito.",
+    },
+    book: { en: "Book an appointment", es: "Reserva una cita" },
+    queue: { en: "Join walk-in queue", es: "Únete a la fila" },
+  },
   visit: {
     kicker: { en: "Visit the lounge", es: "Visita el salón" },
     title: { en: "Suite 106, off Tilton Road.", es: "Suite 106, sobre Tilton Road." },

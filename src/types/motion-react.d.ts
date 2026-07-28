@@ -7,7 +7,7 @@ declare module "motion/react" {
     on(event: "change", listener: (value: T) => void): () => void;
   }
 
-  export type MotionStyle = React.CSSProperties | Record<string, unknown>;
+  export type MotionStyle = Record<string, unknown>;
   export type MotionProps = {
     style?: MotionStyle;
     initial?: unknown;
@@ -19,7 +19,6 @@ declare module "motion/react" {
     whileInView?: unknown;
     viewport?: unknown;
     layout?: boolean | string;
-    variants?: Record<string, unknown>;
   };
 
   type MotionComponent<Tag extends keyof React.JSX.IntrinsicElements> = React.ForwardRefExoticComponent<
@@ -36,7 +35,6 @@ declare module "motion/react" {
     h2: MotionComponent<"h2">;
     a: MotionComponent<"a">;
     button: MotionComponent<"button">;
-    path: MotionComponent<"path">;
   };
 
   export function useMotionValue<T>(initial: T): MotionValue<T>;
