@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRef } from "react";
 import { ArrowUpRight, Clock, Crown, Scissors, ShieldCheck } from "lucide-react";
 import { useLang } from "@/lib/i18n/context";
 import { Reveal } from "@/components/motion";
@@ -9,6 +10,14 @@ import { HomeAtmosphere } from "@/components/motion/HomeAtmosphere";
 import { barbers, faqs, services } from "@/lib/content/site";
 import MagneticButton from "@/components/motion/MagneticButton";
 import { CinematicHero } from "@/components/hero/CinematicHero";
+import {
+  SpiralProgress,
+  ThresholdScene,
+  PrecisionScene,
+  LoungeJourney,
+  BrandSignatureScene,
+  VisitScene,
+} from "@/components/home-experience";
 import { HomeEnhancements } from "@/components/marketing/HomeEnhancements";
 import {
   CtaBand,
@@ -21,6 +30,7 @@ import {
 
 export default function Home() {
   const { lang } = useLang();
+  const postHeroRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className="relative text-[var(--color-bone)]">
@@ -28,6 +38,16 @@ export default function Home() {
 
       {/* The existing cinematic hero remains the visual anchor. */}
       <CinematicHero />
+
+      {/* ============ POST-HERO EXPERIENCE — the spiral begins here ============ */}
+      <div ref={postHeroRef} className="relative">
+        <SpiralProgress containerRef={postHeroRef} />
+
+        {/* Scene 1 · The threshold — the uploaded film opens the room */}
+        <ThresholdScene />
+
+        {/* Scene 2 · The art of precision */}
+        <PrecisionScene />
       <TrustStrip />
 
       {/* FEATURED SERVICES REEL */}
@@ -98,6 +118,9 @@ export default function Home() {
           <ServiceMatcher />
         </div>
       </SectionScene>
+
+      {/* Scene 4 · The lounge environment */}
+      <LoungeJourney />
 
       {/* MASTER BARBERS SHOWCASE */}
       <SectionScene intensity={1.15} className="border-t border-[var(--color-ink-line)] bg-black/25 px-6 py-28 sm:px-10">
@@ -208,6 +231,9 @@ export default function Home() {
         </div>
       </SectionScene>
 
+      {/* Scene 8 · The brand signature */}
+      <BrandSignatureScene />
+
       {/* FAQ PREVIEW */}
       <SectionScene className="border-t border-[var(--color-ink-line)] px-6 py-28 sm:px-10">
         <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[.7fr_1.3fr]">
@@ -224,7 +250,11 @@ export default function Home() {
         </div>
       </SectionScene>
 
+      {/* Scene 10 · Visit the lounge — the spiral grounds itself */}
+      <VisitScene />
+
       <CtaBand />
+      </div>
     </div>
   );
 }
