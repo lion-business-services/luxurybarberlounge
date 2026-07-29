@@ -1,31 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
+import { useAdaptiveMotionTier } from "./useAdaptiveMotionTier";
 
-/** True when the visitor has asked the OS to reduce motion. All motion must honor this. */
+/** True when the site should avoid continuous or scrubbed motion. */
 export function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const apply = () => setReduced(mq.matches);
-    apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, []);
-  return reduced;
+  return useAdaptiveMotionTier() === "minimal";
 }
 
-/** True only for precise pointers (mouse/trackpad). Never true on touch. */
+/** True only for desktop-class precise pointers. Never true on touch. */
 export function useFinePointer(): boolean {
-  const [fine, setFine] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(pointer: fine) and (hover: hover)");
-    const apply = () => setFine(mq.matches);
-    apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, []);
-  return fine;
+  const tier = useAdaptiveMotionTier();
+  return tier === "high" || tier === "standard";
 }
 
 /**

@@ -273,3 +273,74 @@
   .loungeSticky { position:relative; height:100svh; }
   .membershipAtmosphere,.finalBackdrop { transform:none!important; }
 }
+
+/* ========================================================================
+   ADAPTIVE PERFORMANCE LAYER
+   ======================================================================== */
+.precisionScene,
+.servicesScene,
+.barberScene,
+.transformationScene,
+.visitScene {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 900px;
+}
+
+.root[data-motion-tier="standard"] .spiral path:last-child {
+  filter: none;
+}
+.root[data-motion-tier="standard"] .membershipAtmosphere img {
+  filter: saturate(.82) contrast(1.03);
+}
+.root[data-motion-tier="standard"] .visitPanel {
+  backdrop-filter: blur(8px);
+}
+
+.root[data-motion-tier="mobile"] .threshold {
+  min-height: 108svh;
+}
+.root[data-motion-tier="mobile"] .membershipAtmosphere img,
+.root[data-motion-tier="mobile"] .serviceCard::before,
+.root[data-motion-tier="mobile"] .barberThumb img,
+.root[data-motion-tier="mobile"] .barberThumbActive img {
+  filter: none;
+}
+.root[data-motion-tier="mobile"] .visitPanel {
+  backdrop-filter: none;
+  background: rgba(7,7,7,.9);
+}
+.root[data-motion-tier="mobile"] .toolCard,
+.root[data-motion-tier="mobile"] .membershipPanel,
+.root[data-motion-tier="mobile"] .barberPortraitShell,
+.root[data-motion-tier="mobile"] .comparison {
+  box-shadow: 0 18px 48px rgba(0,0,0,.38);
+}
+.root[data-motion-tier="mobile"] .membershipOrbit,
+.root[data-motion-tier="mobile"] .toolOrb,
+.root[data-motion-tier="mobile"] .barberHalo {
+  box-shadow: none;
+}
+.root[data-motion-tier="mobile"] .serviceCard,
+.root[data-motion-tier="mobile"] .membershipTab,
+.root[data-motion-tier="mobile"] .membershipTabActive,
+.root[data-motion-tier="mobile"] .barberThumb,
+.root[data-motion-tier="mobile"] .barberThumbActive {
+  transition-duration: 180ms;
+}
+.root[data-motion-tier="mobile"] .lounge {
+  min-height: 108svh;
+}
+.root[data-motion-tier="reduced"] .threshold,
+.root[data-motion-tier="reduced"] .membershipScene,
+.root[data-motion-tier="reduced"] .lounge,
+.root[data-motion-tier="reduced"] .finalScene {
+  min-height: auto;
+}
+.root[data-motion-tier="reduced"] .thresholdSticky,
+.root[data-motion-tier="reduced"] .loungeSticky {
+  position: relative;
+  height: 100svh;
+}
+.root[data-motion-tier="reduced"] .visitPanel {
+  backdrop-filter: none;
+}

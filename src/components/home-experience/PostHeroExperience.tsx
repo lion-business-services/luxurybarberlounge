@@ -4,8 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   AnimatePresence,
+  MotionConfig,
   motion,
-  useReducedMotion,
   useScroll,
   useSpring,
   useTransform,
@@ -24,12 +24,12 @@ import {
   Phone,
   Scissors,
 } from "lucide-react";
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { useLang } from "@/lib/i18n/context";
 import { barbers, business, hours, services, tiers, type Lang } from "@/lib/content/site";
 import { homeMotion } from "@/lib/motion/homeMotionConfig";
 import { experienceCopy, homeMedia, processSteps } from "./homeExperienceData";
-import { useMotionTier, useVideoVisibility } from "./useHomeExperience";
+import { useAdaptiveScrollProgress, useMotionTier, useVideoVisibility } from "./useHomeExperience";
 import styles from "./home-experience.module.css";
 
 const reveal = {
@@ -87,10 +87,10 @@ function SpiralGuide({ progress }: { progress: MotionValue<number> }) {
 function ThresholdScene({ lang, tier }: { lang: Lang; tier: ReturnType<typeof useMotionTier> }) {
   const ref = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const reduced = tier === "reduced";
+  const reduced = tier === "reduced" || tier === "mobile";
   const useVideo = tier === "high" || tier === "standard";
   useVideoVisibility(videoRef, useVideo && !reduced);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
+  const scrollYProgress = useAdaptiveScrollProgress(ref, !reduced, "pinned");
   const smooth = useSpring(scrollYProgress, homeMotion.softSpring);
   const scale = useTransform(smooth, [0, 0.72, 1], [0.84, 1, 1.035]);
   const radius = useTransform(smooth, [0, 0.7], [44, 0]);
@@ -109,7 +109,7 @@ function ThresholdScene({ lang, tier }: { lang: Lang; tier: ReturnType<typeof us
               muted
               playsInline
               loop
-              preload="metadata"
+              preload={tier === "high" ? "metadata" : "none"}
               poster={homeMedia.thresholdPoster}
               aria-label="Cinematic view of the Luxury Barber Lounge interior"
             >
@@ -140,7 +140,7 @@ function MembershipScene({ lang, reduced }: { lang: Lang; reduced: boolean }) {
   const [activeIndex, setActiveIndex] = useState(preferred);
   const active = tiers[activeIndex] ?? tiers[0];
   const ref = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
+  const scrollYProgress = useAdaptiveScrollProgress(ref, !reduced);
   const smooth = useSpring(scrollYProgress, homeMotion.softSpring);
   const ringRotate = useTransform(smooth, [0, 1], [-26, 42]);
   const ringScale = useTransform(smooth, [0, 0.5, 1], [0.86, 1, 1.08]);
@@ -215,7 +215,7 @@ function PrecisionStep({ progress, range, item }: { progress: MotionValue<number
 
 function PrecisionScene({ lang, reduced }: { lang: Lang; reduced: boolean }) {
   const ref = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
+  const scrollYProgress = useAdaptiveScrollProgress(ref, !reduced);
   const smooth = useSpring(scrollYProgress, homeMotion.spring);
   const imageAY = useTransform(smooth, [0, 1], [70, -50]);
   const imageARotate = useTransform(smooth, [0, 1], [-5, 1]);
@@ -224,7 +224,7 @@ function PrecisionScene({ lang, reduced }: { lang: Lang; reduced: boolean }) {
   const orbRotate = useTransform(smooth, [0, 1], [0, 150]);
   const steps = processSteps[lang];
   return (
-    <section ref={ref} className={styles.scene} aria-labelledby="precision-title">
+    <section ref={ref} className={`${styles.scene} ${styles.precisionScene}`} aria-labelledby="precision-title">
       <div className={`${styles.sceneInner} ${styles.precisionGrid}`}>
         <div className={styles.precisionVisual} aria-hidden="true">
           <motion.div className={`${styles.toolCard} ${styles.toolCardA}`} style={reduced ? undefined : { y: imageAY, rotate: imageARotate }}><Image src={homeMedia.toolsTray} alt="" fill sizes="(max-width: 760px) 90vw, 52vw" className="object-cover" /></motion.div>
@@ -281,7 +281,7 @@ function SignatureServices({ lang }: { lang: Lang }) {
 
 function LoungeEnvironment({ lang, reduced }: { lang: Lang; reduced: boolean }) {
   const ref = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
+  const scrollYProgress = useAdaptiveScrollProgress(ref, !reduced, "pinned");
   const smooth = useSpring(scrollYProgress, homeMotion.softSpring);
   const firstOpacity = useTransform(smooth, [0, 0.5, 0.78], [1, 1, 0]);
   const secondOpacity = useTransform(smooth, [0.42, 0.72, 1], [0, 1, 1]);
@@ -378,7 +378,7 @@ function BarberProfiles({ lang, reduced }: { lang: Lang; reduced: boolean }) {
 function Transformation({ lang }: { lang: Lang }) {
   const [value, setValue] = useState(55);
   return (
-    <section className={styles.scene} aria-labelledby="transformation-title">
+    <section className={`${styles.scene} ${styles.transformationScene}`} aria-labelledby="transformation-title">
       <div className={`${styles.sceneInner} ${styles.transformGrid}`}>
         <CopyBlock eyebrow={experienceCopy.transformation.eyebrow[lang]} title={<span id="transformation-title">{experienceCopy.transformation.title[lang]}</span>} body={experienceCopy.transformation.body[lang]}>
           <div className={styles.actions}><Link href="/gallery" className={styles.secondary}>{lang === "es" ? "Explorar galería" : "Explore gallery"}<ArrowUpRight size={15} /></Link></div>
@@ -430,7 +430,7 @@ function Visit({ lang }: { lang: Lang }) {
 
 function FinalConversion({ lang, reduced }: { lang: Lang; reduced: boolean }) {
   const ref = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end end"] });
+  const scrollYProgress = useAdaptiveScrollProgress(ref, !reduced, "enter-to-end");
   const smooth = useSpring(scrollYProgress, homeMotion.softSpring);
   const backgroundScale = useTransform(smooth, [0, 1], [1.08, 1]);
   const ringScale = useTransform(smooth, [0, 0.8], [0.7, 1]);
@@ -454,28 +454,34 @@ function FinalConversion({ lang, reduced }: { lang: Lang; reduced: boolean }) {
   );
 }
 
+function AnimatedSpiral({ target }: { target: RefObject<HTMLDivElement | null> }) {
+  const { scrollYProgress } = useScroll({ target, offset: ["start end", "end start"] });
+  const progress = useSpring(scrollYProgress, homeMotion.softSpring);
+  return <SpiralGuide progress={progress} />;
+}
+
 export function PostHeroExperience() {
   const { lang } = useLang();
   const rootRef = useRef<HTMLDivElement>(null);
   const tier = useMotionTier();
-  const systemReduced = useReducedMotion();
-  const reduced = tier === "reduced" || Boolean(systemReduced);
-  const { scrollYProgress } = useScroll({ target: rootRef, offset: ["start end", "end start"] });
-  const progress = useSpring(scrollYProgress, homeMotion.softSpring);
+  const reduced = tier === "reduced" || tier === "mobile";
+  const showAnimatedSpiral = tier === "high" || tier === "standard";
 
   return (
-    <div ref={rootRef} className={styles.root} data-motion-tier={tier}>
-      <SpiralGuide progress={progress} />
-      <ThresholdScene lang={lang} tier={tier} />
-      <MembershipScene lang={lang} reduced={reduced} />
-      <PrecisionScene lang={lang} reduced={reduced} />
-      <SignatureServices lang={lang} />
-      <LoungeEnvironment lang={lang} reduced={reduced} />
-      <BarberProfiles lang={lang} reduced={reduced} />
-      <Transformation lang={lang} />
-      <Visit lang={lang} />
-      <FinalConversion lang={lang} reduced={reduced} />
-    </div>
+    <MotionConfig reducedMotion="user">
+      <div ref={rootRef} className={styles.root} data-motion-tier={tier}>
+        {showAnimatedSpiral ? <AnimatedSpiral target={rootRef} /> : null}
+        <ThresholdScene lang={lang} tier={tier} />
+        <MembershipScene lang={lang} reduced={reduced} />
+        <PrecisionScene lang={lang} reduced={reduced} />
+        <SignatureServices lang={lang} />
+        <LoungeEnvironment lang={lang} reduced={reduced} />
+        <BarberProfiles lang={lang} reduced={reduced} />
+        <Transformation lang={lang} />
+        <Visit lang={lang} />
+        <FinalConversion lang={lang} reduced={reduced} />
+      </div>
+    </MotionConfig>
   );
 }
 

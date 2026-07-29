@@ -21,13 +21,13 @@
     "validate:migrations": "node scripts/validate-migrations.mjs",
     "validate:routes": "node scripts/validate-routes.mjs",
     "scan:secrets": "node scripts/scan-secrets.mjs",
-    "check:source": "npm run format:check && npm run lint && npm run typecheck && npm run validate:content && npm run validate:migrations && npm run validate:routes && npm run validate:repository && npm run scan:secrets && npm run test && npm run test:integration"
+    "check:source": "npm run format:check && npm run lint && npm run typecheck && npm run validate:content && npm run validate:migrations && npm run validate:routes && npm run validate:repository && npm run validate:performance && npm run scan:secrets && npm run test && npm run test:integration",
+    "validate:performance": "node scripts/validate-performance.mjs"
   },
   "dependencies": {
     "@studio-freight/lenis": "^1.0.42",
     "@supabase/supabase-js": "^2.106.2",
     "clsx": "^2.1.1",
-    "gsap": "^3.15.0",
     "lucide-react": "^1.27.0",
     "motion": "^12.42.2",
     "next": "16.2.6",

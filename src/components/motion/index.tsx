@@ -13,10 +13,8 @@ import {
   useInView,
   useReducedMotion,
   useScrollProgress,
-  useFinePointer,
 } from "@/lib/motion/hooks";
-
-export { MagneticCursor } from "./MagneticCursor";
+import { useAdaptiveMotionTier } from "@/lib/motion/useAdaptiveMotionTier";
 
 /* ------------------------------------------------------------------ Reveal */
 
@@ -70,11 +68,13 @@ export function Scene3D({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
-  useScrollProgress(ref, !reduced);
+  const tier = useAdaptiveMotionTier();
+  const enabled = !reduced && (tier === "high" || tier === "standard");
+  useScrollProgress(ref, enabled);
   return (
     <div
       ref={ref}
-      data-scene={reduced ? "flat" : "3d"}
+      data-scene={enabled ? "3d" : "flat"}
       style={{ "--depth": `${depth}px` } as CSSProperties}
       className={clsx("lbl-scene", className)}
     >
@@ -137,8 +137,8 @@ export function TiltCard({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
-  const fine = useFinePointer();
-  const enabled = fine && !reduced;
+  const tier = useAdaptiveMotionTier();
+  const enabled = tier === "high" && !reduced;
 
   useEffect(() => {
     const el = ref.current;
@@ -180,36 +180,6 @@ export function TiltCard({
       {children}
     </div>
   );
-}
-
-/* --------------------------------------------------------- ScrollProgress */
-
-/** Hairline brass rule across the top of the page showing read progress. */
-export function ScrollProgress() {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    let raf = 0;
-    const measure = () => {
-      raf = 0;
-      const doc = document.documentElement;
-      const max = doc.scrollHeight - doc.clientHeight;
-      el.style.transform = `scaleX(${max > 0 ? doc.scrollTop / max : 0})`;
-    };
-    const schedule = () => {
-      if (!raf) raf = requestAnimationFrame(measure);
-    };
-    measure();
-    window.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", schedule);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
-  return <div aria-hidden className="lbl-progress"><div ref={ref} /></div>;
 }
 
 /* ----------------------------------------------------------------- CountUp */

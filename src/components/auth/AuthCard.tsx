@@ -17,7 +17,7 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
     <main className="relative grid min-h-[calc(100svh-82px)] place-items-center overflow-hidden px-6 py-16 sm:px-10">
       <Image src="/hero/lounge-wall.webp" alt="" fill sizes="100vw" className="object-cover opacity-20" priority />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(184,134,42,.12),rgba(10,10,10,.92)_65%)]" />
-      <section className="relative w-full max-w-md border border-[var(--color-brass)]/25 bg-[#0c0c0c]/95 p-7 shadow-2xl backdrop-blur-xl sm:p-9">
+      <section className="relative w-full max-w-md border border-[var(--color-brass)]/25 bg-[#0c0c0c]/95 p-7 shadow-2xl sm:backdrop-blur-xl sm:p-9">
         <div className="mx-auto relative h-24 w-24"><Image src="/brand/lbl-crest.webp" alt="Luxury Barber Lounge crest" fill sizes="96px" className="object-contain" /></div>
         <p className="mt-6 text-center text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">Secure portal</p>
         <h1 className="font-display mt-3 text-center text-3xl">{title}</h1>

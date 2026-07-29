@@ -29,7 +29,7 @@ export function Header() {
   if (portalMatch) {
     const label = portalMatch[1] === "admin" ? "Owner & Admin" : portalMatch[1] === "reception" ? "Reception Console" : portalMatch[1] === "barber" ? "Barber Workspace" : "Client Portal";
     return (
-      <header className="sticky top-0 z-40 border-b border-[var(--color-ink-line)] bg-[#0a0a0a]/95 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-[var(--color-ink-line)] bg-[#0a0a0a]/98 md:backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-3 sm:px-7">
           <div className="flex items-center gap-4"><Logo compact /><span className="hidden text-[10px] tracking-[.24em] uppercase text-[var(--color-brass)] sm:block">{label}</span></div>
           <div className="flex items-center gap-2"><Link href="/" className="rounded-full border border-[var(--color-ink-line)] px-4 py-2 text-[9px] tracking-[.16em] uppercase text-[var(--color-bone-muted)] transition hover:border-[var(--color-brass)] hover:text-[var(--color-brass)]">Public site</Link><Link href="/login" className="rounded-full bg-[var(--color-brass)] px-4 py-2 text-[9px] tracking-[.16em] uppercase text-[var(--color-ink)]">Account</Link></div>
@@ -39,7 +39,7 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--color-ink-line)] bg-[var(--color-ink)]/90 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-[var(--color-ink-line)] bg-[var(--color-ink)]/96 md:bg-[var(--color-ink)]/90 md:backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-4 sm:px-8 lg:px-10">
         <Logo />
 

@@ -3,13 +3,12 @@ import { Playfair_Display, Inter } from "next/font/google";
 import "./globals.css";
 import { LangProvider } from "@/lib/i18n/context";
 import { Header } from "@/components/Header";
-import { MobileActions } from "@/components/MobileActions";
-import { MagneticCursor, ScrollProgress } from "@/components/motion";
+import { ScrollProgress } from "@/components/motion/ScrollProgress";
 import { Footer } from "@/components/Footer";
 import SmoothScroll from "@/components/SmoothScroll";
-import { ConciergeWidget } from "@/components/public/ConciergeWidget";
-import { CookiePreferences } from "@/components/public/CookiePreferences";
 import { business } from "@/lib/content/site";
+import { GlobalClientWidgets } from "@/components/GlobalClientWidgets";
+import { AdaptiveMotionProvider } from "@/lib/motion/useAdaptiveMotionTier";
 
 const playfair = Playfair_Display({
   variable: "--font-playfair",
@@ -84,9 +83,9 @@ export default function RootLayout({
       <body className="flex min-h-full flex-col bg-[var(--color-ink)] text-[var(--color-bone)]">
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
         <LangProvider>
-          <SmoothScroll>
+          <AdaptiveMotionProvider>
+            <SmoothScroll>
             <ScrollProgress />
-            <MagneticCursor />
             <a
               href="#main"
               className="sr-only focus:not-sr-only focus:absolute focus:left-6 focus:top-6 focus:z-[80] focus:rounded-full focus:bg-[var(--color-brass)] focus:px-5 focus:py-2 focus:text-[12px] focus:tracking-[0.2em] focus:uppercase focus:text-[var(--color-ink)]"
@@ -98,10 +97,9 @@ export default function RootLayout({
               {children}
             </main>
             <Footer />
-            <ConciergeWidget />
-            <CookiePreferences />
-          <MobileActions />
-          </SmoothScroll>
+            <GlobalClientWidgets />
+            </SmoothScroll>
+          </AdaptiveMotionProvider>
         </LangProvider>
       </body>
     </html>

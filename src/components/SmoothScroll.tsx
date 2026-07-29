@@ -1,31 +1,57 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import Lenis from '@studio-freight/lenis';
+import { useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { useAdaptiveMotionTier } from "@/lib/motion/useAdaptiveMotionTier";
+import { shouldUseSmoothScroll } from "@/lib/motion/devicePerformance";
 
+/**
+ * Desktop-only progressive enhancement. Touch devices, operational portals,
+ * reduced-motion users, data-saver users, and modest hardware keep native
+ * scrolling. Lenis is dynamically imported so it never enters those bundles.
+ */
 export default function SmoothScroll({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const tier = useAdaptiveMotionTier();
+  const enabled = shouldUseSmoothScroll(tier, pathname);
+
   useEffect(() => {
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      orientation: 'vertical',
-      gestureOrientation: 'vertical',
-      smoothWheel: true,
-      wheelMultiplier: 1.0,
-      touchMultiplier: 2.0,
-    });
+    if (!enabled) return;
 
-    function raf(time: number) {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
-    }
+    let cancelled = false;
+    let frame = 0;
+    let lenis: import("@studio-freight/lenis").default | null = null;
 
-    requestAnimationFrame(raf);
+    const start = async () => {
+      const { default: Lenis } = await import("@studio-freight/lenis");
+      if (cancelled) return;
 
-    return () => {
-      lenis.destroy();
+      lenis = new Lenis({
+        duration: 0.9,
+        easing: (value) => 1 - Math.pow(1 - value, 4),
+        orientation: "vertical",
+        gestureOrientation: "vertical",
+        smoothWheel: true,
+        syncTouch: false,
+        wheelMultiplier: 0.9,
+        touchMultiplier: 1,
+      });
+
+      const tick = (time: number) => {
+        frame = 0;
+        if (!document.hidden) lenis?.raf(time);
+        if (!cancelled) frame = window.requestAnimationFrame(tick);
+      };
+      frame = window.requestAnimationFrame(tick);
     };
-  }, []);
+
+    void start();
+    return () => {
+      cancelled = true;
+      if (frame) window.cancelAnimationFrame(frame);
+      lenis?.destroy();
+    };
+  }, [enabled, pathname]);
 
   return <>{children}</>;
 }

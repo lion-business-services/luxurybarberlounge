@@ -168,3 +168,12 @@ See `docs/launch/production-checklist.md`.
 ## Important operational boundary
 
 The commission and reconciliation modules calculate and report amounts. They do not transfer funds or represent certified payroll software. Square remains the intended source of operational and financial truth when connected.
+
+## Final cross-device performance release
+
+The complete adaptive-motion, media-delivery, smooth-scroll, cursor, mobile, portal, and reduced-motion audit is documented in:
+
+- `docs/performance-final-audit.md`
+- `docs/validation-performance-release.md`
+
+Run `npm run check:source` for all source-level quality gates and `npm run check` for the same gates followed by the Next.js production build.

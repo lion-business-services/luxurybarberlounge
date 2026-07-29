@@ -6,57 +6,62 @@ import { motion, useScroll, useSpring, useTransform, type MotionValue } from "mo
 import { roomAssets } from "@/components/hero/assets";
 import { useHeroPerformanceMode } from "@/lib/motion/useHeroPerformanceMode";
 
+const PLATES = [roomAssets.wall, roomAssets.chair, roomAssets.tools, roomAssets.mirror, roomAssets.advance] as const;
+
 /**
- * One continuous atmosphere behind the entire homepage.
- *
- * Rather than pinning the whole page (which traps the reader and wrecks
- * conversion), a single fixed backdrop travels through the shop as the visitor
- * scrolls normally. Content scrolls over it at native speed, so the page reads
- * as one unbroken scene from the first viewport to the footer.
- *
- * Every graphic here is either the client's own photography or generated
- * procedurally in-browser — nothing is fetched or licensed from third parties.
+ * Adaptive fixed atmosphere. Full desktop keeps the approved cross-fading film;
+ * all other devices receive the same palette and photography as a single,
+ * zero-loop composition so the page never pays for five full-screen layers.
  */
-
-const PLATES = [
-  roomAssets.wall,
-  roomAssets.chair,
-  roomAssets.tools,
-  roomAssets.mirror,
-  roomAssets.advance,
-] as const;
-
 export function HomeAtmosphere() {
   const tier = useHeroPerformanceMode();
-  const { scrollYProgress } = useScroll();
-  const p = useSpring(scrollYProgress, { stiffness: 80, damping: 30, mass: 0.6 });
 
-  if (tier === "minimal") {
+  if (tier !== "full") {
     return (
-      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
-        <Image src={roomAssets.wall.src} alt="" fill sizes="100vw" className="object-cover opacity-25" priority />
-        <div className="absolute inset-0 bg-[var(--color-ink)]/80" />
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <Image
+          src={roomAssets.wall.src}
+          alt=""
+          fill
+          sizes="100vw"
+          className="object-cover opacity-30"
+          quality={68}
+          priority
+        />
+        <div className="absolute inset-0 bg-[var(--color-ink)]/82" />
+        <div className="absolute inset-0 [background:radial-gradient(circle_at_18%_-8%,rgba(184,134,42,0.13),transparent_58%),radial-gradient(circle_at_86%_108%,rgba(114,47,55,0.16),transparent_62%)]" />
+        <FilmGrain opacity="0.035" />
       </div>
     );
   }
 
+  return <FullAtmosphere />;
+}
+
+function FullAtmosphere() {
+  const { scrollYProgress } = useScroll();
+  const progress = useSpring(scrollYProgress, { stiffness: 74, damping: 32, mass: 0.62 });
+
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      {PLATES.map((plate, i) => (
-        <Plate key={plate.src} src={plate.src} index={i} total={PLATES.length} progress={p} priority={i === 0} />
+      {PLATES.map((plate, index) => (
+        <Plate
+          key={plate.src}
+          src={plate.src}
+          index={index}
+          total={PLATES.length}
+          progress={progress}
+          priority={index === 0}
+        />
       ))}
-
-      {/* brand wash — keeps every plate inside the ink/brass/oxblood palette */}
       <div className="absolute inset-0 bg-[var(--color-ink)]/78" />
       <div className="absolute inset-0 [background:radial-gradient(circle_at_18%_-8%,rgba(184,134,42,0.16),transparent_58%),radial-gradient(circle_at_86%_108%,rgba(114,47,55,0.2),transparent_62%)]" />
-
-      {tier === "full" && <GoldDust />}
-      <FilmGrain />
+      <GoldDust />
+      <FilmGrain opacity="0.045" />
     </div>
   );
 }
 
-/** One backdrop plate, fading up as its slice of the page arrives. */
 function Plate({
   src,
   index,
@@ -72,14 +77,13 @@ function Plate({
 }) {
   const span = 1 / (total - 1);
   const centre = index * span;
-  // Overlap neighbours so plates dissolve into each other rather than cutting.
   const opacity = useTransform(
     progress,
-    [centre - span * 0.85, centre, centre + span * 0.85],
+    [centre - span * 0.82, centre, centre + span * 0.82],
     index === 0 ? [1, 1, 0] : [0, 1, 0],
   );
-  const scale = useTransform(progress, [centre - span, centre + span], [1.12, 1.02]);
-  const y = useTransform(progress, [centre - span, centre + span], ["-3%", "3%"]);
+  const scale = useTransform(progress, [centre - span, centre + span], [1.09, 1.015]);
+  const y = useTransform(progress, [centre - span, centre + span], ["-2%", "2%"]);
 
   return (
     <motion.div className="absolute inset-0" style={{ opacity, scale, y }}>
@@ -91,87 +95,96 @@ function Plate({
         className="object-cover"
         priority={priority}
         loading={priority ? undefined : "lazy"}
+        quality={priority ? 72 : 64}
       />
     </motion.div>
   );
 }
 
-/**
- * Procedural gold dust. Original work — a few dozen slow motes on a canvas,
- * drawn only while the tab is visible. No sprites, no library, no licence.
- */
+/** 30fps, low-DPR decorative dust that stops in background tabs. */
 function GoldDust() {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const context = canvas.getContext("2d", { alpha: true });
+    if (!context) return;
 
-    let raf = 0;
+    let frame = 0;
     let running = true;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let lastPaint = 0;
+    let resizeTimer = 0;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.35);
 
-    type Mote = { x: number; y: number; r: number; vx: number; vy: number; a: number; tw: number };
+    type Mote = { x: number; y: number; radius: number; vx: number; vy: number; alpha: number; twinkle: number };
     let motes: Mote[] = [];
 
     const seed = () => {
-      canvas.width = window.innerWidth * dpr;
-      canvas.height = window.innerHeight * dpr;
-      canvas.style.width = `${window.innerWidth}px`;
-      canvas.style.height = `${window.innerHeight}px`;
-      ctx.scale(dpr, dpr);
-      const count = Math.round(Math.min(46, window.innerWidth / 34));
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const count = Math.round(Math.min(24, Math.max(12, width / 72)));
       motes = Array.from({ length: count }, () => ({
-        x: Math.random() * window.innerWidth,
-        y: Math.random() * window.innerHeight,
-        r: 0.5 + Math.random() * 1.4,
-        vx: (Math.random() - 0.5) * 0.09,
-        vy: -0.05 - Math.random() * 0.12,
-        a: 0.12 + Math.random() * 0.32,
-        tw: Math.random() * Math.PI * 2,
+        x: Math.random() * width,
+        y: Math.random() * height,
+        radius: 0.45 + Math.random(),
+        vx: (Math.random() - 0.5) * 0.06,
+        vy: -0.035 - Math.random() * 0.08,
+        alpha: 0.1 + Math.random() * 0.24,
+        twinkle: Math.random() * Math.PI * 2,
       }));
     };
 
-    const frame = () => {
-      raf = 0;
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      ctx.clearRect(0, 0, w, h);
-      for (const m of motes) {
-        m.x += m.vx;
-        m.y += m.vy;
-        m.tw += 0.012;
-        if (m.y < -10) {
-          m.y = h + 10;
-          m.x = Math.random() * w;
-        }
-        if (m.x < -10) m.x = w + 10;
-        if (m.x > w + 10) m.x = -10;
-        const alpha = m.a * (0.6 + 0.4 * Math.sin(m.tw));
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(217,190,114,${alpha.toFixed(3)})`;
-        ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
-        ctx.fill();
+    const paint = (time: number) => {
+      frame = 0;
+      if (!running) return;
+      if (time - lastPaint < 32) {
+        frame = window.requestAnimationFrame(paint);
+        return;
       }
-      if (running) raf = requestAnimationFrame(frame);
+      lastPaint = time;
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      context.clearRect(0, 0, width, height);
+      for (const mote of motes) {
+        mote.x += mote.vx;
+        mote.y += mote.vy;
+        mote.twinkle += 0.018;
+        if (mote.y < -8) {
+          mote.y = height + 8;
+          mote.x = Math.random() * width;
+        }
+        if (mote.x < -8) mote.x = width + 8;
+        if (mote.x > width + 8) mote.x = -8;
+        const alpha = mote.alpha * (0.66 + 0.34 * Math.sin(mote.twinkle));
+        context.beginPath();
+        context.fillStyle = `rgba(217,190,114,${alpha.toFixed(3)})`;
+        context.arc(mote.x, mote.y, mote.radius, 0, Math.PI * 2);
+        context.fill();
+      }
+      frame = window.requestAnimationFrame(paint);
     };
 
     const start = () => {
-      if (!running || raf) return;
-      raf = requestAnimationFrame(frame);
+      if (!running || frame) return;
+      frame = window.requestAnimationFrame(paint);
     };
     const onVisibility = () => {
       running = !document.hidden;
       if (running) start();
-      else if (raf) {
-        cancelAnimationFrame(raf);
-        raf = 0;
+      else if (frame) {
+        window.cancelAnimationFrame(frame);
+        frame = 0;
       }
     };
     const onResize = () => {
-      seed();
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(seed, 160);
     };
 
     seed();
@@ -180,7 +193,8 @@ function GoldDust() {
     window.addEventListener("resize", onResize, { passive: true });
     return () => {
       running = false;
-      if (raf) cancelAnimationFrame(raf);
+      if (frame) window.cancelAnimationFrame(frame);
+      window.clearTimeout(resizeTimer);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("resize", onResize);
     };
@@ -189,14 +203,14 @@ function GoldDust() {
   return <canvas ref={ref} className="absolute inset-0 h-full w-full" />;
 }
 
-/** Static film grain from an inline SVG turbulence filter — a few hundred bytes, no request. */
-function FilmGrain() {
+function FilmGrain({ opacity }: { opacity: string }) {
   return (
     <div
-      className="absolute inset-0 opacity-[0.055] mix-blend-overlay"
+      className="absolute inset-0 mix-blend-overlay"
       style={{
+        opacity,
         backgroundImage:
-          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.9'/%3E%3C/svg%3E\")",
+          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23n)' opacity='.8'/%3E%3C/svg%3E\")",
         backgroundRepeat: "repeat",
       }}
     />

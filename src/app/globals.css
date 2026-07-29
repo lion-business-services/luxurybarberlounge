@@ -386,8 +386,8 @@ body {
   background-size: 260% 100%;
   background-repeat: no-repeat;
   /* Clip the shine to the artwork so it reads as metal, not a rectangle. */
-  -webkit-mask-image: url("/brand/lbl-logo-full.png");
-  mask-image: url("/brand/lbl-logo-full.png");
+  -webkit-mask-image: url("/brand/lbl-logo-full.webp");
+  mask-image: url("/brand/lbl-logo-full.webp");
   -webkit-mask-size: contain;
   mask-size: contain;
   -webkit-mask-repeat: no-repeat;
@@ -581,4 +581,47 @@ html, body { max-width: 100%; overflow-x: clip; }
   .portal-main { padding: 1.35rem 1rem 5rem; }
   .portal-grid { grid-template-columns: 1fr; }
   .portal-grid > * { grid-column: 1 / -1 !important; }
+}
+
+/* ========================================================================
+   CROSS-DEVICE PERFORMANCE GUARDRAILS
+   ======================================================================== */
+@media (pointer: coarse), (max-width: 1023px) {
+  .lbl-cursor-layer { display: none !important; }
+  [data-magnetic],
+  .lbl-progress > div,
+  .lbl-layer,
+  .lbl-crest3d-stage,
+  .lbl-crest3d-plane {
+    will-change: auto;
+  }
+  .mobile-actions {
+    backdrop-filter: none;
+    background: rgba(18, 16, 13, .98);
+  }
+  [data-reveal="blur"] {
+    filter: none;
+    transform: translate3d(0, 18px, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}
+
+.portal-card,
+.choice-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 220px;
 }
