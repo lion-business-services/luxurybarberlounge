@@ -49,3 +49,9 @@ Failed to load SWC binary for linux/x64
 This prevented Next.js startup and therefore prevented local Chromium, Firefox, Safari, Lighthouse, runtime console, frame-rate, memory, throttling, and viewport automation against this exact optimized tree. No browser-performance numbers are claimed without a runnable production or development server.
 
 The source tree passed every validation that does not require the externally unavailable package artifacts. Vercel or a normal development machine with npm registry access can install the lockfile's platform dependencies and run the final build.
+
+## Vercel type-check hotfix (2026-07-29)
+
+Removed the `MotionConfig` named import and wrapper from `src/components/home-experience/PostHeroExperience.tsx` after the production build environment reported that its resolved `motion/react` type surface did not export `MotionConfig`. The component's adaptive motion tier already enforces reduced-motion behavior, so removing this redundant provider preserves the intended experience while eliminating the deployment type error.
+
+Post-fix source validations passed: format guard, content, migrations, routes, repository, performance architecture, secret scan, 25 unit tests, and 8 integration tests. A clean dependency installation in the isolated build environment remained externally blocked by the internal package mirror returning HTTP 404 for `zod-validation-error@4.0.2`.

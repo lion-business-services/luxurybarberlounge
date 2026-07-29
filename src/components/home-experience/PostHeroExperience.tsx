@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   AnimatePresence,
-  MotionConfig,
   motion,
   useScroll,
   useSpring,
@@ -468,8 +467,7 @@ export function PostHeroExperience() {
   const showAnimatedSpiral = tier === "high" || tier === "standard";
 
   return (
-    <MotionConfig reducedMotion="user">
-      <div ref={rootRef} className={styles.root} data-motion-tier={tier}>
+    <div ref={rootRef} className={styles.root} data-motion-tier={tier}>
         {showAnimatedSpiral ? <AnimatedSpiral target={rootRef} /> : null}
         <ThresholdScene lang={lang} tier={tier} />
         <MembershipScene lang={lang} reduced={reduced} />
@@ -480,8 +478,7 @@ export function PostHeroExperience() {
         <Transformation lang={lang} />
         <Visit lang={lang} />
         <FinalConversion lang={lang} reduced={reduced} />
-      </div>
-    </MotionConfig>
+    </div>
   );
 }
 
