@@ -11,7 +11,7 @@ import { business, hours } from "@/lib/content/site";
 
 const explore = [
   ["Services", "/services"], ["Barbers", "/barbers"], ["Membership", "/membership"],
-  ["Gallery", "/gallery"], ["Journal", "/journal"], ["FAQ", "/faq"], ["About", "/about"], ["Contact", "/contact"],
+  ["Gallery", "/gallery"], ["Our Story", "/our-story"], ["Journal", "/journal"], ["FAQ", "/faq"], ["Contact", "/contact"],
 ] as const;
 
 export function Footer() {

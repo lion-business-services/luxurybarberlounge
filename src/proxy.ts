@@ -1,25 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authCookies } from "@/lib/auth/config";
 
 const protectedRoots = ["/client", "/barber", "/reception", "/admin"] as const;
 
 /**
- * Fail-closed portal gate for the credential-free release.
- *
- * Staff and client routes are available only when the explicit development
- * demo flag is enabled. Production authentication is intentionally activated
- * later with the documented Supabase SSR adapter, where both this edge gate
- * and database Row Level Security validate the authenticated user.
- *
- * Never infer authentication from an arbitrary cookie name. A browser can
- * create such a cookie itself, which would make the route gate decorative.
+ * Fast optimistic gate only. Each portal root also performs server-side user and
+ * role validation in its layout, while database RLS remains the final boundary.
  */
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const root = protectedRoots.find((item) => pathname === item || pathname.startsWith(`${item}/`));
-  if (!root) return NextResponse.next();
+  if (!root || process.env.NEXT_PUBLIC_PORTAL_DEMO_MODE === "true") return NextResponse.next();
 
-  const demoMode = process.env.NEXT_PUBLIC_PORTAL_DEMO_MODE === "true";
-  if (demoMode) return NextResponse.next();
+  const hasAccess = Boolean(request.cookies.get(authCookies.accessToken)?.value);
+  const hasRefresh = Boolean(request.cookies.get(authCookies.refreshToken)?.value);
+  if (hasAccess || hasRefresh) return NextResponse.next();
 
   const loginUrl = request.nextUrl.clone();
   loginUrl.pathname = "/login";
@@ -29,6 +24,4 @@ export function proxy(request: NextRequest) {
   return NextResponse.redirect(loginUrl);
 }
 
-export const config = {
-  matcher: ["/client/:path*", "/barber/:path*", "/reception/:path*", "/admin/:path*"],
-};
+export const config = { matcher: ["/client/:path*", "/barber/:path*", "/reception/:path*", "/admin/:path*"] };

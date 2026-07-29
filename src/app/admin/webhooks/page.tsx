@@ -1,4 +1,9 @@
 import type { Metadata } from "next";
-import { PortalSectionPage } from "@/components/portal/PortalSectionPage";
-export const metadata:Metadata={title:"Webhooks",robots:{index:false,follow:false}};
-export default function Page(){return <PortalSectionPage role="admin" slug="webhooks"/>}
+import { AdminWebhooksPanel } from "@/components/admin/AdminWebhooksPanel";
+import { DemoModeBanner } from "@/components/portal/PortalUI";
+
+export const metadata: Metadata = { title: "Webhook Operations", robots: { index: false, follow: false } };
+
+export default function Page() {
+  return <><DemoModeBanner /><AdminWebhooksPanel /></>;
+}

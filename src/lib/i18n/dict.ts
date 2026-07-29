@@ -5,6 +5,7 @@ export const dict = {
     home: { en: "Home", es: "Inicio" },
     services: { en: "Services", es: "Servicios" },
     barbers: { en: "Barbers", es: "Barberos" },
+    story: { en: "Our Story", es: "Nuestra Historia" },
     membership: { en: "Membership", es: "Membresía" },
     gallery: { en: "Gallery", es: "Galería" },
     visit: { en: "Visit", es: "Visítanos" },

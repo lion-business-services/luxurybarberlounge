@@ -17,6 +17,7 @@ import { ArrowUpRight } from "lucide-react";
 import { useLang } from "@/lib/i18n/context";
 import { dict } from "@/lib/i18n/dict";
 import { useFinePointer } from "@/lib/motion/hooks";
+import { useAdaptiveMotionTier } from "@/lib/motion/useAdaptiveMotionTier";
 import { roomAssets, revealVideo } from "./assets";
 
 /* Scene boundaries on the 0 → 1 timeline.
@@ -47,6 +48,7 @@ export function CinematicHero() {
   const { lang } = useLang();
   const reduced = useReducedMotion();
   const fine = useFinePointer();
+  const tier = useAdaptiveMotionTier();
   const shellRef = useRef<HTMLDivElement>(null);
 
   const [compact, setCompact] = useState(false);
@@ -131,7 +133,7 @@ export function CinematicHero() {
   const bookY = useTransform(p, [S.experience, 1], ["14%", "0%"]);
 
   const cueOpacity = useTransform(p, [0, 0.08, 0.14], [1, 1, 0]);
-  const showAmbientVideo = fine && !compact;
+  const showAmbientVideo = tier !== "minimal";
 
   /* ------------------------- reduced motion ------------------------- */
   if (reduced) {
@@ -153,9 +155,9 @@ export function CinematicHero() {
       ref={shellRef}
       aria-label="Luxury Barber Lounge"
       className="relative"
-      style={{ height: compact ? "170vh" : "280vh" }}
+      style={{ height: compact ? "155svh" : "280vh" }}
     >
-      <div className="sticky top-0 h-[100svh] overflow-hidden">
+      <div className="sticky top-[72px] h-[calc(100svh-72px)] overflow-hidden md:top-0 md:h-[100svh]">
         {/* ---------- SCENE 1 · composed at rest ---------- */}
         {!showAmbientVideo && (
           <ParallaxMedia px={px} py={py} depth={14}>
@@ -168,7 +170,7 @@ export function CinematicHero() {
 
         {showAmbientVideo && (
           <motion.div aria-hidden className="pointer-events-none absolute inset-0" style={{ opacity: openOpacity }}>
-            <AmbientVideo />
+            <AmbientVideo mobile={compact} />
             <div className="absolute inset-0 bg-[var(--color-ink)]/58" />
           </motion.div>
         )}
@@ -210,8 +212,8 @@ export function CinematicHero() {
         />
 
         {/* ================= copy ================= */}
-        <div className="relative z-10 mx-auto flex h-full max-w-6xl items-center px-6 sm:px-10">
-          <motion.div style={{ opacity: introOpacity, y: introY }} className="max-w-2xl">
+        <div className="relative z-10 mx-auto flex h-full max-w-6xl items-center px-5 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] pt-4 sm:px-10 sm:pb-0 sm:pt-0">
+          <motion.div style={{ opacity: introOpacity, y: introY }} className="hero-copy max-w-2xl">
             <HeroCopy lang={lang} />
           </motion.div>
 
@@ -229,7 +231,7 @@ export function CinematicHero() {
             <SceneMessage kicker={copy.mirrorKicker[lang]} line={copy.mirrorLine[lang]} />
           </motion.div>
 
-          <motion.div style={{ opacity: bookOpacity, y: bookY }} className="safe-b absolute inset-x-6 bottom-[22svh] sm:inset-x-10 sm:bottom-[16svh]">
+          <motion.div style={{ opacity: bookOpacity, y: bookY }} className="safe-b absolute inset-x-5 bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:inset-x-10 sm:bottom-[16svh]">
             <p className="text-[11px] tracking-[0.36em] uppercase text-[var(--color-brass)]">{copy.expKicker[lang]}</p>
             <p className="font-display mt-4 max-w-lg text-2xl italic leading-snug text-[var(--color-bone)] md:text-3xl">
               {copy.expLine[lang]}
@@ -257,7 +259,7 @@ export function CinematicHero() {
         <motion.div
           aria-hidden
           style={{ opacity: cueOpacity }}
-          className="pointer-events-none absolute inset-x-0 bottom-8 flex flex-col items-center gap-3"
+          className="pointer-events-none absolute inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] hidden flex-col items-center gap-3 sm:flex sm:bottom-8"
         >
           <span className="text-[10px] tracking-[0.34em] uppercase text-[var(--color-bone-muted)]">
             {copy.scroll[lang]}
@@ -299,7 +301,7 @@ function ParallaxMedia({
 }
 
 /** Muted, poster-backed ambient loop. Pauses offscreen; autoplay failure falls back to the poster. */
-function AmbientVideo() {
+function AmbientVideo({ mobile }: { mobile: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const v = ref.current;
@@ -317,15 +319,18 @@ function AmbientVideo() {
   return (
     <video
       ref={ref}
-      className="h-full w-full object-cover"
-      src={revealVideo.src}
-      poster={revealVideo.poster}
+      className="h-full w-full object-cover object-center"
+      poster={mobile ? "/hero/crest-reveal-mobile-poster.webp" : revealVideo.poster}
       muted
       loop
       playsInline
       preload="metadata"
       disablePictureInPicture
-    />
+      aria-hidden="true"
+    >
+      {mobile ? <source src="/hero/crest-reveal-mobile.mp4" type="video/mp4" /> : null}
+      <source src={revealVideo.src} type="video/mp4" />
+    </video>
   );
 }
 
@@ -341,26 +346,28 @@ function SceneMessage({ kicker, line }: { kicker: string; line: string }) {
 function HeroCopy({ lang }: { lang: "en" | "es" }) {
   return (
     <>
-      <span className="inline-flex items-center gap-2 rounded-full border border-[var(--color-brass)]/40 px-3 py-1 text-[10px] tracking-[0.32em] uppercase text-[var(--color-brass)]">
-        <span className="h-1 w-1 rounded-full bg-[var(--color-brass)]" aria-hidden />
-        {dict.hero.comingSoon[lang]}
+      <span className="hero-event-badge inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-[var(--color-brass)]/40 px-3 py-2 text-[9px] tracking-[0.24em] uppercase text-[var(--color-brass)] sm:rounded-full sm:py-1 sm:text-[10px] sm:tracking-[0.32em]">
+        <span className="h-1 w-1 shrink-0 rounded-full bg-[var(--color-brass)]" aria-hidden />
+        <span className="whitespace-nowrap">{lang === "es" ? "Gran Apertura" : "Grand Opening"}</span>
+        <span aria-hidden className="text-[var(--color-brass)]/60">·</span>
+        <span className="whitespace-nowrap">{lang === "es" ? "4 de agosto · 5 PM" : "August 4 · 5 PM"}</span>
       </span>
-      <p className="mt-8 text-[11px] tracking-[0.38em] uppercase text-[var(--color-bone-muted)]">
+      <p className="mt-5 text-[10px] leading-5 tracking-[0.28em] uppercase text-[var(--color-bone-muted)] sm:mt-8 sm:text-[11px] sm:tracking-[0.38em]">
         {dict.hero.eyebrow[lang]}
       </p>
-      <h1 className="font-display fluid-display mt-6 text-[var(--color-bone)]">
+      <h1 className="font-display fluid-display mt-4 text-[var(--color-bone)] sm:mt-6">
         Luxury Barber
         <br />
         Lounge
       </h1>
-      <p className="font-display fluid-lede mt-8 max-w-xl italic text-[var(--color-bone)]/85">
+      <p className="font-display fluid-lede mt-5 max-w-xl italic text-[var(--color-bone)]/85 sm:mt-8">
         {dict.hero.tagline[lang]}
       </p>
-      <div className="mt-10 flex flex-wrap items-center gap-4">
+      <div className="hero-actions mt-7 grid w-full max-w-xl gap-3 sm:mt-10 sm:flex sm:flex-wrap sm:items-center sm:gap-4">
         <Link
           href="/book"
           data-magnetic="true"
-          className="group inline-flex items-center gap-3 rounded-full bg-[var(--color-brass)] px-7 py-3.5 text-[12px] tracking-[0.24em] uppercase text-[var(--color-ink)] transition-colors duration-300 hover:bg-[var(--color-brass-light)]"
+          className="group inline-flex w-full items-center justify-center gap-3 rounded-full bg-[var(--color-brass)] px-7 py-3.5 sm:w-auto text-[12px] tracking-[0.24em] uppercase text-[var(--color-ink)] transition-colors duration-300 hover:bg-[var(--color-brass-light)]"
         >
           {dict.hero.cta[lang]}
           <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden />
@@ -368,7 +375,7 @@ function HeroCopy({ lang }: { lang: "en" | "es" }) {
         <Link
           href="/walk-ins"
           data-magnetic="true"
-          className="inline-flex items-center gap-3 rounded-full border border-[var(--color-ink-line)] px-6 py-3.5 text-[12px] tracking-[0.24em] uppercase text-[var(--color-bone)] transition-colors duration-300 hover:border-[var(--color-brass)] hover:text-[var(--color-brass)]"
+          className="inline-flex w-full items-center justify-center gap-3 rounded-full border border-[var(--color-ink-line)] px-6 py-3.5 sm:w-auto text-[12px] tracking-[0.24em] uppercase text-[var(--color-bone)] transition-colors duration-300 hover:border-[var(--color-brass)] hover:text-[var(--color-brass)]"
         >
           {copy.walkIn[lang]}
         </Link>

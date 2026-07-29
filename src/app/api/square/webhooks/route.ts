@@ -9,7 +9,9 @@ export async function POST(request: Request) {
   if (!verifySquareWebhook({ rawBody, signatureHeader })) {
     return NextResponse.json({ message: "Invalid webhook signature." }, { status: 401 });
   }
-  const event = JSON.parse(rawBody) as { event_id?: string; type?: string; merchant_id?: string; data?: Json };
+  let event: { event_id?: string; type?: string; merchant_id?: string; data?: Json };
+  try { event = JSON.parse(rawBody) as typeof event; }
+  catch { return NextResponse.json({ message: "Malformed webhook JSON." }, { status: 400 }); }
   if (!event.event_id || !event.type) return NextResponse.json({ message: "Malformed webhook event." }, { status: 400 });
 
   const admin = getSupabaseAdmin();

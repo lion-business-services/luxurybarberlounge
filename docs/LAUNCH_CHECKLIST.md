@@ -1,0 +1,22 @@
+# Launch Checklist
+
+- [ ] Clean `npm ci` and `npm run check` pass on Linux
+- [ ] Verified business name, address, phone, email, domain, maps, and hours
+- [ ] Eight temporary Barber profiles replaced/approved
+- [ ] Service catalog, prices, duration, deposits, and Square mappings approved
+- [ ] Mobile hero tested on iOS Safari and Android Chrome
+- [ ] Videos tested on desktop, laptop, tablet, mobile, reduced motion, and low power
+- [ ] Supabase migrations applied and types regenerated
+- [ ] RLS tested with every role
+- [ ] Resend domain and Supabase custom SMTP verified
+- [ ] Owner OTP and role bootstrap verified
+- [ ] Staff invitations and role switch tested
+- [ ] Square sandbox catalog/bookings/webhooks reconciled
+- [ ] Queue and manual override tested
+- [ ] Attribution claim/evidence/decision tested
+- [ ] Locked calculations, Adjustments, disputes, and exports tested
+- [ ] Policy open items remain disabled or are approved with effective dates
+- [ ] Consent, quiet hours, unsubscribe, idempotency, and retries tested
+- [ ] Security headers, backup/recovery, secret rotation, and monitoring reviewed
+- [ ] Accessibility keyboard, zoom, screen reader, and contrast checks complete
+- [ ] Canonical metadata, schema, sitemap, robots, and Google Business links verified

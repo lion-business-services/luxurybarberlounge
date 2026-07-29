@@ -86,9 +86,10 @@ function SpiralGuide({ progress }: { progress: MotionValue<number> }) {
 function ThresholdScene({ lang, tier }: { lang: Lang; tier: ReturnType<typeof useMotionTier> }) {
   const ref = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const reduced = tier === "reduced" || tier === "mobile";
-  const useVideo = tier === "high" || tier === "standard";
-  useVideoVisibility(videoRef, useVideo && !reduced);
+  const reduced = tier === "reduced";
+  const useMobileMedia = tier === "mobile";
+  const useVideo = tier !== "reduced";
+  useVideoVisibility(videoRef, useVideo);
   const scrollYProgress = useAdaptiveScrollProgress(ref, !reduced, "pinned");
   const smooth = useSpring(scrollYProgress, homeMotion.softSpring);
   const scale = useTransform(smooth, [0, 0.72, 1], [0.84, 1, 1.035]);
@@ -109,14 +110,14 @@ function ThresholdScene({ lang, tier }: { lang: Lang; tier: ReturnType<typeof us
               playsInline
               loop
               preload={tier === "high" ? "metadata" : "none"}
-              poster={homeMedia.thresholdPoster}
+              poster={useMobileMedia ? homeMedia.thresholdMobilePoster : homeMedia.thresholdPoster}
               aria-label="Cinematic view of the Luxury Barber Lounge interior"
             >
-              <source src={homeMedia.thresholdWebm} type="video/webm" />
-              <source src={homeMedia.thresholdMp4} type="video/mp4" />
+              {!useMobileMedia ? <source src={homeMedia.thresholdWebm} type="video/webm" /> : null}
+              <source src={useMobileMedia ? homeMedia.thresholdMobileMp4 : homeMedia.thresholdMp4} type="video/mp4" />
             </video>
           ) : (
-            <Image src={homeMedia.thresholdPoster} alt="Luxury barber lounge interior" fill sizes="100vw" className="object-cover" />
+            <Image src={useMobileMedia ? homeMedia.thresholdMobilePoster : homeMedia.thresholdPoster} alt="Luxury barber lounge interior" fill sizes="100vw" className="object-cover" />
           )}
         </motion.div>
         <motion.div className={styles.portalRing} style={reduced ? undefined : { rotate: ringRotate, scale: ringScale }} aria-hidden="true" />
@@ -126,7 +127,7 @@ function ThresholdScene({ lang, tier }: { lang: Lang; tier: ReturnType<typeof us
           <p className={`${styles.subheading} mt-6`}>{experienceCopy.threshold.body[lang]}</p>
           <div className={styles.actions}>
             <Link href="/book" data-magnetic="true" className={styles.primary}>{lang === "es" ? "Reservar una silla" : "Reserve a chair"}<ArrowUpRight size={15} /></Link>
-            <Link href="/about" className={styles.secondary}>{lang === "es" ? "Nuestra historia" : "Our story"}<ArrowRight size={15} /></Link>
+            <Link href="/our-story" className={styles.secondary}>{lang === "es" ? "Nuestra historia" : "Our story"}<ArrowRight size={15} /></Link>
           </div>
         </motion.div>
       </div>
@@ -241,8 +242,10 @@ function PrecisionScene({ lang, reduced }: { lang: Lang; reduced: boolean }) {
 
 function SignatureServices({ lang }: { lang: Lang }) {
   const featured = useMemo(() => {
-    const preferred = ["signature-haircut", "fade-cut", "beard-trim", "head-shave", "hot-towel-shave", "straight-razor-shave", "kids-cut", "groom-package"];
-    return preferred.map((slug) => services.find((item) => item.slug === slug)).filter(Boolean).slice(0, 8) as typeof services;
+    const preferred = ["signature-haircut", "skin-fade", "fade-cut", "groom-package", "beard-trim", "hot-towel-shave"];
+    const selected = preferred.map((slug) => services.find((item) => item.slug === slug)).filter(Boolean);
+    if (selected.length >= 6) return selected.slice(0, 6) as typeof services;
+    return [...selected, ...services.filter((item) => !selected.includes(item))].slice(0, 6) as typeof services;
   }, []);
   const images = [homeMedia.toolsPair, homeMedia.toolsTray, homeMedia.toolsOrnate, homeMedia.toolsStand];
   return (
@@ -397,6 +400,41 @@ function Transformation({ lang }: { lang: Lang }) {
   );
 }
 
+function ClientConfidence({ lang }: { lang: Lang }) {
+  const standards = lang === "es"
+    ? [
+        ["01", "Información clara", "Servicios, precios iniciales, políticas y tiempos presentados sin sorpresas."],
+        ["02", "Servicio personal", "Elige tu barbero, comparte tus preferencias y reserva la experiencia que realmente buscas."],
+        ["03", "Seguimiento profesional", "Confirmaciones, recordatorios y soporte diseñados para mantener cada visita organizada."],
+      ]
+    : [
+        ["01", "Clear expectations", "Services, starting prices, policies, and timing presented without unpleasant surprises."],
+        ["02", "Personal service", "Choose your barber, share your preferences, and reserve the experience you actually want."],
+        ["03", "Professional follow-through", "Confirmations, reminders, and support designed to keep every visit organized."],
+      ];
+  return (
+    <section className={`${styles.scene} ${styles.confidenceScene}`} aria-labelledby="confidence-title">
+      <div className={styles.confidenceBackdrop} aria-hidden="true">
+        <Image src={homeMedia.toolsOrnate} alt="" fill sizes="100vw" className="object-cover" />
+      </div>
+      <div className={`${styles.sceneInner} ${styles.confidenceLayout}`}>
+        <CopyBlock
+          eyebrow={lang === "es" ? "Confianza en cada visita" : "Confidence in every visit"}
+          title={<span id="confidence-title">{lang === "es" ? "El lujo también es saber qué esperar." : "Luxury includes knowing what to expect."}</span>}
+          body={lang === "es" ? "No usamos reseñas inventadas ni promesas vagas. Construimos confianza con claridad, consistencia y atención real." : "No invented reviews or vague promises. We build confidence through clarity, consistency, and genuine attention."}
+        />
+        <div className={styles.confidenceGrid}>
+          {standards.map(([number, title, body]) => (
+            <article key={number} className={styles.confidenceCard}>
+              <span>{number}</span><h3>{title}</h3><p>{body}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function formatHours(lang: Lang): string[] {
   const short = (bi: { en: string; es: string }) => bi[lang].slice(0, 3);
   const fmt = (time: string) => { const [hourValue, minute] = time.split(":").map(Number); const period = hourValue >= 12 ? "PM" : "AM"; const hour = hourValue % 12 === 0 ? 12 : hourValue % 12; return `${hour}:${String(minute).padStart(2, "0")} ${period}`; };
@@ -469,13 +507,14 @@ export function PostHeroExperience() {
   return (
     <div ref={rootRef} className={styles.root} data-motion-tier={tier}>
         {showAnimatedSpiral ? <AnimatedSpiral target={rootRef} /> : null}
+        <BarberProfiles lang={lang} reduced={reduced} />
         <ThresholdScene lang={lang} tier={tier} />
-        <MembershipScene lang={lang} reduced={reduced} />
-        <PrecisionScene lang={lang} reduced={reduced} />
         <SignatureServices lang={lang} />
         <LoungeEnvironment lang={lang} reduced={reduced} />
-        <BarberProfiles lang={lang} reduced={reduced} />
+        <PrecisionScene lang={lang} reduced={reduced} />
         <Transformation lang={lang} />
+        <MembershipScene lang={lang} reduced={reduced} />
+        <ClientConfidence lang={lang} />
         <Visit lang={lang} />
         <FinalConversion lang={lang} reduced={reduced} />
     </div>

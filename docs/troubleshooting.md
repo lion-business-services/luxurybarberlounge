@@ -1,28 +1,39 @@
 # Troubleshooting
 
-## Next.js compiler cannot load
+## Build cannot load SWC
 
-Delete copied dependencies and perform a clean install on the current operating system:
+Delete copied dependencies and install on the target OS:
 
 ```bash
 rm -rf node_modules .next
 npm ci
+npm run build
 ```
 
-Do not ship `node_modules` in the deployment ZIP.
+## `MotionConfig` export error
 
-## Portal redirects to login
+Do not reintroduce the removed incompatible named import. The adaptive motion engine already handles reduced motion.
 
-This is expected in production while server auth is not activated. For an intentional preview of seeded dashboards, set `NEXT_PUBLIC_PORTAL_DEMO_MODE=true` in a non-production environment.
+## Mobile video is blank
 
-## Booking shows preview data
+Verify the mobile MP4/poster exists, H.264 is supported, `muted` and `playsInline` are present, CSS opacity is not stuck at zero, the observer did not pause too early, and reduced-motion/data-saver logic did not intentionally select a still.
 
-Square booking is disabled or incomplete. Configure sandbox values, map services/team, test webhooks, and enable the matching feature flags.
+## OTP does not arrive
 
-## Supabase write returns permission denied
+Check Supabase Auth logs, Resend SMTP/domain verification, sender address, template `{{ .Token }}`, rate limits, and spam. Never log or email the token through application debugging.
 
-Confirm the user role, business scope, session, migration version, and RLS policy. Do not bypass RLS from the browser.
+## Portal redirect loop
 
-## Hero motion is reduced
+Check access/refresh cookies, `user_roles`, active role, server layout authorization, and RLS. Confirm `NEXT_PUBLIC_PORTAL_DEMO_MODE=false` in production.
 
-Check `prefers-reduced-motion`, pointer type, save-data/device constraints, viewport size, and the experimental hero flag. The static fallback is intentional.
+## Empty queue/commission data
+
+Apply all migrations, connect the correct business/location, enable feature flags only after setup, and verify Square/sandbox records. Credential-pending states are intentional.
+
+## Webhook rejected
+
+The signature key and exact notification URL must match Square. Confirm raw body handling and `x-square-hmacsha256-signature`.
+
+## Supabase permission error
+
+Test the user’s real role and business scope. Do not use the service-role key in the browser as a shortcut.

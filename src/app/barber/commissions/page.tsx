@@ -1,4 +1,1 @@
-import type { Metadata } from "next";
-import { PortalSectionPage } from "@/components/portal/PortalSectionPage";
-export const metadata:Metadata={title:"Commissions",robots:{index:false,follow:false}};
-export default function Page(){return <PortalSectionPage role="barber" slug="commissions"/>}
+import type { Metadata } from "next"; import { PortalShell } from "@/components/portal/PortalShell"; import { DemoModeBanner } from "@/components/portal/PortalUI"; import { CommissionWorkspace } from "@/components/commissions/CommissionWorkspace"; export const metadata:Metadata={title:"Calculated Amounts",robots:{index:false,follow:false}}; export default function Page(){return <PortalShell role="barber"><DemoModeBanner/><CommissionWorkspace role="barber"/></PortalShell>}

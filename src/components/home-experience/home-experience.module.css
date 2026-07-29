@@ -110,8 +110,8 @@
 .servicesScene { min-height:auto; padding-top:clamp(6rem,9vw,8rem); padding-bottom:clamp(5.5rem,8vw,7rem); }
 .servicesHeader { display:flex; justify-content:space-between; align-items:end; gap:2rem; margin-bottom:3.5rem; }
 .servicesHeader .heading { font-size:clamp(3rem,6vw,6.2rem); max-width:12ch; }
-.serviceRail { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1rem; perspective:1200px; }
-.serviceCard { position:relative; min-height:24rem; padding:1.5rem; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden; border:1px solid rgba(201,154,66,.22); background:linear-gradient(145deg,rgba(26,23,19,.95),rgba(8,8,8,.92)); color:inherit; transform-style:preserve-3d; transition:transform .5s cubic-bezier(.22,1,.36,1),border-color .4s; }
+.serviceRail { display:grid; grid-template-columns:repeat(6,minmax(15.5rem,1fr)); gap:1rem; perspective:1200px; overflow-x:auto; padding:.25rem .15rem 1rem; scroll-snap-type:x proximity; scrollbar-width:thin; scrollbar-color:rgba(201,154,66,.45) transparent; }
+.serviceCard { scroll-snap-align:start; position:relative; min-height:24rem; padding:1.5rem; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden; border:1px solid rgba(201,154,66,.22); background:linear-gradient(145deg,rgba(26,23,19,.95),rgba(8,8,8,.92)); color:inherit; transform-style:preserve-3d; transition:transform .5s cubic-bezier(.22,1,.36,1),border-color .4s; }
 .serviceCard:hover { transform:translateY(-7px) rotateX(1deg); border-color:rgba(201,154,66,.58); }
 .serviceCard::before { content:""; position:absolute; inset:0; opacity:.19; background:var(--service-image) center/cover; filter:grayscale(.3); transition:opacity .5s,transform .8s; }
 .serviceCard:hover::before { opacity:.3; transform:scale(1.04); }
@@ -175,6 +175,16 @@
 .labelRight { right:1rem; }
 .slider { width:100%; margin-top:1.4rem; accent-color:var(--gold); }
 
+.confidenceScene { min-height:auto; overflow:hidden; }
+.confidenceBackdrop { position:absolute; inset:0; opacity:.17; }
+.confidenceBackdrop::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,rgba(7,7,7,.98),rgba(7,7,7,.84)),radial-gradient(circle at 75% 45%,rgba(201,154,66,.15),transparent 30rem); }
+.confidenceLayout { display:grid; grid-template-columns:minmax(0,.9fr) minmax(28rem,1.1fr); gap:clamp(2.5rem,7vw,7rem); align-items:center; }
+.confidenceGrid { display:grid; gap:1rem; }
+.confidenceCard { position:relative; padding:1.5rem 1.6rem 1.6rem 4.5rem; border:1px solid rgba(201,154,66,.23); background:linear-gradient(145deg,rgba(20,18,15,.84),rgba(7,7,7,.78)); }
+.confidenceCard > span { position:absolute; left:1.4rem; top:1.5rem; color:var(--gold-soft); font-size:.67rem; letter-spacing:.18em; }
+.confidenceCard h3 { font-family:var(--font-playfair),Georgia,serif; font-size:1.55rem; color:var(--ivory); }
+.confidenceCard p { margin-top:.55rem; color:rgba(243,235,221,.62); font-size:.86rem; line-height:1.65; }
+
 .visitScene { min-height:110svh; overflow:hidden; }
 .visitBackdrop { position:absolute; inset:0; }
 .visitBackdrop img { width:100%; height:100%; object-fit:cover; }
@@ -202,8 +212,8 @@
 .choiceSteps b { color:var(--gold-soft); font-weight:500; }
 
 @media (max-width:1100px) {
-  .serviceRail { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .precisionGrid,.transformGrid,.membershipLayout,.barberStage { grid-template-columns:1fr; }
+  .serviceRail { grid-template-columns:repeat(6,minmax(16rem,1fr)); }
+  .precisionGrid,.transformGrid,.membershipLayout,.barberStage,.confidenceLayout { grid-template-columns:1fr; }
   .precisionVisual { min-height:620px; order:2; }
   .membershipOrbit { right:-20vw; opacity:.55; }
   .membershipStage { width:min(760px,100%); }
@@ -235,7 +245,7 @@
   .toolCardB { width:54%; height:43%; }
   .toolOrb { width:5rem; }
   .servicesHeader { align-items:start; flex-direction:column; }
-  .serviceRail { grid-template-columns:1fr; }
+  .serviceRail { grid-template-columns:repeat(6,minmax(82vw,1fr)); margin-inline:-1.25rem; padding-inline:1.25rem; }
   .serviceCard { min-height:21rem; }
   .lounge { min-height:118svh; }
   .loungeCopy { top:auto; bottom:4rem; translate:0 0; }

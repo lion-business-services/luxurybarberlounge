@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: "/", key: "home" as const },
   { href: "/services", key: "services" as const },
   { href: "/barbers", key: "barbers" as const },
+  { href: "/our-story", key: "story" as const },
   { href: "/membership", key: "membership" as const },
   { href: "/gallery", key: "gallery" as const },
   { href: "/visit", key: "visit" as const },
@@ -40,7 +41,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--color-ink-line)] bg-[var(--color-ink)]/96 md:bg-[var(--color-ink)]/90 md:backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-4 sm:px-8 lg:px-10">
+      <div className="mx-auto flex min-h-[72px] max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-8 sm:py-4 lg:px-10">
         <Logo />
 
         <nav aria-label="Primary" className="hidden items-center gap-6 lg:flex xl:gap-8">

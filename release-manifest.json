@@ -1,30 +1,42 @@
 {
-  "release": "2026-07-28",
+  "release": "production-ready-v7",
+  "date": "2026-07-29",
   "project": "Luxury Barber Lounge",
   "framework": "Next.js 16.2.6",
-  "routeCount": 145,
-  "migrationCount": 6,
-  "sourceFileCount": 241,
+  "routeCount": 147,
+  "migrationCount": 7,
+  "validatedSourceFileCount": 288,
   "serviceCount": 31,
   "barberCount": 9,
   "membershipCount": 3,
   "sourceChecks": "passed",
-  "heroProtection": "passed-byte-for-byte",
+  "responsiveMobileBaseline": "repaired",
+  "mobileVideoVariants": "included",
+  "passwordlessOtp": "implemented-credential-dependent",
+  "staffInvitations": "implemented-credential-dependent",
+  "queueAttributionCommission": "implemented-owner-policy-controlled",
+  "webhookInbox": "implemented-credential-dependent",
   "unitTests": {
-    "passed": 21,
+    "passed": 36,
     "failed": 0
   },
   "integrationTests": {
-    "passed": 8,
+    "passed": 16,
     "failed": 0
   },
-  "productionBuild": "blocked only by isolated package mirror HTTP 404 for @next/swc-linux-x64-gnu@16.2.6",
+  "productionBuild": {
+    "status": "environment-blocked-before-source-compilation",
+    "command": "npm run build",
+    "reason": "Isolated OpenAI package mirror returned HTTP 404 for @next/swc-wasm-nodejs@16.2.6; Linux SWC optional dependency is present in package-lock.json."
+  },
   "excludedFromArchive": [
     "node_modules",
     ".next",
     ".git",
+    ".vercel",
     ".env.local",
-    "*.tsbuildinfo"
+    "*.tsbuildinfo",
+    "local logs"
   ],
   "featureProviders": "credential-dependent features disabled by default"
 }

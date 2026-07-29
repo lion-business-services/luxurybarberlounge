@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateCommission, type CommissionRule } from "../../src/lib/commissions/engine.ts";
+import { calculateCommission, calculateTransactionLine, type CommissionRule } from "../../src/lib/commissions/engine.ts";
 
 const rule: CommissionRule = {
   id: "shop-70-30",
@@ -61,4 +61,65 @@ test("negative financial values cannot create negative payouts", () => {
   assert.equal(result.eligibleBasisCents, 0);
   assert.equal(result.barberAmountCents, 0);
   assert.equal(result.shopAmountCents, 0);
+});
+
+
+test("line-level half-up rounding uses integer basis points", () => {
+  const result = calculateCommission({
+    serviceRevenueCents: 1,
+    attribution: "SHOP",
+    rule: { ...rule, barberRate: 0.5, shopRate: 0.5 },
+  });
+  assert.equal(result.barberAmountCents, 1);
+  assert.equal(result.shopAmountCents, 0);
+});
+
+test("deposits do not create a commission event", () => {
+  const result = calculateTransactionLine({
+    transactionType: "deposit",
+    amountCents: 5000,
+    attribution: "SHOP",
+    rule,
+    approvedPolicy: {
+      processingFeesAbsorbedByShop: false,
+      forfeitedFeesToShop: false,
+      redemptionValuesApproved: false,
+    },
+  });
+  assert.equal(result.createsCommissionEvent, false);
+  assert.equal(result.barberAmountCents, 0);
+});
+
+test("unresolved product commission requires owner review", () => {
+  const result = calculateTransactionLine({
+    transactionType: "retail_product",
+    amountCents: 2500,
+    attribution: "SHOP",
+    rule,
+    approvedPolicy: {
+      processingFeesAbsorbedByShop: false,
+      productCommissionRate: null,
+      forfeitedFeesToShop: false,
+      redemptionValuesApproved: false,
+    },
+  });
+  assert.equal(result.createsCommissionEvent, false);
+  assert.equal(result.reviewRequired, true);
+});
+
+test("refund treatment creates a separate negative adjustment", () => {
+  const result = calculateTransactionLine({
+    transactionType: "refund",
+    amountCents: 5000,
+    attribution: "SHOP",
+    rule,
+    approvedPolicy: {
+      processingFeesAbsorbedByShop: false,
+      forfeitedFeesToShop: false,
+      redemptionValuesApproved: false,
+    },
+  });
+  assert.equal(result.createsCommissionEvent, true);
+  assert.equal(result.adjustmentDirection, "negative");
+  assert.match(result.treatmentReason, /Never edit/);
 });

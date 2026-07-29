@@ -1,34 +1,41 @@
-# Luxury Barber Lounge Homepage Refinement Release
+# Luxury Barber Lounge Production Source Release
 
-This source package is prepared for the existing GitHub and Vercel project.
+Release: `production-ready-v7`
+Date: 2026-07-29
+
+This source package preserves the approved luxury website and adds the completed responsive, authentication, portal, queue, attribution, commission, policy-governance, webhook, automation, security, and documentation foundations requested for controlled production activation.
 
 ## Included
 
-- Approved hero preserved byte-for-byte
-- Blank post-services interval fixed at its underlying sticky-layout cause
-- Weak and redundant post-hero sections removed
-- Nine real barber portraits integrated into homepage, directory, and profile routes
-- Redesigned Membership by Design sequence
-- Concise cinematic Lounge sequence
-- Redesigned Make the Chair Yours conversion finale
-- Responsive and reduced-motion behavior
-- Updated tests, seed data, and release documentation
+- Responsive cinematic hero with mobile video parity and safe-area composition
+- Real barber team directly after the hero
+- One strategic homepage service row
+- Our Story founder page
+- Passwordless Supabase email OTP architecture
+- Secure owner bootstrap and owner-controlled staff invitations
+- Client, Independent Barber, reception, manager, and owner portal routes
+- Deterministic queue and Who's Next engine
+- Versioned attribution and commission engines
+- Immutable calculation and statement safeguards
+- Policy approval, open-decision, acknowledgement, dispute, and Adjustment workflows
+- Verified Square webhook inbox, canonical synchronization handlers, retry, and dead-letter recovery
+- Resend, SMS, and AI provider abstractions behind feature flags
+- Seven ordered Supabase migrations with RLS and storage policies
+- Complete setup, security, operations, content, and launch documentation
 
-## Deploy
+## Validation
 
-1. Replace or merge the repository contents while preserving the existing `.git` directory and Vercel link.
-2. Do not copy `node_modules` from another computer.
-3. Run `npm ci`.
-4. Run `npm run check`.
-5. Keep credential-dependent provider flags disabled until later integration activation.
-6. Push to the deployment branch and review the Vercel Preview before promotion.
+`npm run check:source` passed all source gates, including 36 unit tests and 16 integration tests. The exact production-build limitation is recorded in `docs/VALIDATION_REPORT.md`.
 
-## Important files
+## Deployment
 
-- `README.md`
-- `.env.example`
-- `docs/validation-report.md`
-- `docs/implementation-report.md`
-- `docs/architecture/post-hero-experience.md`
-- `docs/content/barber-roster.md`
-- `docs/launch/production-checklist.md`
+1. Preserve the existing `.git` directory and Vercel project linkage.
+2. Replace the repository contents with this release.
+3. Do not copy `node_modules` from another computer.
+4. Run `npm ci` on the target Linux environment.
+5. Run `npm run check`.
+6. Review the Vercel Preview at the required desktop, laptop, tablet, and mobile widths.
+7. Keep credential-dependent feature flags disabled until the corresponding setup checklist passes.
+8. Apply Supabase migrations, configure Resend SMTP, and validate Square sandbox before production activation.
+
+Start with `README.md`, `docs/DEPLOYMENT.md`, and `docs/LAUNCH_CHECKLIST.md`.

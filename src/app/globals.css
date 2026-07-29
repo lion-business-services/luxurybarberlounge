@@ -625,3 +625,48 @@ html, body { max-width: 100%; overflow-x: clip; }
   content-visibility: auto;
   contain-intrinsic-size: auto 220px;
 }
+
+/* ========================================================================
+   MOBILE HERO COMPOSITION
+   The public hero keeps its cinematic video and storytelling on touch devices
+   while reserving space for the fixed action bar and dynamic browser chrome.
+   ======================================================================== */
+@media (max-width: 767px) {
+  .hero-copy {
+    width: 100%;
+    align-self: center;
+    transform: translateY(-1.5rem);
+  }
+  .hero-event-badge {
+    width: fit-content;
+    max-width: min(100%, 22rem);
+    line-height: 1.35;
+  }
+  .hero-actions {
+    padding-right: 0;
+  }
+  .fluid-display {
+    font-size: clamp(3rem, 15.5vw, 4.7rem);
+    line-height: .9;
+    letter-spacing: -.035em;
+  }
+  .fluid-lede {
+    max-width: 31rem;
+    font-size: clamp(1rem, 4.6vw, 1.22rem);
+    line-height: 1.55;
+  }
+}
+
+@media (max-width: 370px) {
+  .hero-copy { transform: translateY(-.7rem); }
+  .hero-event-badge { font-size: 8px; letter-spacing: .18em; }
+  .fluid-display { font-size: clamp(2.7rem, 14.5vw, 3.65rem); }
+  .fluid-lede { font-size: .98rem; line-height: 1.48; }
+}
+
+@media (max-height: 720px) and (max-width: 767px) {
+  .hero-copy { transform: translateY(-.25rem); }
+  .hero-copy .hero-actions { margin-top: 1rem; }
+  .fluid-display { font-size: clamp(2.7rem, 12vw, 3.5rem); }
+  .fluid-lede { margin-top: 1rem; font-size: .95rem; line-height: 1.42; }
+}

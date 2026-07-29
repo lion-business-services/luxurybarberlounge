@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   BarChart3,
   Bell,
@@ -23,6 +24,7 @@ import {
   Sparkles,
   UsersRound,
   WalletCards,
+  LogOut,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
@@ -49,6 +51,7 @@ const nav: Record<PortalRole, NavItem[]> = {
     { label: "Calendar", href: "/barber/calendar", icon: CalendarDays },
     { label: "Queue", href: "/barber/queue", icon: ClipboardList },
     { label: "Clients", href: "/barber/clients", icon: ContactRound },
+    { label: "Attribution claims", href: "/barber/attribution", icon: FileText },
     { label: "Portfolio", href: "/barber/portfolio", icon: GalleryHorizontal },
     { label: "Performance", href: "/barber/performance", icon: BarChart3 },
     { label: "Commissions", href: "/barber/commissions", icon: CircleDollarSign },
@@ -76,7 +79,9 @@ const nav: Record<PortalRole, NavItem[]> = {
     { label: "Content", href: "/admin/content", icon: FileText },
     { label: "Marketing", href: "/admin/marketing", icon: HeartHandshake },
     { label: "Automations", href: "/admin/automations", icon: Bell },
+    { label: "Attribution", href: "/admin/attribution", icon: FileText },
     { label: "Commissions", href: "/admin/commissions", icon: CircleDollarSign },
+    { label: "Policy approvals", href: "/admin/policies", icon: ShieldCheck },
     { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
     { label: "Integrations", href: "/admin/integrations", icon: ShieldCheck },
     { label: "Users & roles", href: "/admin/users", icon: UsersRound },
@@ -93,6 +98,26 @@ const roleCopy: Record<PortalRole, { label: string; description: string }> = {
 
 export function PortalShell({ role, children }: { role: PortalRole; children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [session, setSession] = useState<{ email: string | null; roles: string[]; activeRole: string | null } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/auth/session", { cache: "no-store" }).then((response) => response.json()).then((value) => { if (active) setSession(value); }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  async function switchRole(nextRole: string) {
+    const response = await fetch("/api/auth/switch-role", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ role: nextRole }) });
+    const result = await response.json() as { destination?: string };
+    if (response.ok && result.destination) { router.push(result.destination); router.refresh(); }
+  }
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.replace("/login");
+    router.refresh();
+  }
   return (
     <div className="portal-shell">
       <aside className="portal-sidebar" aria-label={`${roleCopy[role].label} navigation`}>
@@ -108,6 +133,17 @@ export function PortalShell({ role, children }: { role: PortalRole; children: Re
             return <Link key={item.href} href={item.href} data-active={active} className="portal-nav-link"><Icon className="h-4 w-4 shrink-0" /><span>{item.label}</span></Link>;
           })}
         </nav>
+        <div className="mt-7 border-t border-[var(--color-ink-line)] pt-5">
+          {session?.roles && session.roles.length > 1 ? (
+            <label className="block text-[9px] tracking-[.2em] uppercase text-[var(--color-bone-muted)]">Active workspace
+              <select value={session.activeRole ?? ""} onChange={(event) => switchRole(event.target.value)} className="form-control mt-2 text-xs normal-case tracking-normal">
+                {session.roles.map((item) => <option key={item} value={item}>{item.replace("_", " ")}</option>)}
+              </select>
+            </label>
+          ) : null}
+          {session?.email ? <p className="mt-4 truncate text-[10px] text-[var(--color-bone-muted)]">{session.email}</p> : null}
+          <button type="button" onClick={logout} className="mt-4 inline-flex items-center gap-2 text-[10px] tracking-[.18em] uppercase text-[var(--color-bone-muted)] hover:text-[var(--color-brass)]"><LogOut className="h-4 w-4" />Sign out</button>
+        </div>
       </aside>
       <main className="portal-main">{children}</main>
     </div>

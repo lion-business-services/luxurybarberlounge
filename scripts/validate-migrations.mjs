@@ -37,6 +37,14 @@ for (const file of files) {
     failures.push(`${file}: must not alter Supabase-managed storage.objects RLS state.`);
   }
 
+  for (const [index, line] of sql.split("\n").entries()) {
+    if (/^\s*create\s+policy\b/i.test(line)) {
+      const opens = (line.match(/\(/g) ?? []).length;
+      const closes = (line.match(/\)/g) ?? []).length;
+      if (opens !== closes) failures.push(`${file}:${index + 1}: unbalanced CREATE POLICY parentheses.`);
+    }
+  }
+
   const dollarTags = [...sql.matchAll(/\$[A-Za-z0-9_]*\$/g)].map((match) => match[0]);
   const tagCounts = new Map();
   for (const tag of dollarTags) tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);

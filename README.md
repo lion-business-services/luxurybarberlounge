@@ -28,7 +28,7 @@ The repository preserves the existing cinematic black, ivory, brass, bronze, and
 ### Business platform foundation
 
 - Supabase browser and server clients
-- Ordered Postgres migrations
+- Seven ordered, transactional Postgres migrations
 - Role and permission model
 - Row Level Security policies
 - Storage buckets and policies
@@ -47,7 +47,6 @@ The repository preserves the existing cinematic black, ivory, brass, bronze, and
 - TypeScript strict mode
 - Tailwind CSS 4
 - Motion for React
-- GSAP for isolated cinematic sequences
 - Lenis with reduced-motion and device guardrails
 - Supabase Postgres/Auth/Storage architecture
 - Square server-side adapter architecture
@@ -105,7 +104,7 @@ supabase db push
 supabase db seed
 ```
 
-Review `docs/setup/supabase.md`, `docs/architecture/database.md`, and `docs/architecture/auth-and-permissions.md` before applying changes to a production project.
+Review `docs/SUPABASE_SETUP.md`, `docs/ARCHITECTURE.md`, and `docs/ROLES_AND_PERMISSIONS.md` before applying changes to a production project.
 
 ## Feature flags
 
@@ -118,7 +117,7 @@ The default public build is deliberately honest:
 - AI concierge uses approved deterministic content when no provider is configured.
 - Staff portals are closed in production unless a server session exists; seeded portal demos require explicit `NEXT_PUBLIC_PORTAL_DEMO_MODE=true`.
 
-See `.env.example` and `docs/launch/credential-activation.md`.
+See `.env.example`, `docs/ENVIRONMENT_VARIABLES.md`, and `docs/LAUNCH_CHECKLIST.md`.
 
 ## Canonical business content
 
@@ -146,34 +145,22 @@ The project is Vercel-compatible and does not require committed secrets.
 6. Run the QA and production launch checklists.
 7. Promote only after `npm run check` succeeds in a clean Linux environment.
 
-See `docs/launch/production-checklist.md`.
+See `docs/DEPLOYMENT.md` and `docs/LAUNCH_CHECKLIST.md`.
 
 ## Documentation map
 
-- `CLAUDE.md` — coding and repository rules
-- `docs/architecture/system.md` — application boundaries
-- `docs/architecture/database.md` — tables and migrations
-- `docs/architecture/auth-and-permissions.md` — roles and RLS
-- `docs/architecture/motion.md` — animation guardrails
-- `docs/setup/*` — local and provider setup
-- `docs/operations/*` — attribution, commission, walk-in, and automation behavior
-- `docs/launch/*` — content, credentials, QA, and production launch
-- `docs/security.md` — security model
-- `docs/testing.md` — test strategy
-- `docs/troubleshooting.md` — common failures
-- `docs/implementation-report.md` — delivered scope and implementation status
-- `docs/validation-report.md` — exact release-gate results and compiler-environment note
-- `docs/assumptions.md` — explicit assumptions and owner approvals
+- `docs/ARCHITECTURE.md` — application and provider boundaries
+- `docs/LOCAL_SETUP.md` and `docs/ENVIRONMENT_VARIABLES.md` — local environment
+- `docs/SUPABASE_SETUP.md` and `docs/RESEND_OTP_SETUP.md` — passwordless authentication and data setup
+- `docs/SQUARE_SETUP.md` — sandbox, production, mappings, and webhooks
+- `docs/AUTHENTICATION.md` and `docs/ROLES_AND_PERMISSIONS.md` — sessions and access model
+- `docs/CLIENT_PORTAL.md`, `BARBER_PORTAL.md`, `RECEPTION_PORTAL.md`, and `ADMIN_CRM.md` — workspace behavior
+- `docs/QUEUE_SYSTEM.md`, `ATTRIBUTION.md`, `COMMISSION_POLICY_SETUP.md`, and `STATEMENTS_AND_DISPUTES.md` — operating systems
+- `docs/OWNER_OPEN_DECISIONS.md` — values that remain intentionally inactive
+- `docs/MOTION_AND_RESPONSIVENESS.md` and `docs/PERFORMANCE_AUDIT.md` — cross-device cinematic delivery
+- `docs/SECURITY.md`, `ACCESSIBILITY.md`, and `TESTING.md` — release controls
+- `docs/DEPLOYMENT.md`, `LAUNCH_CHECKLIST.md`, and `TROUBLESHOOTING.md` — release and operations
 
 ## Important operational boundary
 
-The commission and reconciliation modules calculate and report amounts. They do not transfer funds or represent certified payroll software. Square remains the intended source of operational and financial truth when connected.
-
-## Final cross-device performance release
-
-The complete adaptive-motion, media-delivery, smooth-scroll, cursor, mobile, portal, and reduced-motion audit is documented in:
-
-- `docs/performance-final-audit.md`
-- `docs/validation-performance-release.md`
-
-Run `npm run check:source` for all source-level quality gates and `npm run check` for the same gates followed by the Next.js production build.
+The commission and reconciliation modules calculate and report amounts. They do not transfer funds or represent payroll software. Square remains the operational and financial source of truth when connected. Proposed/open policy terms remain disabled until the owner approves a future effective-dated policy version.

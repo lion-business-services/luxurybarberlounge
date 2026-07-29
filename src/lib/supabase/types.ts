@@ -11,11 +11,16 @@ export type ProfileRecord = {
 export type QueueStatus =
   | "waiting"
   | "confirmed"
-  | "called"
   | "checked_in"
+  | "assigned"
+  | "called"
+  | "ready"
   | "in_service"
   | "completed"
   | "cancelled"
+  | "removed"
   | "no_show";
 
 export type { Database, Json } from "./database.types";
+
+export type * from "./operational.types";

@@ -4,6 +4,8 @@ export const homeMedia = {
   thresholdPoster: "/media/home/video/lounge-entry-poster.webp",
   thresholdMp4: "/media/home/video/lounge-entry.mp4",
   thresholdWebm: "/media/home/video/lounge-entry.webm",
+  thresholdMobilePoster: "/media/home/video/lounge-entry-mobile-poster.webp",
+  thresholdMobileMp4: "/media/home/video/lounge-entry-mobile.mp4",
   toolsTray: "/media/home/tools/tools-tray.webp",
   toolsStand: "/media/home/tools/tools-stand.webp",
   toolsPair: "/media/home/tools/tools-pair.webp",
