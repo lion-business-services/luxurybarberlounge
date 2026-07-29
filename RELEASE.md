@@ -1,6 +1,6 @@
 # Luxury Barber Lounge Production Source Release
 
-Release: `production-ready-v7`
+Release: `vercel-ready-v7.1`
 Date: 2026-07-29
 
 This source package preserves the approved luxury website and adds the completed responsive, authentication, portal, queue, attribution, commission, policy-governance, webhook, automation, security, and documentation foundations requested for controlled production activation.
@@ -25,14 +25,14 @@ This source package preserves the approved luxury website and adds the completed
 
 ## Validation
 
-`npm run check:source` passed all source gates, including 36 unit tests and 16 integration tests. The exact production-build limitation is recorded in `docs/VALIDATION_REPORT.md`.
+`npm run check:source` passed all source gates, including zero-warning lint, 36 unit tests, and 16 integration tests. Vercel-specific deployment blockers and the exact local production-build boundary are recorded in `docs/VERCEL_RELEASE_VALIDATION.md`.
 
 ## Deployment
 
 1. Preserve the existing `.git` directory and Vercel project linkage.
 2. Replace the repository contents with this release.
 3. Do not copy `node_modules` from another computer.
-4. Run `npm ci` on the target Linux environment.
+4. Run `npm ci --include=optional` on the target Linux environment.
 5. Run `npm run check`.
 6. Review the Vercel Preview at the required desktop, laptop, tablet, and mobile widths.
 7. Keep credential-dependent feature flags disabled until the corresponding setup checklist passes.

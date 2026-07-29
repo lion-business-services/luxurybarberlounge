@@ -164,3 +164,7 @@ See `docs/DEPLOYMENT.md` and `docs/LAUNCH_CHECKLIST.md`.
 ## Important operational boundary
 
 The commission and reconciliation modules calculate and report amounts. They do not transfer funds or represent payroll software. Square remains the operational and financial source of truth when connected. Proposed/open policy terms remain disabled until the owner approves a future effective-dated policy version.
+
+## Vercel deployment
+
+Use [`docs/VERCEL_DEPLOYMENT.md`](docs/VERCEL_DEPLOYMENT.md) for the deployment-safe configuration, required project settings, and the later cron activation procedure.

@@ -5,15 +5,25 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
-      - run: npm run check
+      - name: Install exact dependencies, including Linux native packages
+        run: npm ci --include=optional
+      - name: Run source quality gates
+        run: npm run check:source
+      - name: Build production application
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'

@@ -4,7 +4,7 @@ Release date: 2026-07-29
 
 ## Source quality gates
 
-The following command completed successfully in the release workspace:
+The following command completed successfully in the Vercel-hardened release workspace:
 
 ```bash
 npm run check:source
@@ -23,6 +23,7 @@ Results:
 - Secret scan: passed
 - Unit tests: 36 passed, 0 failed
 - Integration tests: 16 passed, 0 failed
+- Vercel configuration validation: passed, with unsupported integration crons disabled
 
 ## Production build
 

@@ -1,54 +1,26 @@
 # Testing
 
-## Automated release gates
-
-The repository includes deterministic checks for content, architecture, migrations, internal routes, secrets, permissions, core business rules, and integration scaffolding.
-
-Run all source-level checks:
+## Automated gates
 
 ```bash
-npm run check:source
+npm run format:check
+npm run lint
+npm run typecheck
+npm run validate:content
+npm run validate:migrations
+npm run validate:routes
+npm run validate:repository
+npm run validate:performance
+npm run scan:secrets
+npm test
+npm run test:integration
+npm run build
 ```
 
-That command runs:
+Unit tests cover content, roles, adaptive motion, booking provider, queue estimates/Who’s Next, attribution, policy governance, automations, and commission arithmetic/treatment. Integration tests verify routes, migrations, environment safety, media packaging, homepage order, responsive assets, and protected hero regression.
 
-- format guard
-- ESLint
-- strict TypeScript
-- bilingual content validation
-- migration ordering and safety validation
-- internal route validation
-- repository completeness validation
-- high-confidence secret scan
-- unit tests
-- repository integration tests
+## Manual matrix
 
-Run the complete release gate, including the Next.js production build, in a clean operating-system-specific dependency installation:
+Test 320, 360, 375, 390, 430, 768, 820, 1024, 1280, 1366, 1440, 1920, and ultrawide. Test first/cached visits, slow network, CPU throttling, reduced motion, touch, mouse, keyboard, forward/reverse scroll, orientation, zoom, history navigation, video autoplay/fallback, OTP states, every role, queue assignment/override, attribution, dispute, Statement, duplicate/out-of-order webhooks, provider failures, and missing optional credentials.
 
-```bash
-rm -rf node_modules .next
-npm ci
-npm run check
-```
-
-## Current unit coverage
-
-- Attribution precedence, owner overrides, referrals, walk-ins, and shop defaults
-- Marketing consent, suppression, and quiet hours
-- Explicit non-live development booking provider behavior
-- Shop-versus-barber commission splits
-- Refunds, discounts, tips, and non-negative outcomes
-- Canonical business content and slug uniqueness
-- Placeholder-barber prevention
-- Client, reception, and owner permission boundaries
-- Queue estimates and invalid-input handling
-
-## Current integration coverage
-
-- Primary public and portal route presence
-- Ordered Supabase migration-set presence
-- Empty environment-template credential values
-
-Provider activation should add provisioned tests for Square signature failures, duplicate and out-of-order webhooks, refunds, missing mappings, Supabase role access, storage access, email/SMS failures, expired sessions, and upload rejection.
-
-Browser E2E coverage should exercise visitor booking, client login/rebook, barber schedule, reception walk-in, admin content edit, rule edit, dispute, and owner resolution in a provisioned preview environment.
+Do not claim Safari/iOS or a provider delivery test passed unless it actually ran on that platform/provider.

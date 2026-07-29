@@ -1,15 +1,19 @@
-# Security Model
+# Security
 
-- Privileged credentials are server-only.
-- RLS protects user-accessible Supabase tables.
-- Public registration cannot assign staff roles.
-- Square webhooks require signature verification and event idempotency.
-- Financial totals are retrieved from canonical provider records, not trusted from the browser.
-- Upload buckets enforce file size, MIME type, ownership paths, and signed access for private media.
-- Audit records cover role, financial, content, integration, and protected operational changes.
-- Public errors are sanitized; logs must redact tokens, secret headers, full sensitive payloads, and private URLs.
-- Security headers include CSP, frame denial, referrer policy, content-type protection, and permissions policy.
-- Rate limiting, bot protection, and durable job controls should use managed production infrastructure before high-volume launch; the repository includes a preview-safe in-process guard only.
-- Account export and deletion are workflows, not unaudited direct cascades.
+## Boundaries
 
-Before release, run dependency and secret scanning in GitHub/Vercel and review Supabase Security Advisor findings.
+- Service-role, Square, Resend, SMS, webhook, and cron secrets are server-only.
+- Portal layouts authorize server-side; RLS authorizes database access.
+- Proxy is an optimistic redirect, not the final boundary.
+- Staff roles are server assigned.
+- Evidence/private media use private storage and signed URLs.
+- Webhooks require signature verification and idempotent inbox records.
+- Locked financial history is immutable.
+
+## Controls
+
+Secure cookies, OTP throttling, verification throttling, generic anti-enumeration responses, session refresh/logout, role-switch audit, input validation, CSP/security headers, secret scanning, audit logs, consent records, delivery idempotency, and least-privilege provider keys.
+
+## Production checklist
+
+Rotate any exposed credential, enable provider logs/alerts, test RLS with every role, verify webhook URL/signature, protect cron endpoints, configure backup/recovery, and review the worker-classification issue with counsel.

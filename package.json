@@ -4,7 +4,7 @@
   "private": true,
   "description": "Luxury Barber Lounge public website and role-aware operating platform.",
   "engines": {
-    "node": ">=22.0.0 <25"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "next dev",
@@ -21,8 +21,9 @@
     "validate:migrations": "node scripts/validate-migrations.mjs",
     "validate:routes": "node scripts/validate-routes.mjs",
     "scan:secrets": "node scripts/scan-secrets.mjs",
-    "check:source": "npm run format:check && npm run lint && npm run typecheck && npm run validate:content && npm run validate:migrations && npm run validate:routes && npm run validate:repository && npm run validate:performance && npm run scan:secrets && npm run test && npm run test:integration",
-    "validate:performance": "node scripts/validate-performance.mjs"
+    "check:source": "npm run format:check && npm run lint && npm run typecheck && npm run validate:content && npm run validate:migrations && npm run validate:routes && npm run validate:repository && npm run validate:vercel && npm run validate:performance && npm run scan:secrets && npm run test && npm run test:integration",
+    "validate:performance": "node scripts/validate-performance.mjs",
+    "validate:vercel": "node scripts/validate-vercel.mjs"
   },
   "dependencies": {
     "@studio-freight/lenis": "^1.0.42",
@@ -45,5 +46,6 @@
     "tailwindcss": "^4",
     "typescript": "^5"
   },
-  "type": "module"
+  "type": "module",
+  "packageManager": "npm@10.9.2"
 }
