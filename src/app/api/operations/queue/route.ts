@@ -45,22 +45,29 @@ export async function POST(request: NextRequest) {
   if (body.action === "set_status") {
     const allowedStatuses = new Set(["waiting","confirmed","checked_in","assigned","called","ready","in_service","completed","cancelled","removed","no_show"]);
     if (!body.entryId || !body.status || !allowedStatuses.has(body.status)) return NextResponse.json({ ok: false, message: "A valid queue status is required." }, { status: 400 });
-    const { data: current } = await context.admin.from("queue_entries").select("status").eq("id", body.entryId).eq("business_id", context.businessId).maybeSingle();
+    const { data: current } = await context.admin.from("queue_entries").select("id,status,business_id").eq("id", body.entryId).eq("business_id", context.businessId).maybeSingle();
     if (!current) return NextResponse.json({ ok: false, message: "Queue entry not found." }, { status: 404 });
-    const { error } = await context.admin.from("queue_entries").update({ status: body.status, ...(body.status === "in_service" ? { service_started_at: new Date().toISOString() } : {}), ...(body.status === "completed" ? { completed_at: new Date().toISOString() } : {}) }).eq("id", body.entryId);
+    const { error } = await context.admin.from("queue_entries").update({ status: body.status, ...(body.status === "in_service" ? { service_started_at: new Date().toISOString() } : {}), ...(body.status === "completed" ? { completed_at: new Date().toISOString() } : {}) }).eq("id", body.entryId).eq("business_id", context.businessId);
     if (error) return NextResponse.json({ ok: false, message: "The queue status could not be updated." }, { status: 500 });
     await context.admin.from("queue_status_history").insert({ queue_entry_id: body.entryId, from_status: current.status, to_status: body.status, changed_by: session.user.id, note: body.reason?.slice(0, 500) ?? null });
+    await context.admin.from("audit_logs").insert({ business_id: context.businessId, actor_user_id: session.user.id, actor_role: session.roles[0] ?? null, action: "queue_status_changed", resource_type: "queue_entry", resource_id: body.entryId, before_data: { status: current.status }, after_data: { status: body.status }, reason: body.reason?.slice(0, 500) ?? null, metadata: {} });
     return NextResponse.json({ ok: true });
   }
 
   if (body.action === "assign") {
     if (!body.entryId || !body.barberId) return NextResponse.json({ ok: false, message: "Queue entry and Barber are required." }, { status: 400 });
+    const [{ data: entry }, { data: barber }] = await Promise.all([
+      context.admin.from("queue_entries").select("id,status").eq("business_id", context.businessId).eq("id", body.entryId).maybeSingle(),
+      context.admin.from("staff_profiles").select("user_id,active").eq("business_id", context.businessId).eq("user_id", body.barberId).eq("active", true).maybeSingle(),
+    ]);
+    if (!entry?.id || !barber?.user_id) return NextResponse.json({ ok: false, message: "The queue entry or active Barber is not available in this business." }, { status: 404 });
     await context.admin.from("queue_assignments").update({ active: false, released_at: new Date().toISOString() }).eq("queue_entry_id", body.entryId).eq("active", true);
-    const { error } = await context.admin.from("queue_assignments").insert({ queue_entry_id: body.entryId, barber_user_id: body.barberId, assigned_by: session.user.id, reason: body.reason?.slice(0, 500) || "Manual reception assignment", assignment_source: session.roles.includes("owner") ? "owner" : session.roles.includes("manager") ? "manager" : "reception", explanation: { manual: true } });
-    if (error) return NextResponse.json({ ok: false, message: "The assignment could not be saved." }, { status: 500 });
-    await context.admin.from("queue_entries").update({ status: "assigned" }).eq("id", body.entryId);
-    await context.admin.from("queue_status_history").insert({ queue_entry_id: body.entryId, to_status: "assigned", changed_by: session.user.id, note: body.reason?.slice(0, 500) || "Manual assignment" });
-    return NextResponse.json({ ok: true });
+    const { data: assignment, error } = await context.admin.from("queue_assignments").insert({ queue_entry_id: body.entryId, barber_user_id: body.barberId, assigned_by: session.user.id, reason: body.reason?.slice(0, 500) || "Manual reception assignment", assignment_source: session.roles.includes("owner") ? "owner" : session.roles.includes("manager") ? "manager" : "reception", explanation: { manual: true } }).select("id").single();
+    if (error || !assignment?.id) return NextResponse.json({ ok: false, message: "The assignment could not be saved." }, { status: 500 });
+    await context.admin.from("queue_entries").update({ status: "assigned" }).eq("business_id", context.businessId).eq("id", body.entryId);
+    await context.admin.from("queue_status_history").insert({ queue_entry_id: body.entryId, from_status: entry.status, to_status: "assigned", changed_by: session.user.id, note: body.reason?.slice(0, 500) || "Manual assignment" });
+    await context.admin.from("audit_logs").insert({ business_id: context.businessId, actor_user_id: session.user.id, actor_role: session.roles[0] ?? null, action: "queue_manually_assigned", resource_type: "queue_assignment", resource_id: assignment.id, before_data: { queue_status: entry.status }, after_data: { queue_entry_id: body.entryId, barber_user_id: body.barberId, queue_status: "assigned" }, reason: body.reason?.slice(0, 500) || "Manual assignment", metadata: {} });
+    return NextResponse.json({ ok: true, assignmentId: assignment.id });
   }
 
   if (body.action === "who_next") {
@@ -86,10 +93,12 @@ export async function POST(request: NextRequest) {
     if (!decision) return NextResponse.json({ ok: false, message: "No eligible queue entry and Barber pairing is available." }, { status: 409 });
     const { data: existing } = await context.admin.from("queue_assignments").select("id").eq("queue_entry_id", decision.queueEntryId).eq("active", true).maybeSingle();
     if (existing) return NextResponse.json({ ok: true, duplicate: true, decision });
-    const { error } = await context.admin.from("queue_assignments").insert({ queue_entry_id: decision.queueEntryId, barber_user_id: decision.barberId, assigned_by: session.user.id, reason: decision.reasons.join("; "), assignment_source: "automatic", explanation: { score: decision.score, reasons: decision.reasons, ruleVersion: decision.ruleVersion }, rule_version_id: activeRule?.id ?? null });
-    if (error) return NextResponse.json({ ok: false, message: "The automatic assignment could not be saved." }, { status: 500 });
-    await context.admin.from("queue_entries").update({ status: "assigned" }).eq("id", decision.queueEntryId);
-    await context.admin.from("queue_status_history").insert({ queue_entry_id: decision.queueEntryId, to_status: "assigned", changed_by: session.user.id, note: `Automatic assignment: ${decision.reasons.join("; ")}` });
+    const sourceEntry = entries.find((entry) => entry.id === decision.queueEntryId);
+    const { data: assignment, error } = await context.admin.from("queue_assignments").insert({ queue_entry_id: decision.queueEntryId, barber_user_id: decision.barberId, assigned_by: session.user.id, reason: decision.reasons.join("; "), assignment_source: "automatic", explanation: { score: decision.score, reasons: decision.reasons, ruleVersion: decision.ruleVersion }, rule_version_id: activeRule?.id ?? null }).select("id").single();
+    if (error || !assignment?.id) return NextResponse.json({ ok: false, message: "The automatic assignment could not be saved." }, { status: 500 });
+    await context.admin.from("queue_entries").update({ status: "assigned" }).eq("business_id", context.businessId).eq("id", decision.queueEntryId);
+    await context.admin.from("queue_status_history").insert({ queue_entry_id: decision.queueEntryId, from_status: sourceEntry?.status ?? null, to_status: "assigned", changed_by: session.user.id, note: `Automatic assignment: ${decision.reasons.join("; ")}` });
+    await context.admin.from("audit_logs").insert({ business_id: context.businessId, actor_user_id: session.user.id, actor_role: session.roles[0] ?? null, action: "queue_automatically_assigned", resource_type: "queue_assignment", resource_id: assignment.id, before_data: { queue_status: sourceEntry?.status ?? null }, after_data: { queue_entry_id: decision.queueEntryId, barber_user_id: decision.barberId, score: decision.score, rule_version: decision.ruleVersion }, reason: decision.reasons.join("; "), metadata: {} });
     return NextResponse.json({ ok: true, decision });
   }
 

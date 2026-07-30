@@ -1,14 +1,22 @@
 # Owner and Admin CRM
 
-The CRM contains executive overview, bookings, walk-ins, queue, clients, staff, services, pricing, hours, memberships, content, reviews, campaigns, automations, attribution, commissions, reconciliation, Statements, disputes, integrity flags, integrations, webhooks, users, roles, permissions, audit logs, feature flags, policy approvals, and business/security settings.
+The admin CRM is a separate operational application under `/admin`, not a renamed client portal. It has its own layout, dense information architecture, server data loaders, tables, filters, operational actions, and owner-only governance boundaries.
 
-Metrics must be labeled Live, Square-derived, Supabase-derived, Calculated, Estimated, or Demo. Demo values are never represented as current business performance.
+## Manager operations
 
-Owner-only actions require server authorization and are audited. Proposed policy terms remain disabled until explicitly approved with an effective date.
+Managers may access business-scoped daily operations, appointments, queue, clients, barbers, services, orders, memberships, notifications, campaigns, content, reviews, and approved automation visibility.
 
-## Functional operational controls
+## Owner-only governance
 
-- `/admin/users` creates and revokes verified-email staff invitations and reviews assigned roles.
-- `/admin/webhooks` reviews signature-verified events, attempts, failures, retries, and dead-letter records.
-- `/admin/policies` records owner decisions without activating unresolved rules.
-- `/admin/queue`, `/admin/attribution`, and `/admin/commissions` use deterministic domain engines and audited writes.
+Nested server layouts protect integrations, webhooks, users, roles, permissions, audit, security, business settings, policies, attribution, commissions, statements, disputes, reconciliation, feature flags, data controls, and AI settings. Hiding a navigation item is not authorization.
+
+## Functional controls
+
+- Client CRM: create verified-email client access, permitted profile changes, notes, tags, status governance, and history.
+- Queue: deterministic Who's Next, status changes, business-scoped manual assignment, reason capture, and audit.
+- Barbers: profile/specialty/language control; owner-only provider mapping, suspension, and archival.
+- Memberships: draft/version creation, provider-gated publication, and owner-approved completion of requests.
+- Automations: owner-created test-mode rules, provider-gated activation, reason capture, and audit.
+- Integrations: authorized status and failure surfaces without credential display.
+
+Metrics are labeled Square-derived, Supabase-derived, Calculated, or Estimated. No demo values are represented as current operations.

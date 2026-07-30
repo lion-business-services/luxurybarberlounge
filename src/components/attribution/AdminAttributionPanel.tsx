@@ -21,6 +21,8 @@ type ClaimsResponse = {
 export function AdminAttributionPanel() {
   const [claims, setClaims] = useState<Claim[]>([]);
   const [message, setMessage] = useState("");
+  const [pendingDecision, setPendingDecision] = useState<{ claimId: string; decision: string } | null>(null);
+  const [reason, setReason] = useState("");
 
   const loadClaims = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch("/api/attribution/claims", {
@@ -59,14 +61,21 @@ export function AdminAttributionPanel() {
     return () => controller.abort();
   }, []);
 
-  async function decide(claimId: string, decision: string) {
-    const reason = window.prompt("Record the written decision reason:");
-    if (!reason) return;
+  async function submitDecision(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!pendingDecision || reason.trim().length < 10) {
+      setMessage("Provide at least 10 characters explaining this decision.");
+      return;
+    }
 
     const response = await fetch("/api/admin/attribution/decision", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ claimId, decision, reason }),
+      body: JSON.stringify({
+        claimId: pendingDecision.claimId,
+        decision: pendingDecision.decision,
+        reason: reason.trim(),
+      }),
     });
     const result = (await response.json()) as { message?: string };
 
@@ -77,6 +86,8 @@ export function AdminAttributionPanel() {
     );
 
     if (response.ok) {
+      setPendingDecision(null);
+      setReason("");
       try {
         await loadClaims();
       } catch (error) {
@@ -132,21 +143,21 @@ export function AdminAttributionPanel() {
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => decide(claim.id, "approved")}
+                    onClick={() => { setPendingDecision({ claimId: claim.id, decision: "approved" }); setReason(""); setMessage(""); }}
                     className="rounded-full bg-[var(--color-brass)] px-4 py-2 text-[9px] uppercase text-[var(--color-ink)]"
                   >
                     Approve
                   </button>
                   <button
                     type="button"
-                    onClick={() => decide(claim.id, "needs_information")}
+                    onClick={() => { setPendingDecision({ claimId: claim.id, decision: "needs_information" }); setReason(""); setMessage(""); }}
                     className="rounded-full border border-[var(--color-ink-line)] px-4 py-2 text-[9px] uppercase"
                   >
                     Need info
                   </button>
                   <button
                     type="button"
-                    onClick={() => decide(claim.id, "rejected")}
+                    onClick={() => { setPendingDecision({ claimId: claim.id, decision: "rejected" }); setReason(""); setMessage(""); }}
                     className="rounded-full border border-red-800/40 px-4 py-2 text-[9px] uppercase text-red-200"
                   >
                     Reject
@@ -154,6 +165,26 @@ export function AdminAttributionPanel() {
                 </div>
               ) : null}
             </div>
+            {pendingDecision?.claimId === claim.id ? (
+              <form onSubmit={submitDecision} className="mt-5 grid gap-4 rounded-xl border border-[var(--color-brass)]/25 bg-black/20 p-4 lg:grid-cols-[1fr_auto] lg:items-end">
+                <label className="grid gap-2 text-xs">
+                  <span className="uppercase tracking-[.16em] text-[var(--color-brass)]">Written reason for {pendingDecision.decision.replaceAll("_", " ")}</span>
+                  <textarea
+                    autoFocus
+                    required
+                    minLength={10}
+                    maxLength={2000}
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    className="min-h-24 rounded-lg border border-[var(--color-ink-line)] bg-[var(--color-ink)] px-3 py-3"
+                  />
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button type="submit" className="rounded-full bg-[var(--color-brass)] px-4 py-3 text-[9px] uppercase text-[var(--color-ink)]">Record decision</button>
+                  <button type="button" onClick={() => setPendingDecision(null)} className="rounded-full border border-[var(--color-ink-line)] px-4 py-3 text-[9px] uppercase">Cancel</button>
+                </div>
+              </form>
+            ) : null}
           </article>
         ))}
 

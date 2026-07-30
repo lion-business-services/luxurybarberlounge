@@ -1,33 +1,34 @@
 {
-  "release": "production-ready-v7",
-  "date": "2026-07-29",
+  "release": "portal-crm-production-ready-v8",
+  "date": "2026-07-30",
   "project": "Luxury Barber Lounge",
   "framework": "Next.js 16.2.6",
-  "routeCount": 147,
-  "migrationCount": 7,
-  "validatedSourceFileCount": 288,
+  "routeCount": 165,
+  "migrationCount": 9,
+  "validatedSourceFileCount": 370,
   "serviceCount": 31,
   "barberCount": 9,
   "membershipCount": 3,
+  "clientPortal": "separate-mobile-first-application",
+  "adminCrm": "separate-executive-operational-application",
   "sourceChecks": "passed",
-  "responsiveMobileBaseline": "repaired",
-  "mobileVideoVariants": "included",
-  "passwordlessOtp": "implemented-credential-dependent",
-  "staffInvitations": "implemented-credential-dependent",
-  "queueAttributionCommission": "implemented-owner-policy-controlled",
-  "webhookInbox": "implemented-credential-dependent",
+  "passwordlessOtp": "implemented-provider-dependent",
+  "ownerBootstrap": "verified-email-server-controlled",
+  "rolesAndRls": "implemented-and-statically-validated",
+  "queueAttributionCommission": "implemented-policy-controlled",
+  "automationEngine": "implemented-provider-gated-test-mode-default",
   "unitTests": {
-    "passed": 36,
+    "passed": 40,
     "failed": 0
   },
   "integrationTests": {
-    "passed": 16,
+    "passed": 27,
     "failed": 0
   },
   "productionBuild": {
     "status": "environment-blocked-before-source-compilation",
     "command": "npm run build",
-    "reason": "Isolated OpenAI package mirror returned HTTP 404 for @next/swc-wasm-nodejs@16.2.6; Linux SWC optional dependency is present in package-lock.json."
+    "reason": "Isolated package mirror returned HTTP 404 for @next/swc-wasm-nodejs@16.2.6 after Linux native SWC packages were unavailable."
   },
   "excludedFromArchive": [
     "node_modules",
@@ -36,7 +37,7 @@
     ".vercel",
     ".env.local",
     "*.tsbuildinfo",
-    "local logs"
+    "local logs and caches"
   ],
-  "featureProviders": "credential-dependent features disabled by default"
+  "featureProviders": "credential-dependent features disabled or provider-gated by default"
 }

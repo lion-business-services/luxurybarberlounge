@@ -2,7 +2,7 @@ import "server-only";
 import { createClient, type User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { authCookies, isAppRole, roleHome, sanitizeNextPath } from "./config";
+import { authCookies, isAppRole, roleHome, sanitizeNextPath, selectPrimaryRole } from "./config";
 import type { AppRole } from "@/lib/supabase/types";
 
 type RoleRow = { roles: { key: AppRole } | Array<{ key: AppRole }> | null };
@@ -19,6 +19,16 @@ export function createPublicServerSupabase() {
   if (!config) return null;
   return createClient(config.url, config.anonKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
+
+export function createUserServerSupabase(accessToken: string) {
+  const config = env();
+  if (!config || !accessToken) return null;
+  return createClient(config.url, config.anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
   });
 }
 
@@ -63,7 +73,7 @@ async function consumePendingInvitation(user: User): Promise<AppRole | null> {
     .limit(1)
     .maybeSingle();
 
-  const intendedRole = isAppRole(invitation?.intended_role) ? invitation.intended_role : null;
+  const intendedRole = isAppRole(invitation?.intended_role) && ["barber", "receptionist", "manager"].includes(invitation.intended_role) ? invitation.intended_role : null;
   if (!invitation?.id || !invitation.business_id || !intendedRole) return null;
 
   const { data: role } = await admin.from("roles").select("id").eq("key", intendedRole).maybeSingle();
@@ -123,6 +133,21 @@ export async function ensureDefaultRole(user: User) {
   const invitedRole = await consumePendingInvitation(user);
   const desired: AppRole = ownerEmail && verifiedEmail === ownerEmail ? "owner" : invitedRole ?? "client";
 
+  const { data: business } = await admin
+    .from("businesses")
+    .select("id")
+    .eq("slug", "luxury-barber-lounge")
+    .maybeSingle();
+  const businessId = typeof business?.id === "string" ? business.id : null;
+
+  if (desired === "client") {
+    const { error: clientProfileError } = await admin.from("client_profiles").upsert({
+      user_id: user.id,
+      business_id: businessId,
+    }, { onConflict: "user_id" });
+    if (clientProfileError) throw clientProfileError;
+  }
+
   if (!existing.includes(desired)) {
     const { data: role } = await admin
       .from("roles")
@@ -130,15 +155,6 @@ export async function ensureDefaultRole(user: User) {
       .eq("key", desired)
       .maybeSingle();
 
-    let businessId: string | null = null;
-    if (desired !== "client") {
-      const { data: business } = await admin
-        .from("businesses")
-        .select("id")
-        .eq("slug", "luxury-barber-lounge")
-        .maybeSingle();
-      businessId = typeof business?.id === "string" ? business.id : null;
-    }
 
     if (role?.id) {
       let scoped = admin
@@ -172,20 +188,23 @@ export async function ensureDefaultRole(user: User) {
 
 export async function getServerAuthSession() {
   if (process.env.NEXT_PUBLIC_PORTAL_DEMO_MODE === "true") {
-    return { user: null, roles: ["owner"] as AppRole[], activeRole: "owner" as AppRole, demo: true };
+    return { user: null, roles: ["owner"] as AppRole[], activeRole: "owner" as AppRole, accessToken: null, demo: true };
   }
   const cookieStore = await cookies();
   const accessToken = cookieStore.get(authCookies.accessToken)?.value;
   const refreshToken = cookieStore.get(authCookies.refreshToken)?.value;
-  if (!accessToken) return { user: null, roles: [] as AppRole[], activeRole: null, refreshToken };
+  if (!accessToken) return { user: null, roles: [] as AppRole[], activeRole: null, refreshToken, accessToken: null };
   const supabase = createPublicServerSupabase();
-  if (!supabase) return { user: null, roles: [] as AppRole[], activeRole: null, refreshToken };
+  if (!supabase) return { user: null, roles: [] as AppRole[], activeRole: null, refreshToken, accessToken: null };
   const { data, error } = await supabase.auth.getUser(accessToken);
-  if (error || !data.user) return { user: null, roles: [] as AppRole[], activeRole: null, refreshToken };
+  if (error || !data.user) return { user: null, roles: [] as AppRole[], activeRole: null, refreshToken, accessToken: null };
   const roles = await getRolesForUser(data.user.id);
+  const admin = createUntypedAdminSupabase();
+  const { data: profile } = admin ? await admin.from("profiles").select("status").eq("id", data.user.id).maybeSingle() : { data: null };
+  const accountStatus = typeof profile?.status === "string" ? profile.status : "active";
   const selected = cookieStore.get(authCookies.activeRole)?.value;
-  const activeRole = isAppRole(selected) && roles.includes(selected) ? selected : roles[0] ?? null;
-  return { user: data.user, roles, activeRole, refreshToken, demo: false };
+  const activeRole = isAppRole(selected) && roles.includes(selected) ? selected : roles.length ? selectPrimaryRole(roles) : null;
+  return { user: data.user, roles, activeRole, refreshToken, accessToken, accountStatus, demo: false };
 }
 
 export async function requirePortalAccess(allowed: readonly AppRole[], requestedPath: string) {
@@ -195,7 +214,17 @@ export async function requirePortalAccess(allowed: readonly AppRole[], requested
     if (session.refreshToken) redirect(`/api/auth/refresh?next=${encodeURIComponent(requestedPath)}`);
     redirect(`/login?next=${encodeURIComponent(requestedPath)}&reason=authentication-required`);
   }
+  if (session.accountStatus && !["active", "invited"].includes(session.accountStatus)) {
+    redirect(`/login?reason=account-${encodeURIComponent(session.accountStatus)}`);
+  }
   if (!session.roles.some((role) => allowed.includes(role))) {
+    const admin = createUntypedAdminSupabase();
+    if (admin && session.user) await admin.from("auth_audit").insert({
+      user_id: session.user.id,
+      event_type: "authorization_denied",
+      outcome: "denied",
+      metadata: { requested_path: requestedPath, allowed_roles: allowed, assigned_roles: session.roles },
+    });
     const destination = session.activeRole ? roleHome[session.activeRole] : "/login";
     redirect(`${destination}?reason=role-required`);
   }
@@ -213,6 +242,6 @@ export function resolvePostLoginPath(roles: AppRole[], requested: unknown, activ
     } as const).find(([root]) => safe === root || safe.startsWith(`${root}/`));
     if (!match || roles.some((role) => match[1].includes(role as never))) return safe;
   }
-  const preferred = activeRole && roles.includes(activeRole) ? activeRole : roles[0] ?? "client";
+  const preferred = activeRole && roles.includes(activeRole) ? activeRole : selectPrimaryRole(roles);
   return roleHome[preferred];
 }

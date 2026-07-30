@@ -18,9 +18,10 @@ export async function POST(request: NextRequest) {
   const supabase = createPublicServerSupabase();
   if (!supabase) return NextResponse.json({ ok: false, message: "Secure login is not activated yet. Contact the lounge for assistance.", code: "AUTH_NOT_CONFIGURED" }, { status: 503 });
 
-  await supabase.auth.signInWithOtp({
+  const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data.email.toLowerCase(),
     options: { shouldCreateUser: true, data: { requested_portal_access: true } },
   });
+  if (error) return NextResponse.json({ ok: false, message: "Secure email delivery is temporarily unavailable. Please try again shortly.", code: "OTP_DELIVERY_FAILED" }, { status: 503 });
   return NextResponse.json({ ok: true, message: generic, retryAfter: 60 });
 }

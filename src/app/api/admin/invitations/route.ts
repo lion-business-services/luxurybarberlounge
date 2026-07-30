@@ -7,7 +7,7 @@ import { getEmailProvider } from "@/lib/notifications/providers";
 
 const inviteSchema = z.object({
   email: z.string().trim().email().max(254),
-  role: z.enum(["barber", "receptionist", "manager", "owner"]),
+  role: z.enum(["barber", "receptionist", "manager"]),
   locationId: z.string().uuid().nullable().optional(),
   expiresInDays: z.number().int().min(1).max(30).default(7),
 });

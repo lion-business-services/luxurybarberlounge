@@ -1,113 +1,121 @@
 # Supabase Setup
 
-This project uses Supabase Auth, Postgres, Storage, and RLS. The implementation follows the current official Supabase Next.js SSR, passwordless email, SMTP, email-template, and RLS guidance:
+This project uses Supabase Auth, Postgres, Storage, and Row Level Security. Production currently requires all ordered migrations 001 through 009.
 
-- https://supabase.com/docs/guides/auth/server-side/nextjs
-- https://supabase.com/docs/guides/auth/auth-email-passwordless
-- https://supabase.com/docs/guides/auth/auth-smtp
-- https://supabase.com/docs/guides/auth/auth-email-templates
-- https://supabase.com/docs/guides/database/postgres/row-level-security
+## Required environment variables
 
-Dashboard labels can change, so verify them against these official pages before production activation.
+Browser-safe:
 
-## 1. Create and record the project
-
-1. Create the production Supabase project in the correct organization and region.
-2. Set a strong database password and store it in the company password manager.
-3. Record the Project URL and anonymous key for `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-4. Record the service-role key only in the password manager and Vercel server environment as `SUPABASE_SERVICE_ROLE_KEY`.
-5. Never paste the service-role key into browser code, screenshots, tickets, or public logs.
-
-## 2. Link and apply migrations
-
-```bash
-supabase login
-supabase link --project-ref YOUR_PROJECT_REF
-supabase db push
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
-The transactional SQL files in `supabase/migrations` must run in timestamp order. Review the output and do not edit an already-applied production migration. Add a new migration for corrections.
+Server-only:
 
-For a clean non-production test:
-
-```bash
-supabase db reset
+```env
+SUPABASE_SERVICE_ROLE_KEY=
+INITIAL_OWNER_EMAIL=info@theluxurybarberlounge.com
+CRON_SECRET=
 ```
 
-## 3. Seed and type generation
+Never place the service-role key or cron secret in a `NEXT_PUBLIC_` variable, browser code, screenshot, ticket, or repository file.
 
-Use the supplied seed only in a development or approved staging environment:
+## Link and apply migrations
 
-```bash
-supabase db seed
-```
-
-Generate current types after migrations:
+From the repository root:
 
 ```bash
-supabase gen types typescript --project-id YOUR_PROJECT_REF --schema public > src/lib/supabase/generated.types.ts
+npx supabase@latest login
+npx supabase@latest link --project-ref YOUR_PROJECT_REF
+npm run validate:migrations
+npm run validate:rls
+npx supabase@latest db push
+npx supabase@latest migration list
 ```
 
-Commit generated type changes only after reviewing them.
+Local and remote migration columns must match through:
 
-## 4. Storage
+- `202607280001_foundation.sql`
+- `202607280002_catalog_bookings_queue.sql`
+- `202607280003_content_memberships_engagement.sql`
+- `202607280004_commissions_reconciliation.sql`
+- `202607280005_crm_automation_integrations.sql`
+- `202607280006_rls_storage.sql`
+- `202607290007_policy_auth_operational_completion.sql`
+- `202607300008_portal_separation_and_production_baseline.sql`
+- `202607300009_portal_operations_privacy_and_history.sql`
 
-The migrations create or reference private buckets for evidence and operational uploads. Confirm buckets and storage policies in the dashboard. Private attribution evidence must be served only through short-lived signed URLs to authorized users. Do not make evidence or client inspiration uploads public.
+Do not edit an already-applied production migration. Add a new forward migration for corrections.
 
-## 5. Auth URL configuration
+## Production seed policy
 
-In Auth URL configuration:
+Do not run `supabase db seed` against production. The seed is intended for controlled local or staging validation and may contain demonstration operational records. Production business, staff, barber, service, price, membership, and provider mappings must be entered deliberately.
+
+## Generate database types
+
+After the hosted schema is current, set `SUPABASE_PROJECT_REF` locally or pass it to the command, then run:
+
+```bash
+SUPABASE_PROJECT_REF=YOUR_PROJECT_REF npm run types:supabase
+npm run typecheck
+```
+
+Review generated changes before committing them. Never generate production types with a service-role key in a command line or log.
+
+## Authentication configuration
+
+In Supabase Authentication:
 
 - Site URL: `https://www.theluxurybarberlounge.com`
-- Add local redirect: `http://localhost:3000/**`
-- Add Vercel preview patterns deliberately, or list approved preview URLs.
-- Add production callback URLs only for domains controlled by the business.
+- Redirects: approved production, bare-domain, local, and explicit Vercel Preview URLs
+- Email provider: enabled
+- Allow new users: enabled
+- Confirm Email: disabled for the code-only OTP flow
+- OTP expiry: 600 seconds
+- Minimum resend interval: at least 60 seconds
+- Magic Link/OTP template: include `{{ .Token }}` and remove `{{ .ConfirmationURL }}`
 
-The application verifies six-digit email OTPs through server route handlers and then stores secure HttpOnly session cookies.
+The application verifies the code server-side, creates or retrieves the profile, consumes an eligible staff invitation, resolves the active role, writes hashed session audit metadata, and redirects to the authorized portal.
 
-## 6. Passwordless email OTP
-
-In Auth provider settings, keep email enabled. Configure email OTP rather than a password-first public flow. The client submits an email, Supabase generates the token, the custom email template displays `{{ .Token }}`, and `/api/auth/verify-otp` calls `verifyOtp` server-side.
-
-Set an expiration appropriate for privileged access. The UI handles invalid, expired, rate-limited, resend, and delivery-failure states without exposing whether an account existed before verification.
-
-## 7. Resend custom SMTP
-
-Configure Supabase Auth custom SMTP using the verified Resend domain. Follow `docs/RESEND_OTP_SETUP.md`. Test both HTML and plain-text delivery before production.
-
-## 8. Initial owner
+## Initial owner
 
 1. Set `INITIAL_OWNER_EMAIL=info@theluxurybarberlounge.com` in Vercel server environments.
-2. Apply migrations and confirm the owner role exists.
-3. Request and successfully verify an OTP for the exact email.
-4. The server bootstrap assigns the owner role only after Supabase has verified the address.
-5. Confirm `user_roles` and `auth_audit` records.
-6. Remove or retain `INITIAL_OWNER_EMAIL` according to the company’s documented bootstrap policy. It is safe only because the role is assigned after ownership of the email is proven.
+2. Request and verify an OTP using the exact address.
+3. The server assigns owner only to that authenticated Supabase user ID.
+4. Confirm the owner record in `user_roles` and the login event in authentication audit records.
+5. Confirm no other verified email receives owner automatically.
 
-Never grant owner access from a client-side email comparison.
+## Row Level Security
 
-## 9. Staff invitations and role testing
+Static checks:
 
-Owner or authorized manager creates staff invitations and server-side role records. Staff use the same OTP login. Test every role in a separate browser profile:
+```bash
+npm run validate:rls
+npm run validate:migrations
+```
 
-- client cannot read other clients
-- barber cannot alter attribution or locked calculations
-- reception cannot access owner-only policy or finance settings
-- manager is limited to authorized business/location scope
-- owner can administer the business
+Staging structural smoke test:
 
-## 10. RLS verification
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/portal_rls.sql
+```
 
-RLS is not replaced by hidden navigation. Test with the anonymous key and real user sessions. Attempt prohibited reads and writes directly through the Supabase client and confirm Postgres rejects them. Validate private storage and signed URLs.
+Then execute the live identity matrix in `docs/RLS_TESTING.md`. Do not use the service-role key to test client, barber, reception, or manager behavior because it bypasses RLS.
 
-## 11. Backups and recovery
+## Storage
 
-Enable the project’s appropriate backup/PITR plan, record recovery ownership, and rehearse a restore into a non-production project. Preserve migrations, statements, audit records, policy versions, and evidence according to approved retention rules.
+Confirm private buckets, file-size limits, MIME restrictions, and storage policies after migrations. Client references, dispute evidence, and operational uploads must remain private and be served through short-lived signed URLs to authorized users.
 
-## 12. Troubleshooting
+## Resend and scheduled processing
 
-- `AUTH_NOT_CONFIGURED`: public URL or anonymous key is missing.
-- OTP mail absent: check Supabase Auth logs, SMTP sender/domain verification, template token, rate limits, and spam placement.
-- Logged in but redirected: inspect `user_roles`, active-role cookie, and portal layout authorization.
-- Empty data: confirm migrations, RLS, business scope, and seed environment.
-- Never “fix” an RLS error by moving the service-role key into the browser.
+Configure Resend custom SMTP using `docs/RESEND_OTP_SETUP.md`. After OTP and application email tests pass, configure an approved scheduler to call:
+
+- `/api/cron/notifications`
+- `/api/cron/webhooks`
+
+Each request must send `Authorization: Bearer $CRON_SECRET`. Record cadence, owner, alerts, and rollback.
+
+## Backups and recovery
+
+Enable the appropriate backup or point-in-time recovery plan, document retention, and rehearse a restore into a non-production project. Preserve migrations, audit history, consent, locked calculations, statements, attribution decisions, disputes, and provider references.

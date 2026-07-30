@@ -374,7 +374,7 @@ create policy policy_open_items_admin on public.policy_open_items for all using 
 create policy acknowledgements_self_read on public.policy_acknowledgements for select using (user_id = auth.uid() or exists (select 1 from public.policy_versions p where p.id = policy_version_id and public.can_admin_business(p.business_id)));
 create policy acknowledgements_self_insert on public.policy_acknowledgements for insert with check (user_id = auth.uid());
 create policy statement_deliveries_barber_read on public.statement_deliveries for select using (exists (select 1 from public.settlement_statements s where s.id = statement_id and (s.barber_user_id = auth.uid() or public.can_admin_business(s.business_id))));
-create policy packages_public_read on public.packages for select using (status = 'active');
+create policy packages_public_read on public.packages for select using ((status = 'active'));
 create policy packages_admin_write on public.packages for all using (public.can_manage_business(business_id)) with check (public.can_manage_business(business_id));
 create policy package_redemptions_client_read on public.package_redemptions for select using (client_user_id = auth.uid() or exists (select 1 from public.packages p where p.id = package_id and public.can_operate_business(p.business_id)));
 

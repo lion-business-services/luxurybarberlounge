@@ -1,29 +1,26 @@
 # Validation Report
 
-Release date: 2026-07-29
+Release date: 2026-07-30
+Release: `portal-crm-production-ready-v8`
 
-## Source quality gates
+## Source release gates
 
-The following command completed successfully in the Vercel-hardened release workspace:
-
-```bash
-npm run check:source
-```
-
-Results:
+`npm run check:source` completed successfully in the final portal and CRM workspace after the client/admin separation, operational APIs, migration additions, accessible decision forms, and documentation updates.
 
 - Format guard: passed
 - ESLint: passed with zero errors and zero warnings
 - TypeScript strict check: passed
 - Content validation: passed, 31 services, 9 barber profiles, 3 membership concepts
-- Migration validation: passed, 7 ordered transactional migrations
-- Route validation: passed, 147 page routes and 41 literal internal destinations
-- Repository validation: passed, 288 source files at validation time
-- Performance architecture validation: passed, one Lenis owner and no GSAP property overlap
+- Migration validation: passed, 9 ordered transactional migrations
+- RLS validation: passed across 9 migrations and 14 protected domains
+- Route validation: passed, 165 page routes and 64 literal internal destinations
+- Repository validation: passed, 370 source files
+- Vercel configuration validation: passed
+- Performance architecture validation: passed, one Lenis owner and no GSAP overlap
 - Secret scan: passed
-- Unit tests: 36 passed, 0 failed
-- Integration tests: 16 passed, 0 failed
-- Vercel configuration validation: passed, with unsupported integration crons disabled
+- Unit tests: 40 passed, 0 failed
+- Integration tests: 27 passed, 0 failed
+- Native browser prompts in portal actions: removed
 
 ## Production build
 
@@ -33,30 +30,27 @@ Command attempted:
 npm run build
 ```
 
-The command was blocked before application compilation because the isolated validation environment could not retrieve the Linux Next.js compiler package:
+Next.js could not begin application compilation in the isolated validation environment. The copied dependency tree did not contain a Linux native SWC binary, and the internal package mirror returned HTTP 404 while Next.js attempted to download its fallback compiler:
 
 ```text
 @next/swc-wasm-nodejs@16.2.6
-HTTP 404 from packages.applied-caas-gateway1.internal.api.openai.org
-Failed to load SWC binary for linux/x64
+https://packages.applied-caas-gateway1.internal.api.openai.org/.../swc-wasm-nodejs-16.2.6.tgz
+HTTP 404
+
+Attempted native packages:
+@next/swc-linux-x64-gnu
+@next/swc-linux-x64-musl
 ```
 
-The package lock contains the official optional Linux package entry for `@next/swc-linux-x64-gnu@16.2.6`. The release archive excludes copied Windows `node_modules`, so the deployment environment must perform a clean `npm ci`.
+This report does not claim that the production build passed. The lockfile contains the Linux native optional dependency. Vercel or another clean Linux environment must run:
 
-This report does not claim that the production build passed. The failure occurred before source compilation and is separated from the passing source gates above.
+```bash
+npm ci --include=optional
+npm run check
+```
 
-## Browser validation boundary
+## Browser and live-provider boundary
 
-The local Next.js server could not start without the Linux SWC binary, so live Playwright, Safari, and Lighthouse runs were not fabricated. Responsive behavior is protected by source-level integration tests, mobile-specific media, safe-area layout rules, reduced-motion behavior, and the centralized device capability engine. A Vercel Preview must complete the final rendered-browser matrix before production promotion.
+The local Next.js server could not start without SWC, so rendered-browser screenshots, Playwright, Safari, and Lighthouse results were not fabricated. The final Vercel Preview must complete the viewport and role matrix in `docs/PORTAL_QA.md`.
 
-## Credential-dependent validation
-
-The following require the owner's external accounts and are intentionally not represented as live:
-
-- Supabase project, migrations, generated production types, and RLS database tests
-- Resend-verified domain and custom SMTP delivery
-- Square sandbox credentials, mappings, and webhook test events
-- Twilio SMS credentials
-- Optional AI provider credentials
-
-Exact activation and test instructions are under `docs/`.
+Live OTP delivery, live RLS identity testing, Resend application delivery, Square sandbox synchronization, SMS, cron scheduling, and optional AI-provider tests require the owner's external projects and secrets. Static authorization, route separation, migration, RLS, provider guard, queue, commission, audit, repository, unit, and integration tests passed.

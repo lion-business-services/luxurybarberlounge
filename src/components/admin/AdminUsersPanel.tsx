@@ -65,7 +65,7 @@ export function AdminUsersPanel() {
       <div className="flex items-center gap-3"><MailPlus className="h-5 w-5 text-[var(--color-brass)]" /><h2 className="font-display text-2xl">Invite staff</h2></div>
       <div className="mt-5 grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
         <label><span className="form-label">Verified email</span><input className="form-control" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" /></label>
-        <label><span className="form-label">Authorized role</span><select className="form-control" value={role} onChange={(event) => setRole(event.target.value)}><option value="barber">Independent Barber</option><option value="receptionist">Receptionist</option><option value="manager">Manager</option><option value="owner">Owner</option></select></label>
+        <label><span className="form-label">Authorized role</span><select className="form-control" value={role} onChange={(event) => setRole(event.target.value)}><option value="barber">Independent Barber</option><option value="receptionist">Receptionist</option><option value="manager">Manager</option></select></label>
         <button type="button" disabled={busy || !email} onClick={() => void invite()} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[var(--color-brass)] px-6 text-[10px] tracking-[.18em] uppercase text-[var(--color-ink)] disabled:opacity-50"><MailPlus className="h-4 w-4" /> Send invite</button>
       </div>
     </section>

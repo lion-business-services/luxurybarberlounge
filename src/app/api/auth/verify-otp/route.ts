@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { setAuthCookies } from "@/lib/auth/cookies";
-import { isAppRole } from "@/lib/auth/config";
+import { selectPrimaryRole } from "@/lib/auth/config";
 import { createPublicServerSupabase, ensureDefaultRole, resolvePostLoginPath } from "@/lib/auth/server";
 import { rateLimit, requestFingerprint } from "@/lib/security/rateLimit";
+import { recordAuthenticatedSession } from "@/lib/auth/session-audit";
 
 const schema = z.object({ email: z.string().trim().email().max(254), token: z.string().regex(/^\d{6}$/), next: z.string().optional() });
 
@@ -21,7 +22,8 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase.auth.verifyOtp({ email: parsed.data.email.toLowerCase(), token: parsed.data.token, type: "email" });
   if (error || !data.session || !data.user) return NextResponse.json({ ok: false, message: "That code is invalid or expired. Request a new code and try again." }, { status: 400 });
   const roles = await ensureDefaultRole(data.user);
-  const activeRole = roles.find(isAppRole) ?? "client";
+  await recordAuthenticatedSession({ userId: data.user.id, accessToken: data.session.access_token, headers: request.headers });
+  const activeRole = selectPrimaryRole(roles);
   const destination = resolvePostLoginPath(roles, parsed.data.next, activeRole);
   const response = NextResponse.json({ ok: true, destination, roles, activeRole });
   setAuthCookies(response, data.session, activeRole);

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { setAuthCookies, clearAuthCookies } from "@/lib/auth/cookies";
-import { authCookies, isAppRole, sanitizeNextPath } from "@/lib/auth/config";
+import { authCookies, isAppRole, sanitizeNextPath, selectPrimaryRole } from "@/lib/auth/config";
 import { createPublicServerSupabase, getRolesForUser } from "@/lib/auth/server";
+import { recordAuthenticatedSession, revokeAuthenticatedSession } from "@/lib/auth/session-audit";
 
 export async function GET(request: NextRequest) {
   const next = sanitizeNextPath(request.nextUrl.searchParams.get("next")) ?? "/client";
@@ -20,7 +21,9 @@ export async function GET(request: NextRequest) {
   }
   const roles = await getRolesForUser(data.user.id);
   const selected = request.cookies.get(authCookies.activeRole)?.value;
-  const activeRole = isAppRole(selected) && roles.includes(selected) ? selected : roles[0] ?? "client";
+  const activeRole = isAppRole(selected) && roles.includes(selected) ? selected : selectPrimaryRole(roles);
+  await revokeAuthenticatedSession(request.cookies.get(authCookies.accessToken)?.value);
+  await recordAuthenticatedSession({ userId: data.user.id, accessToken: data.session.access_token, headers: request.headers });
   const response = NextResponse.redirect(new URL(next, request.url));
   setAuthCookies(response, data.session, activeRole);
   return response;

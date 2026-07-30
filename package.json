@@ -21,9 +21,11 @@
     "validate:migrations": "node scripts/validate-migrations.mjs",
     "validate:routes": "node scripts/validate-routes.mjs",
     "scan:secrets": "node scripts/scan-secrets.mjs",
-    "check:source": "npm run format:check && npm run lint && npm run typecheck && npm run validate:content && npm run validate:migrations && npm run validate:routes && npm run validate:repository && npm run validate:vercel && npm run validate:performance && npm run scan:secrets && npm run test && npm run test:integration",
+    "check:source": "npm run format:check && npm run lint && npm run typecheck && npm run validate:content && npm run validate:migrations && npm run validate:rls && npm run validate:routes && npm run validate:repository && npm run validate:vercel && npm run validate:performance && npm run scan:secrets && npm run test && npm run test:integration",
     "validate:performance": "node scripts/validate-performance.mjs",
-    "validate:vercel": "node scripts/validate-vercel.mjs"
+    "validate:vercel": "node scripts/validate-vercel.mjs",
+    "validate:rls": "node scripts/validate-rls.mjs",
+    "types:supabase": "node scripts/generate-supabase-types.mjs"
   },
   "dependencies": {
     "@studio-freight/lenis": "^1.0.42",

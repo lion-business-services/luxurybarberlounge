@@ -1,22 +1,22 @@
 # Launch Checklist
 
-- [ ] Clean `npm ci` and `npm run check` pass on Linux
-- [ ] Verified business name, address, phone, email, domain, maps, and hours
-- [ ] Eight temporary Barber profiles replaced/approved
-- [ ] Service catalog, prices, duration, deposits, and Square mappings approved
-- [ ] Mobile hero tested on iOS Safari and Android Chrome
-- [ ] Videos tested on desktop, laptop, tablet, mobile, reduced motion, and low power
-- [ ] Supabase migrations applied and types regenerated
-- [ ] RLS tested with every role
-- [ ] Resend domain and Supabase custom SMTP verified
-- [ ] Owner OTP and role bootstrap verified
-- [ ] Staff invitations and role switch tested
-- [ ] Square sandbox catalog/bookings/webhooks reconciled
-- [ ] Queue and manual override tested
-- [ ] Attribution claim/evidence/decision tested
-- [ ] Locked calculations, Adjustments, disputes, and exports tested
-- [ ] Policy open items remain disabled or are approved with effective dates
-- [ ] Consent, quiet hours, unsubscribe, idempotency, and retries tested
-- [ ] Security headers, backup/recovery, secret rotation, and monitoring reviewed
-- [ ] Accessibility keyboard, zoom, screen reader, and contrast checks complete
-- [ ] Canonical metadata, schema, sitemap, robots, and Google Business links verified
+- [ ] Clean Linux `npm ci --include=optional` and `npm run check` pass
+- [ ] Vercel Preview build and smoke tests pass
+- [ ] Migrations 001–009 applied and production types regenerated
+- [ ] `supabase/tests/portal_rls.sql` and live role matrix pass in staging
+- [ ] Supabase code-only OTP, Resend SMTP, invalid/expired/resend/throttle states pass
+- [ ] Owner bootstrap for `info@theluxurybarberlounge.com` and ordinary client redirect pass
+- [ ] Client cannot access `/admin` or another client’s records
+- [ ] Manager cannot access owner-only nested routes
+- [ ] Current-device and all-device logout pass
+- [ ] Client appointment, queue, order support, membership request, profile, and privacy workflows pass
+- [ ] Admin client, barber, membership, queue, automation, audit, and integration workflows pass
+- [ ] Queue manual/automatic assignment reason and audit records pass
+- [ ] Resend application email test, failure, retry, consent, quiet-hour, and duplicate prevention pass
+- [ ] Square sandbox catalog, team, booking, customer, order, payment, refund, webhook, and reconciliation pass
+- [ ] Eight temporary barber identities and biographies replaced or formally approved
+- [ ] Service price, duration, deposit, tax, cancellation, no-show, and membership terms approved
+- [ ] Commission open decisions approved with effective dates or remain inactive
+- [ ] Mobile/tablet/desktop viewport matrix and no-overflow checks pass
+- [ ] Keyboard, focus, zoom, screen reader, contrast, and reduced-motion checks pass
+- [ ] Security headers, secret rotation, backup/restore, monitoring, and incident ownership approved

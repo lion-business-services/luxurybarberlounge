@@ -30,3 +30,16 @@ export function sanitizeNextPath(value: unknown) {
   if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return null;
   return value.slice(0, 500);
 }
+
+const rolePriority: Record<AppRole, number> = {
+  client: 10,
+  barber: 20,
+  receptionist: 30,
+  manager: 40,
+  owner: 50,
+  super_admin: 60,
+};
+
+export function selectPrimaryRole(roles: readonly AppRole[]): AppRole {
+  return [...roles].sort((left, right) => rolePriority[right] - rolePriority[left])[0] ?? "client";
+}

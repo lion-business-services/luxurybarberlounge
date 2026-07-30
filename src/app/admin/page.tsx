@@ -1,1 +1,4 @@
-import type { Metadata } from "next"; import { PortalDashboard } from "@/components/portal/PortalDashboard"; export const metadata:Metadata={title:"Admin Portal",robots:{index:false,follow:false}}; export default function Page(){return <PortalDashboard role="admin"/>}
+import type { Metadata } from "next";
+import { AdminDashboard } from "@/components/admin/AdminDashboard";
+export const metadata: Metadata = { title: "Owner CRM", robots: { index: false, follow: false } };
+export default function Page(){ return <AdminDashboard/>; }

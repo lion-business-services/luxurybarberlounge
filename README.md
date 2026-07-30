@@ -19,16 +19,16 @@ The repository preserves the existing cinematic black, ivory, brass, bronze, and
 
 ### Role-aware workspaces
 
-- Client portal
+- A dedicated mobile-first client application with appointments, queue, orders, membership, profile, notifications, support, and privacy workflows
 - Barber portal
 - Reception portal
-- Owner/admin CRM and system-control portal
+- A separate executive owner/manager CRM with operations, clients, barbers, memberships, automations, analytics, and owner-only governance
 - Conservative production portal gate with opt-in demo mode
 
 ### Business platform foundation
 
 - Supabase browser and server clients
-- Seven ordered, transactional Postgres migrations
+- Nine ordered, transactional Postgres migrations
 - Role and permission model
 - Row Level Security policies
 - Storage buckets and policies
@@ -54,7 +54,7 @@ The repository preserves the existing cinematic black, ivory, brass, bronze, and
 
 ## Requirements
 
-- Node.js 20.9 or later. Node 22 is recommended and recorded in `.nvmrc`.
+- Node.js 22.x, matching `package.json`, `.nvmrc`, GitHub Actions, and Vercel configuration.
 - npm 10 or later
 - A clean dependency installation. Do not reuse a `node_modules` folder copied from another operating system.
 
@@ -101,10 +101,10 @@ Migrations are stored in `supabase/migrations` and must be applied in timestamp 
 ```bash
 supabase link --project-ref YOUR_PROJECT_REF
 supabase db push
-supabase db seed
+# Do not run db seed against production. The seed is for controlled development only.
 ```
 
-Review `docs/SUPABASE_SETUP.md`, `docs/ARCHITECTURE.md`, and `docs/ROLES_AND_PERMISSIONS.md` before applying changes to a production project.
+Review `docs/SUPABASE_SETUP.md`, `docs/AUTH_ARCHITECTURE.md`, `docs/RLS_TESTING.md`, and `docs/ROLES_AND_PERMISSIONS.md` before applying changes to a production project.
 
 ## Feature flags
 
@@ -149,16 +149,18 @@ See `docs/DEPLOYMENT.md` and `docs/LAUNCH_CHECKLIST.md`.
 
 ## Documentation map
 
+- `docs/FINAL_RELEASE_REPORT.md` and `docs/VALIDATION_REPORT.md` - final release scope and measured validation results
+
 - `docs/ARCHITECTURE.md` — application and provider boundaries
 - `docs/LOCAL_SETUP.md` and `docs/ENVIRONMENT_VARIABLES.md` — local environment
 - `docs/SUPABASE_SETUP.md` and `docs/RESEND_OTP_SETUP.md` — passwordless authentication and data setup
 - `docs/SQUARE_SETUP.md` — sandbox, production, mappings, and webhooks
-- `docs/AUTHENTICATION.md` and `docs/ROLES_AND_PERMISSIONS.md` — sessions and access model
-- `docs/CLIENT_PORTAL.md`, `BARBER_PORTAL.md`, `RECEPTION_PORTAL.md`, and `ADMIN_CRM.md` — workspace behavior
-- `docs/QUEUE_SYSTEM.md`, `ATTRIBUTION.md`, `COMMISSION_POLICY_SETUP.md`, and `STATEMENTS_AND_DISPUTES.md` — operating systems
+- `docs/AUTHENTICATION.md`, `docs/AUTH_ARCHITECTURE.md`, `docs/OWNER_SETUP.md`, and `docs/ROLES_AND_PERMISSIONS.md` — sessions and access model
+- `docs/CLIENT_PORTAL.md`, `docs/CLIENT_PROFILES.md`, `BARBER_PORTAL.md`, `RECEPTION_PORTAL.md`, and `ADMIN_CRM.md` — workspace behavior
+- `docs/QUEUE_SYSTEM.md`, `docs/QUEUE_AND_ASSIGNMENT.md`, `ATTRIBUTION.md`, `docs/ATTRIBUTION_AND_COMMISSIONS.md`, `COMMISSION_POLICY_SETUP.md`, and `STATEMENTS_AND_DISPUTES.md` — operating systems
 - `docs/OWNER_OPEN_DECISIONS.md` — values that remain intentionally inactive
 - `docs/MOTION_AND_RESPONSIVENESS.md` and `docs/PERFORMANCE_AUDIT.md` — cross-device cinematic delivery
-- `docs/SECURITY.md`, `ACCESSIBILITY.md`, and `TESTING.md` — release controls
+- `docs/SECURITY.md`, `ACCESSIBILITY.md`, `TESTING.md`, `docs/RLS_TESTING.md`, and `docs/PORTAL_QA.md` — release controls
 - `docs/DEPLOYMENT.md`, `LAUNCH_CHECKLIST.md`, and `TROUBLESHOOTING.md` — release and operations
 
 ## Important operational boundary

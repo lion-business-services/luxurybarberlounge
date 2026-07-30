@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Printer, RefreshCw } from "lucide-react";
 
 type Statement = {
@@ -57,6 +57,9 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
   const [calculations, setCalculations] = useState<Calculation[]>([]);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [message, setMessage] = useState("");
+  const [pendingDisputeId, setPendingDisputeId] = useState<string | null>(null);
+  const [reasonCode, setReasonCode] = useState("attribution");
+  const [explanation, setExplanation] = useState("");
 
   const applyResponse = useCallback((result: StatementsResponse) => {
     setStatements(result.statements ?? []);
@@ -115,26 +118,21 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
     }
   }
 
-  async function dispute(calculationId: string) {
-    const reasonCode = window.prompt(
-      "Dispute type: attribution, arithmetic, or omission",
-      "attribution",
-    );
-    if (!reasonCode) return;
-
-    const explanation = window.prompt(
-      "Explain the issue and the correction requested:",
-    );
-    if (!explanation) return;
+  async function submitDispute(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!pendingDisputeId || explanation.trim().length < 10) {
+      setMessage("Provide at least 10 characters explaining the requested correction.");
+      return;
+    }
 
     const response = await fetch("/api/commissions/statements", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         action: "create_dispute",
-        calculationId,
+        calculationId: pendingDisputeId,
         reasonCode,
-        explanation,
+        explanation: explanation.trim(),
       }),
     });
     const result = (await response.json()) as { message?: string };
@@ -146,6 +144,9 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
     );
 
     if (response.ok) {
+      setPendingDisputeId(null);
+      setReasonCode("attribution");
+      setExplanation("");
       await refresh();
     }
   }
@@ -297,29 +298,74 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
             </thead>
             <tbody>
               {calculations.map((item) => (
-                <tr key={item.id}>
-                  <td>{new Date(item.calculated_at).toLocaleDateString()}</td>
-                  <td>{item.attribution_type}</td>
-                  <td>{money(item.eligible_basis_cents)}</td>
-                  <td>{money(item.tip_cents)}</td>
-                  <td>{Math.round(Number(item.barber_rate) * 100)}%</td>
-                  <td>{money(item.barber_amount_cents)}</td>
-                  <td>{item.status}</td>
-                  <td>
-                    {role === "barber" &&
-                    !["locked", "paid", "voided"].includes(item.status) ? (
-                      <button
-                        type="button"
-                        onClick={() => dispute(item.id)}
-                        className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]"
-                      >
-                        Dispute
-                      </button>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                </tr>
+                <Fragment key={item.id}>
+                  <tr>
+                    <td>{new Date(item.calculated_at).toLocaleDateString()}</td>
+                    <td>{item.attribution_type}</td>
+                    <td>{money(item.eligible_basis_cents)}</td>
+                    <td>{money(item.tip_cents)}</td>
+                    <td>{Math.round(Number(item.barber_rate) * 100)}%</td>
+                    <td>{money(item.barber_amount_cents)}</td>
+                    <td>{item.status}</td>
+                    <td>
+                      {role === "barber" &&
+                      !["locked", "paid", "voided"].includes(item.status) ? (
+                        <button
+                          type="button"
+                          aria-expanded={pendingDisputeId === item.id}
+                          aria-controls={`dispute-${item.id}`}
+                          onClick={() => {
+                            setPendingDisputeId((current) => current === item.id ? null : item.id);
+                            setReasonCode("attribution");
+                            setExplanation("");
+                            setMessage("");
+                          }}
+                          className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]"
+                        >
+                          Dispute
+                        </button>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                  </tr>
+                  {pendingDisputeId === item.id ? (
+                    <tr id={`dispute-${item.id}`}>
+                      <td colSpan={8}>
+                        <form onSubmit={submitDispute} className="grid gap-4 rounded-xl border border-[var(--color-brass)]/25 bg-black/20 p-4 md:grid-cols-[14rem_1fr_auto] md:items-end">
+                          <label className="grid gap-2 text-xs">
+                            <span className="uppercase tracking-[.16em] text-[var(--color-brass)]">Issue type</span>
+                            <select
+                              value={reasonCode}
+                              onChange={(event) => setReasonCode(event.target.value)}
+                              className="rounded-lg border border-[var(--color-ink-line)] bg-[var(--color-ink)] px-3 py-3"
+                            >
+                              <option value="attribution">Attribution</option>
+                              <option value="arithmetic">Arithmetic</option>
+                              <option value="omission">Omission</option>
+                            </select>
+                          </label>
+                          <label className="grid gap-2 text-xs">
+                            <span className="uppercase tracking-[.16em] text-[var(--color-brass)]">Requested correction</span>
+                            <textarea
+                              autoFocus
+                              required
+                              minLength={10}
+                              maxLength={2000}
+                              value={explanation}
+                              onChange={(event) => setExplanation(event.target.value)}
+                              className="min-h-24 rounded-lg border border-[var(--color-ink-line)] bg-[var(--color-ink)] px-3 py-3"
+                            />
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            <button type="submit" className="rounded-full bg-[var(--color-brass)] px-4 py-3 text-[9px] uppercase text-[var(--color-ink)]">Submit</button>
+                            <button type="button" onClick={() => setPendingDisputeId(null)} className="rounded-full border border-[var(--color-ink-line)] px-4 py-3 text-[9px] uppercase">Cancel</button>
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               ))}
               {!calculations.length ? (
                 <tr>

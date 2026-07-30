@@ -37,12 +37,18 @@ for (const file of files) {
     failures.push(`${file}: must not alter Supabase-managed storage.objects RLS state.`);
   }
 
-  for (const [index, line] of sql.split("\n").entries()) {
-    if (/^\s*create\s+policy\b/i.test(line)) {
-      const opens = (line.match(/\(/g) ?? []).length;
-      const closes = (line.match(/\)/g) ?? []).length;
-      if (opens !== closes) failures.push(`${file}:${index + 1}: unbalanced CREATE POLICY parentheses.`);
+  const lines = sql.split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!/^\s*create\s+policy\b/i.test(lines[index])) continue;
+    const startLine = index + 1;
+    let statement = lines[index];
+    while (!/;\s*(?:--.*)?$/.test(statement) && index + 1 < lines.length) {
+      index += 1;
+      statement += `\n${lines[index]}`;
     }
+    const opens = (statement.match(/\(/g) ?? []).length;
+    const closes = (statement.match(/\)/g) ?? []).length;
+    if (opens !== closes) failures.push(`${file}:${startLine}: unbalanced CREATE POLICY parentheses.`);
   }
 
   const dollarTags = [...sql.matchAll(/\$[A-Za-z0-9_]*\$/g)].map((match) => match[0]);
