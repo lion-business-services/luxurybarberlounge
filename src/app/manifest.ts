@@ -1,2 +1,20 @@
 import type { MetadataRoute } from "next";
-export default function manifest(): MetadataRoute.Manifest { return { name: "Luxury Barber Lounge", short_name: "LBL", description: "Luxury grooming, appointments, queue, and client portal.", start_url: "/", display: "standalone", background_color: "#0a0a0a", theme_color: "#0a0a0a", icons: [{ src: "/icon.png", sizes: "512x512", type: "image/png" }] }; }
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    id: "/",
+    name: "Luxury Barber Lounge",
+    short_name: "Luxury Barber Lounge",
+    description: "Luxury grooming, appointments, queue, and client portal.",
+    start_url: "/",
+    scope: "/",
+    display: "standalone",
+    background_color: "#0a0a0a",
+    theme_color: "#0a0a0a",
+    icons: [
+      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+    ],
+  };
+}

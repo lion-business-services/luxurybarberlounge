@@ -32,6 +32,19 @@ Create a restricted API key for the application notification provider. Store it 
 
 Do not copy static SMTP values from old articles. Resend and Supabase dashboards can change them.
 
+## Code-only signup and login
+
+The website uses `signInWithOtp`, so the Supabase project must use the OTP flow for both new and returning users. In the hosted Supabase dashboard:
+
+1. Open **Authentication → Sign In / Providers → Email**.
+2. Keep **Allow new users to sign up** enabled.
+3. Turn **Confirm Email** off. The six-digit OTP itself proves control of the email address, so a separate confirmation email is not required.
+4. Open **Authentication → Email Templates → Magic Link or OTP**.
+5. Use `{{ .Token }}` and remove `{{ .ConfirmationURL }}` from that template.
+6. Keep the OTP length at six digits, expiry at 600 seconds, and minimum resend interval at 60 seconds.
+
+If Confirm Email remains enabled, a newly created user can receive the separate “Confirm your email address” signup template before the OTP flow.
+
 ## Six-digit template
 
 Configure the magic-link/OTP email template to display `{{ .Token }}` prominently. Include:

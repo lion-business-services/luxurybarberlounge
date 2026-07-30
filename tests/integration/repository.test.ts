@@ -117,3 +117,36 @@ test("authenticated privacy and policy acknowledgement workflows are present", a
   assert.match(acknowledgement, /approved.*published/);
   assert.match(acknowledgement, /policy_acknowledgements/);
 });
+
+
+test("passwordless access stays OTP-only in application code and the login input is icon-free", async () => {
+  const requestOtp = await readFile("src/app/api/auth/request-otp/route.ts", "utf8");
+  const authCard = await readFile("src/components/auth/AuthCard.tsx", "utf8");
+  assert.match(requestOtp, /signInWithOtp/);
+  assert.match(requestOtp, /shouldCreateUser:\s*true/);
+  assert.doesNotMatch(requestOtp, /auth\.signUp/);
+  assert.doesNotMatch(authCard, /<Mail\b/);
+  assert.doesNotMatch(authCard, /form-control pl-10/);
+});
+
+test("approved brand icon assets and manifest coverage are packaged", async () => {
+  const icons = [
+    "src/app/favicon.ico",
+    "src/app/icon.png",
+    "src/app/apple-icon.png",
+    "public/favicon.ico",
+    "public/icons/favicon-16x16.png",
+    "public/icons/favicon-32x32.png",
+    "public/icons/favicon-48x48.png",
+    "public/icons/apple-touch-icon.png",
+    "public/icons/icon-192.png",
+    "public/icons/icon-512.png",
+  ];
+  await Promise.all(icons.map((icon) => access(icon)));
+  const manifest = await readFile("src/app/manifest.ts", "utf8");
+  const layout = await readFile("src/app/layout.tsx", "utf8");
+  assert.match(manifest, /icon-192\.png/);
+  assert.match(manifest, /icon-512\.png/);
+  assert.match(layout, /favicon-48x48\.png/);
+  assert.match(layout, /apple-touch-icon\.png/);
+});
