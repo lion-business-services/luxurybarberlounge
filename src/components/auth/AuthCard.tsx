@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Check, LoaderCircle, Mail, RefreshCw, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, LoaderCircle, RefreshCw, ShieldCheck } from "lucide-react";
 
 type Stage = "email" | "sending" | "code" | "verifying" | "success";
 
@@ -169,10 +169,7 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
           <form onSubmit={requestCode} className="mt-7" noValidate>
             <label className="block">
               <span className="form-label">Email</span>
-              <span className="relative block">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-bone-muted)]" />
-                <input className="form-control pl-10" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required aria-describedby="email-security-note" />
-              </span>
+              <input className="form-control" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required aria-describedby="email-security-note" />
             </label>
             <p id="email-security-note" className="mt-3 text-[11px] leading-5 text-[var(--color-bone-muted)]">For privacy, the response is the same whether an account already exists or is created after verification.</p>
             {error ? <p role="alert" className="mt-4 text-center text-xs leading-5 text-red-300">{error}</p> : null}
