@@ -1,0 +1,39 @@
+.shell {
+  min-height: calc(100svh - 65px);
+  background:
+    radial-gradient(circle at 14% 0%, rgba(184, 134, 42, .10), transparent 32rem),
+    linear-gradient(180deg, #0b0b0b 0%, #10100f 100%);
+}
+.frame { max-width: 1180px; margin: 0 auto; padding: 1.25rem 1rem 7rem; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.identity { display: flex; min-width: 0; align-items: center; gap: .8rem; }
+.avatar { display: grid; width: 2.65rem; height: 2.65rem; flex: 0 0 auto; place-items: center; border: 1px solid rgba(202, 157, 67, .4); border-radius: 999px; background: rgba(202, 157, 67, .08); color: var(--color-brass); font-family: var(--font-playfair), serif; }
+.title { font-family: var(--font-playfair), serif; font-size: 1.1rem; color: var(--color-bone); }
+.subtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .68rem; color: var(--color-bone-muted); }
+.desktopNav { display: none; }
+.content { min-width: 0; }
+.bottomNav { position: fixed; z-index: 55; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--color-ink-line); background: rgba(9, 9, 9, .98); padding: .45rem .3rem calc(.45rem + env(safe-area-inset-bottom)); }
+.bottomLink { display: grid; min-height: 3.25rem; place-items: center; gap: .2rem; border-radius: .65rem; color: var(--color-bone-muted); font-size: .57rem; letter-spacing: .08em; text-transform: uppercase; }
+.bottomLink[data-active="true"] { background: rgba(184, 134, 42, .11); color: var(--color-brass-light); }
+.card { border: 1px solid rgba(255,255,255,.075); border-radius: 1.15rem; background: linear-gradient(145deg, rgba(28, 27, 24, .94), rgba(12, 12, 12, .96)); padding: 1.15rem; box-shadow: 0 20px 60px rgba(0,0,0,.18); }
+.heroCard { overflow: hidden; border: 1px solid rgba(202, 157, 67, .28); border-radius: 1.4rem; background: linear-gradient(135deg, rgba(184,134,42,.16), rgba(16,16,15,.96) 58%); padding: clamp(1.25rem, 4vw, 2.5rem); }
+.grid { display: grid; gap: 1rem; }
+.actionGrid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .75rem; }
+.action { display: flex; min-height: 5.2rem; flex-direction: column; justify-content: space-between; border: 1px solid rgba(255,255,255,.08); border-radius: 1rem; background: rgba(255,255,255,.025); padding: 1rem; color: var(--color-bone); transition: border-color 160ms ease, transform 160ms ease; }
+.action:hover { border-color: rgba(202,157,67,.55); transform: translateY(-1px); }
+.sectionTitle { font-family: var(--font-playfair), serif; font-size: clamp(1.55rem, 4vw, 2.15rem); font-weight: 500; }
+.eyebrow { font-size: .62rem; letter-spacing: .24em; text-transform: uppercase; color: var(--color-brass); }
+.muted { color: var(--color-bone-muted); }
+.status { display: inline-flex; align-items: center; width: fit-content; border: 1px solid rgba(202,157,67,.25); border-radius: 999px; padding: .38rem .62rem; font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; color: var(--color-brass-light); }
+.list { display: grid; gap: .7rem; }
+.listItem { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; border-top: 1px solid rgba(255,255,255,.07); padding-top: .85rem; }
+.empty { border: 1px dashed rgba(255,255,255,.14); border-radius: 1rem; padding: 1.4rem; text-align: center; color: var(--color-bone-muted); }
+@media (min-width: 760px) {
+  .frame { padding: 1.75rem 1.75rem 5rem; }
+  .desktopNav { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: 1.5rem; border: 1px solid rgba(255,255,255,.07); border-radius: 999px; background: rgba(255,255,255,.02); padding: .35rem; }
+  .desktopLink { display: inline-flex; align-items: center; gap: .45rem; border-radius: 999px; padding: .65rem .8rem; color: var(--color-bone-muted); font-size: .68rem; }
+  .desktopLink[data-active="true"] { background: var(--color-brass); color: var(--color-ink); }
+  .bottomNav { display: none; }
+  .actionGrid { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  .gridTwo { grid-template-columns: minmax(0,1.4fr) minmax(17rem,.8fr); }
+}

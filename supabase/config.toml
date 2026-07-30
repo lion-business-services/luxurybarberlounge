@@ -1,0 +1,11 @@
+# Local Supabase CLI configuration. Hosted project credentials are never stored here.
+project_id = "luxury-barber-lounge"
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+# Development seed data is intentionally disabled by default. Never seed production.
+[db.seed]
+enabled = false
+sql_paths = ["./seed/seed.sql"]

@@ -1,0 +1,3 @@
+import Link from "next/link";
+import styles from "@/components/admin/admin-portal.module.css";
+export default function NotFound(){return <div className={styles.card}><p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">Record unavailable</p><h1 className="font-display mt-3 text-4xl">The requested CRM record was not found.</h1><p className="mt-3 text-sm text-[var(--color-bone-muted)]">The record may not exist, may be outside this business, or may be restricted by role.</p><Link href="/admin" className="mt-6 inline-flex rounded-full bg-[var(--color-brass)] px-5 py-3 text-[9px] tracking-[.16em] uppercase text-[var(--color-ink)]">Owner dashboard</Link></div>}
