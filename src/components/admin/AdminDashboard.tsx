@@ -1,29 +1,159 @@
 import Link from "next/link";
-import { Activity, ArrowUpRight, BellRing, CalendarDays, ContactRound, ShieldAlert, UsersRound } from "lucide-react";
+import {
+  ArrowUpRight,
+  CalendarDays,
+  CircleDollarSign,
+  ClipboardList,
+  ContactRound,
+  Scissors,
+  ShieldAlert,
+  WandSparkles,
+} from "lucide-react";
 import { loadAdminPortalData } from "@/lib/portal/admin-data";
-import { getServerAuthSession } from "@/lib/auth/server";
-import { dateTime, money, titleCase } from "@/lib/portal/format";
+import { dateTime, titleCase } from "@/lib/portal/format";
 import styles from "./admin-portal.module.css";
 
 export async function AdminDashboard() {
-  const [data, session] = await Promise.all([loadAdminPortalData(), getServerAuthSession()]);
-  const owner = session.roles.some((role) => role === "owner" || role === "super_admin");
-  return <div className={styles.grid}>
-    <header className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between"><div><p className="text-[9px] tracking-[.26em] uppercase text-[var(--color-brass)]">Owner command center</p><h1 className="font-display mt-3 text-4xl sm:text-5xl">Today at Luxury Barber Lounge</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--color-bone-muted)]">Appointments, queue, clients, financial activity, and system health. Every number identifies its source instead of dressing an estimate as divine revelation.</p></div><div className="flex flex-wrap gap-2"><Link href="/admin/today" className="rounded-full bg-[var(--color-brass)] px-5 py-3 text-[9px] tracking-[.16em] uppercase text-[var(--color-ink)]">Open today</Link>{owner ? <Link href="/admin/integrations" className="rounded-full border border-[var(--color-ink-line)] px-5 py-3 text-[9px] tracking-[.16em] uppercase">System health</Link> : null}</div></header>
+  const data = await loadAdminPortalData();
+  const metric = (label: string) => data.metrics.find((item) => item.label === label);
+  const activeBarbers = data.barbers.filter((barber) => barber.active && barber.status !== "archived").length;
+  const appointments = metric("Appointments today");
+  const queue = metric("Active queue");
+  const revenue = metric("Service revenue today");
+  const automationState = data.failures.length ? "Needs attention" : "Running normally";
+  const connectedSystems = data.systems.filter((system) => ["active", "connected", "configured", "healthy"].includes(system.status.toLowerCase())).length;
 
-    {data.configured?<section className={styles.metricGrid}>{data.metrics.map((metric)=><article key={metric.label} className={styles.metric}><p className="text-[8px] tracking-[.17em] uppercase text-[var(--color-bone-muted)]">{metric.label}</p><p className={styles.metricValue}>{metric.value}</p><span className={styles.source}>{metric.source}</span><p className="mt-2 text-[10px] leading-4 text-[var(--color-bone-muted)]">{metric.note}</p></article>)}</section>:<div className={styles.empty}>The owner dashboard is waiting for an authenticated Supabase session.</div>}
+  return (
+    <div className={styles.grid}>
+      <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <p className="text-[9px] tracking-[.24em] uppercase text-[var(--color-brass)]">Shop operations</p>
+          <h1 className="font-display mt-2 text-4xl sm:text-5xl">Today at the lounge</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-bone-muted)]">
+            Appointments, walk-ins, clients, barbers, commissions, and automations. The essentials, without turning a barbershop into mission control.
+          </p>
+        </div>
+        <Link href="/admin/appointments" className="inline-flex w-fit items-center gap-2 rounded-full bg-[var(--color-brass)] px-5 py-3 text-[9px] tracking-[.16em] uppercase text-[var(--color-ink)]">
+          View schedule <ArrowUpRight className="h-4 w-4" />
+        </Link>
+      </header>
 
-    <section className={`${styles.grid} ${styles.gridTwo}`}>
-      <article className={styles.card}><div className={styles.toolbar}><div><p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">Live operations</p><h2 className="font-display mt-2 text-2xl">Current queue</h2></div><Link href="/admin/queue" className="text-[9px] tracking-[.16em] uppercase text-[var(--color-brass)]">Manage queue</Link></div>{data.queue.length?<div className="grid gap-2">{data.queue.slice(0,7).map((row)=><div key={String(row.id)} className="flex flex-col gap-3 rounded-lg border border-white/[.06] p-3 sm:flex-row sm:items-center sm:justify-between"><div><strong className="text-sm">{String(row.client_name??"Private guest")}</strong><p className="mt-1 text-xs text-[var(--color-bone-muted)]">{String(row.service_slug??"Service pending").replaceAll("-"," ")} · Joined {dateTime(String(row.joined_at))}</p></div><div className="flex items-center gap-2"><span className="rounded-full bg-white/[.04] px-2 py-1 text-[8px] tracking-[.13em] uppercase text-[var(--color-brass)]">{titleCase(String(row.status))}</span><span className="text-xs text-[var(--color-bone-muted)]">{typeof row.estimated_wait_minutes==="number"?`${row.estimated_wait_minutes} min` : "Wait pending"}</span></div></div>)}</div>:<div className={styles.empty}>No active queue entries.</div>}</article>
-      <aside className={styles.card}><p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">Pending attention</p><h2 className="font-display mt-2 text-2xl">System exceptions</h2><div className="mt-5 grid gap-3">{data.failures.length?data.failures.slice(0,6).map((failure)=><article key={failure.id} className="rounded-lg border border-red-900/30 bg-red-950/10 p-3"><div className="flex items-start gap-3"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-red-300"/><div><strong className="text-xs">{titleCase(failure.provider)} · {titleCase(failure.resource)}</strong><p className="mt-1 text-[11px] leading-5 text-[var(--color-bone-muted)]">{failure.message}</p><p className="mt-1 text-[9px] text-[var(--color-bone-muted)]">{dateTime(failure.createdAt)}</p></div></div></article>):<div className={styles.empty}>No recent synchronization failures.</div>}</div>{owner ? <Link href="/admin/integrations" className="mt-5 inline-flex items-center gap-2 text-[9px] tracking-[.16em] uppercase text-[var(--color-brass)]">Integration health <ArrowUpRight className="h-4 w-4"/></Link> : null}</aside>
-    </section>
+      {data.failures.length ? (
+        <div className={styles.alert} role="status">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <strong className="text-xs">{data.failures.length} automation or sync issue{data.failures.length === 1 ? "" : "s"} need attention.</strong>
+            <p className="mt-1 text-[11px] opacity-80">Open Automations or Settings to review the latest failure.</p>
+          </div>
+        </div>
+      ) : null}
 
-    <section><div className={styles.toolbar}><div><p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">Operational shortcuts</p><h2 className="font-display mt-2 text-2xl">Manage the business</h2></div></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><AdminAction href="/admin/appointments" icon={CalendarDays} title="Appointments" copy="Schedule, arrivals, status, and rebooking"/><AdminAction href="/admin/clients" icon={ContactRound} title="Client CRM" copy="Profiles, history, consent, and follow-up"/><AdminAction href="/admin/barbers" icon={UsersRound} title="Barber operations" copy="Profiles, availability, assignments, and statements"/><AdminAction href="/admin/automations" icon={BellRing} title="Automations" copy="Triggers, templates, delivery, and failures"/></div></section>
+      {data.configured ? (
+        <section className={styles.metricGrid} aria-label="Today’s shop metrics">
+          <Metric label="Appointments" value={appointments?.value ?? "0"} note="Scheduled today" source={appointments?.source ?? "Square-derived"} />
+          <Metric label="Waiting" value={queue?.value ?? "0"} note="Active walk-in queue" source={queue?.source ?? "Supabase-derived"} />
+          <Metric label="Barbers" value={String(activeBarbers)} note="Active profiles" source="Supabase-derived" />
+          <Metric label="Revenue" value={revenue?.value ?? "$0.00"} note="Synced payments today" source={revenue?.source ?? "Square-derived"} />
+        </section>
+      ) : (
+        <div className={styles.empty}>The operations dashboard is waiting for an authenticated Supabase session.</div>
+      )}
 
-    <section className={`${styles.grid} ${styles.gridTwo}`}>
-      <article className={styles.card}><div className={styles.toolbar}><div><p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">Recent commerce</p><h2 className="font-display mt-2 text-2xl">Square orders</h2></div><Link href="/admin/orders" className="text-[9px] tracking-[.16em] uppercase text-[var(--color-brass)]">All orders</Link></div>{data.orders.length?<div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Order</th><th>State</th><th>Total</th><th>Synced</th></tr></thead><tbody>{data.orders.slice(0,8).map((order)=><tr key={order.id}><td>{order.squareId}</td><td>{titleCase(order.state)}</td><td>{money(order.totalCents)}</td><td>{dateTime(order.syncedAt)}</td></tr>)}</tbody></table></div>:<div className={styles.empty}>No Square orders have been synchronized.</div>}</article>
-      <aside className={styles.card}><p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">Provider health</p><h2 className="font-display mt-2 text-2xl">Connected systems</h2><div className="mt-5 grid gap-3">{data.systems.length?data.systems.map((system)=><div key={system.provider} className="flex items-start justify-between gap-4 border-b border-white/[.06] pb-3"><div><strong className="text-xs">{titleCase(system.provider)}</strong><p className="mt-1 text-[10px] leading-4 text-[var(--color-bone-muted)]">{system.detail}</p></div><span className="rounded-full bg-white/[.04] px-2 py-1 text-[8px] tracking-[.12em] uppercase text-[var(--color-brass)]">{titleCase(system.status)}</span></div>):<div className={styles.empty}>No provider records yet. Environment checks remain available.</div>}</div>{owner ? <Link href="/admin/integrations" className="mt-5 inline-flex items-center gap-2 text-[9px] tracking-[.16em] uppercase text-[var(--color-brass)]"><Activity className="h-4 w-4"/>Open integrations</Link> : null}</aside>
-    </section>
-  </div>;
+      <section className={`${styles.grid} ${styles.gridTwo}`}>
+        <article className={styles.card}>
+          <div className={styles.toolbar}>
+            <div>
+              <p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">Live walk-ins</p>
+              <h2 className="font-display mt-2 text-2xl">Current queue</h2>
+            </div>
+            <Link href="/admin/queue" className="text-[9px] tracking-[.15em] uppercase text-[var(--color-brass)]">Manage queue</Link>
+          </div>
+          {data.queue.length ? (
+            <div>
+              {data.queue.slice(0, 5).map((row) => (
+                <div key={String(row.id)} className={styles.queueItem}>
+                  <div>
+                    <strong className="text-sm">{String(row.client_name ?? "Walk-in guest")}</strong>
+                    <p className="mt-1 text-xs text-[var(--color-bone-muted)]">
+                      {String(row.service_slug ?? "Service pending").replaceAll("-", " ")} · {dateTime(String(row.joined_at))}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-white/[.04] px-2 py-1 text-[8px] tracking-[.12em] uppercase text-[var(--color-brass)]">{titleCase(String(row.status))}</span>
+                    <span className="text-xs text-[var(--color-bone-muted)]">{typeof row.estimated_wait_minutes === "number" ? `${row.estimated_wait_minutes} min` : "Pending"}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className={styles.empty}>No guests are waiting.</div>
+          )}
+        </article>
+
+        <aside className={styles.card}>
+          <p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">Automated operations</p>
+          <h2 className="font-display mt-2 text-2xl">Shop pulse</h2>
+          <div className={`${styles.pulseGrid} mt-5`}>
+            <Pulse label="Automations" value={automationState} />
+            <Pulse label="Connected systems" value={data.systems.length ? `${connectedSystems}/${data.systems.length}` : "Awaiting setup"} />
+            <Pulse label="Active barbers" value={String(activeBarbers)} />
+            <Pulse label="Client profiles" value={String(data.clients.length)} />
+          </div>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link href="/admin/automations" className="text-[9px] tracking-[.15em] uppercase text-[var(--color-brass)]">Automations</Link>
+            <Link href="/admin/settings" className="text-[9px] tracking-[.15em] uppercase text-[var(--color-brass)]">Settings</Link>
+          </div>
+        </aside>
+      </section>
+
+      <section>
+        <div className={styles.toolbar}>
+          <div>
+            <p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">Quick controls</p>
+            <h2 className="font-display mt-2 text-2xl">Run the shop</h2>
+          </div>
+        </div>
+        <div className={styles.actionGrid}>
+          <AdminAction href="/admin/appointments" icon={CalendarDays} title="Appointments" copy="Schedule and status" />
+          <AdminAction href="/admin/queue" icon={ClipboardList} title="Queue" copy="Walk-ins and assignments" />
+          <AdminAction href="/admin/clients" icon={ContactRound} title="Clients" copy="Profiles and history" />
+          <AdminAction href="/admin/barbers" icon={Scissors} title="Barbers" copy="Profiles and availability" />
+          <AdminAction href="/admin/commissions" icon={CircleDollarSign} title="Commissions" copy="Calculated amounts" />
+          <AdminAction href="/admin/automations" icon={WandSparkles} title="Automations" copy="Rules and delivery" />
+        </div>
+      </section>
+    </div>
+  );
 }
-function AdminAction({href,icon:Icon,title,copy}:{href:string;icon:React.ComponentType<{className?:string}>;title:string;copy:string}){return <Link href={href} className={`${styles.card} group`}><Icon className="h-5 w-5 text-[var(--color-brass)]"/><h3 className="font-display mt-4 text-xl">{title}</h3><p className="mt-2 text-xs leading-5 text-[var(--color-bone-muted)]">{copy}</p><span className="mt-5 inline-flex items-center gap-2 text-[9px] tracking-[.15em] uppercase text-[var(--color-brass)]">Open <ArrowUpRight className="h-4 w-4 transition group-hover:translate-x-0.5"/></span></Link>}
+
+function Metric({ label, value, note, source }: { label: string; value: string; note: string; source: string }) {
+  return (
+    <article className={styles.metric}>
+      <p className="text-[8px] tracking-[.16em] uppercase text-[var(--color-bone-muted)]">{label}</p>
+      <p className={styles.metricValue}>{value}</p>
+      <p className="mt-1 text-[10px] text-[var(--color-bone-muted)]">{note}</p>
+      <span className={styles.source}>{source}</span>
+    </article>
+  );
+}
+
+function Pulse({ label, value }: { label: string; value: string }) {
+  return (
+    <div className={styles.pulseItem}>
+      <span className="text-xs text-[var(--color-bone-muted)]">{label}</span>
+      <strong className="text-xs text-[var(--color-bone)]">{value}</strong>
+    </div>
+  );
+}
+
+function AdminAction({ href, icon: Icon, title, copy }: { href: string; icon: React.ComponentType<{ className?: string }>; title: string; copy: string }) {
+  return (
+    <Link href={href} className={styles.actionCard}>
+      <Icon className="h-5 w-5 text-[var(--color-brass)]" />
+      <div>
+        <h3 className="font-display text-lg">{title}</h3>
+        <p className="mt-1 text-[11px] leading-4 text-[var(--color-bone-muted)]">{copy}</p>
+      </div>
+    </Link>
+  );
+}

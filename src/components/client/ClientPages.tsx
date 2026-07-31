@@ -110,6 +110,39 @@ export async function ClientMembershipPage() {
   </ClientPageHeader>;
 }
 
+export async function ClientAccountPage() {
+  const data = await loadClientPortalData();
+  const membership = data.membership;
+  return <ClientPageHeader eyebrow="Account" title="My account" copy="Your essential details, membership, receipts, and support in one place.">
+    <div className={styles.accountGrid}>
+      <section className={styles.card}>
+        <p className={styles.eyebrow}>Verified profile</p>
+        <h2 className="font-display mt-2 text-2xl">{data.profile.displayName ?? data.profile.fullName ?? "Client account"}</h2>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <Field label="Email" value={data.profile.email ?? "—"} />
+          <Field label="Phone" value={data.profile.phone ?? "Not added"} />
+          <Field label="Language" value={data.profile.language === "es" ? "Spanish" : "English"} />
+          <Field label="Status" value={titleCase(data.profile.status)} />
+        </div>
+        <Link href="/client/profile" className="mt-6 inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-5 py-2.5 text-[9px] tracking-[.15em] uppercase text-[var(--color-ink)]">Edit profile <ArrowUpRight className="h-4 w-4" /></Link>
+      </section>
+      <section className={styles.card}>
+        <p className={styles.eyebrow}>Membership</p>
+        <h2 className="font-display mt-2 text-2xl">{membership?.planName ?? "No active plan"}</h2>
+        <p className={`mt-3 text-sm leading-6 ${styles.muted}`}>{membership?.renewsAt ? `Renews ${shortDate(membership.renewsAt)}` : "View plans, benefits, and provider-confirmed changes."}</p>
+        {membership ? <span className={`${styles.status} mt-4`}>{titleCase(membership.status)}</span> : null}
+        <Link href="/client/membership" className="mt-6 inline-flex items-center gap-2 text-[10px] tracking-[.15em] uppercase text-[var(--color-brass)]">Membership details <ArrowUpRight className="h-4 w-4" /></Link>
+      </section>
+    </div>
+    <div className={styles.accountLinks}>
+      <AccountLink href="/client/orders" title="Receipts" copy="Orders and payment references" />
+      <AccountLink href="/client/notifications" title="Notifications" copy="Recent messages and updates" />
+      <AccountLink href="/client/privacy" title="Privacy" copy="Consent and data requests" />
+      <AccountLink href="/client/support" title="Help" copy="Contact the lounge" />
+    </div>
+  </ClientPageHeader>;
+}
+
 export async function ClientProfilePage() {
   const data = await loadClientPortalData();
   const marketingStatus = data.clientProfile?.marketingStatus;
@@ -154,6 +187,10 @@ function AppointmentCard({ item }: { item: Awaited<ReturnType<typeof loadClientP
 
 function Empty({ copy, href, label }: { copy: string; href?: string; label?: string }) {
   return <div className={styles.empty}><p>{copy}</p>{href && label ? <Link href={href} className="mt-4 inline-flex items-center gap-2 text-[10px] tracking-[.16em] uppercase text-[var(--color-brass)]">{label}<ArrowUpRight className="h-4 w-4" /></Link> : null}</div>;
+}
+
+function AccountLink({ href, title, copy }: { href: string; title: string; copy: string }) {
+  return <Link href={href} className={styles.accountLink}><div><strong className="text-sm text-[var(--color-bone)]">{title}</strong><p className={`mt-1 text-[11px] ${styles.muted}`}>{copy}</p></div><ArrowUpRight className="h-4 w-4 shrink-0 text-[var(--color-brass)]" /></Link>;
 }
 
 function Field({ label, value }: { label: string; value: string }) {

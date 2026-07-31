@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { CalendarDays, Menu, UserRound, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { CalendarDays, LayoutDashboard, LogOut, Menu, UserRound, X } from "lucide-react";
 import clsx from "clsx";
 import { Logo } from "./Logo";
 import { LanguageToggle } from "./LanguageToggle";
@@ -20,20 +20,79 @@ const NAV_ITEMS = [
   { href: "/visit", key: "visit" as const },
 ];
 
+type AuthSession = {
+  authenticated: boolean;
+  email: string | null;
+  activeRole: string | null;
+  portalUrl: string | null;
+};
+
+const emptySession: AuthSession = {
+  authenticated: false,
+  email: null,
+  activeRole: null,
+  portalUrl: null,
+};
+
 export function Header() {
   const { lang } = useLang();
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [session, setSession] = useState<AuthSession>(emptySession);
 
+  useEffect(() => {
+    let mounted = true;
+    fetch("/api/auth/session", { cache: "no-store", credentials: "same-origin" })
+      .then((response) => response.json())
+      .then((data: AuthSession) => {
+        if (mounted) setSession(data);
+      })
+      .catch(() => {
+        if (mounted) setSession(emptySession);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [pathname]);
+
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+    setSession(emptySession);
+    setOpen(false);
+    router.replace("/");
+    router.refresh();
+  }
+
+  const portalUrl = session.portalUrl ?? "/login";
   const portalMatch = pathname.match(/^\/(client|barber|reception|admin)(?:\/|$)/);
   if (pathname.startsWith("/kiosk")) return null;
+
   if (portalMatch) {
-    const label = portalMatch[1] === "admin" ? "Owner & Admin" : portalMatch[1] === "reception" ? "Reception Console" : portalMatch[1] === "barber" ? "Barber Workspace" : "Client Portal";
+    const label = portalMatch[1] === "admin"
+      ? "Shop Operations"
+      : portalMatch[1] === "reception"
+        ? "Reception"
+        : portalMatch[1] === "barber"
+          ? "Barber Workspace"
+          : "Client Portal";
     return (
       <header className="sticky top-0 z-40 border-b border-[var(--color-ink-line)] bg-[#0a0a0a]/98 md:backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-3 sm:px-7">
-          <div className="flex items-center gap-4"><Logo compact /><span className="hidden text-[10px] tracking-[.24em] uppercase text-[var(--color-brass)] sm:block">{label}</span></div>
-          <div className="flex items-center gap-2"><Link href="/" className="rounded-full border border-[var(--color-ink-line)] px-4 py-2 text-[9px] tracking-[.16em] uppercase text-[var(--color-bone-muted)] transition hover:border-[var(--color-brass)] hover:text-[var(--color-brass)]">Public site</Link><Link href="/login" className="rounded-full bg-[var(--color-brass)] px-4 py-2 text-[9px] tracking-[.16em] uppercase text-[var(--color-ink)]">Account</Link></div>
+          <div className="flex items-center gap-4">
+            <Logo compact />
+            <span className="hidden text-[10px] tracking-[.24em] uppercase text-[var(--color-brass)] sm:block">{label}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/" className="rounded-full border border-[var(--color-ink-line)] px-4 py-2 text-[9px] tracking-[.16em] uppercase text-[var(--color-bone-muted)] transition hover:border-[var(--color-brass)] hover:text-[var(--color-brass)]">Public site</Link>
+            {session.authenticated ? (
+              <button type="button" onClick={signOut} className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-4 py-2 text-[9px] tracking-[.16em] uppercase text-[var(--color-ink)]">
+                <LogOut className="h-3.5 w-3.5" /> Sign out
+              </button>
+            ) : (
+              <Link href="/login" className="rounded-full bg-[var(--color-brass)] px-4 py-2 text-[9px] tracking-[.16em] uppercase text-[var(--color-ink)]">Sign in</Link>
+            )}
+          </div>
         </div>
       </header>
     );
@@ -66,13 +125,35 @@ export function Header() {
 
         <div className="hidden items-center gap-3 md:flex">
           <LanguageToggle />
-          <Link
-            href="/login"
-            aria-label={dict.nav.portal[lang]}
-            className="hidden h-10 w-10 items-center justify-center rounded-full border border-[var(--color-ink-line)] text-[var(--color-bone-muted)] transition hover:border-[var(--color-brass)] hover:text-[var(--color-brass)] xl:inline-flex"
-          >
-            <UserRound className="h-4 w-4" aria-hidden />
-          </Link>
+          {session.authenticated ? (
+            <>
+              <Link
+                href={portalUrl}
+                aria-label="Open dashboard"
+                title={session.email ?? "Open dashboard"}
+                className="hidden items-center gap-2 rounded-full border border-[var(--color-ink-line)] px-4 py-2.5 text-[9px] tracking-[.16em] uppercase text-[var(--color-bone-muted)] transition hover:border-[var(--color-brass)] hover:text-[var(--color-brass)] xl:inline-flex"
+              >
+                <LayoutDashboard className="h-4 w-4" aria-hidden /> Dashboard
+              </Link>
+              <button
+                type="button"
+                onClick={signOut}
+                className="hidden h-10 w-10 items-center justify-center rounded-full border border-[var(--color-ink-line)] text-[var(--color-bone-muted)] transition hover:border-[var(--color-brass)] hover:text-[var(--color-brass)] xl:inline-flex"
+                aria-label="Sign out"
+                title="Sign out"
+              >
+                <LogOut className="h-4 w-4" aria-hidden />
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              aria-label={dict.nav.portal[lang]}
+              className="hidden h-10 w-10 items-center justify-center rounded-full border border-[var(--color-ink-line)] text-[var(--color-bone-muted)] transition hover:border-[var(--color-brass)] hover:text-[var(--color-brass)] xl:inline-flex"
+            >
+              <UserRound className="h-4 w-4" aria-hidden />
+            </Link>
+          )}
           <Link
             href="/book"
             data-magnetic="true"
@@ -107,10 +188,21 @@ export function Header() {
             </Link>
           ))}
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <Link href="/login" onClick={() => setOpen(false)} className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--color-ink-line)] px-4 py-3 text-[10px] tracking-[.18em] uppercase">
-              <UserRound className="h-4 w-4" /> {dict.nav.portal[lang]}
-            </Link>
-            <Link href="/book" onClick={() => setOpen(false)} className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-brass)] px-4 py-3 text-[10px] tracking-[.18em] uppercase text-[var(--color-ink)]">
+            {session.authenticated ? (
+              <>
+                <Link href={portalUrl} onClick={() => setOpen(false)} className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--color-ink-line)] px-4 py-3 text-[10px] tracking-[.18em] uppercase">
+                  <LayoutDashboard className="h-4 w-4" /> Dashboard
+                </Link>
+                <button type="button" onClick={signOut} className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--color-ink-line)] px-4 py-3 text-[10px] tracking-[.18em] uppercase">
+                  <LogOut className="h-4 w-4" /> Sign out
+                </button>
+              </>
+            ) : (
+              <Link href="/login" onClick={() => setOpen(false)} className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--color-ink-line)] px-4 py-3 text-[10px] tracking-[.18em] uppercase">
+                <UserRound className="h-4 w-4" /> {dict.nav.portal[lang]}
+              </Link>
+            )}
+            <Link href="/book" onClick={() => setOpen(false)} className={clsx("inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-brass)] px-4 py-3 text-[10px] tracking-[.18em] uppercase text-[var(--color-ink)]", session.authenticated ? "col-span-2" : "") }>
               <CalendarDays className="h-4 w-4" /> {dict.nav.book[lang]}
             </Link>
           </div>

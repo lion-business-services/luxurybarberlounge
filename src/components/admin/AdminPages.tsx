@@ -47,7 +47,7 @@ const copy: Record<string, { eyebrow: string; title: string; description: string
 
 export async function AdminClientsPage() {
   const data = await loadAdminPortalData();
-  return <AdminPageHeader eyebrow="Client CRM" title="Clients" copy="Searchable client profiles, contact data, history, consent, and operational follow-up. Internal notes remain separate from client-visible records.">
+  return <AdminPageHeader eyebrow="Client management" title="Clients" copy="Find a client, review visit history, update approved details, and handle follow-up.">
     <AdminCreateClient />
     {data.clients.length ? <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Client</th><th>Phone</th><th>Language</th><th>Marketing</th><th>Created</th><th /></tr></thead><tbody>{data.clients.map((client) => <tr key={client.id}><td><strong>{client.name}</strong><br /><span className="text-[10px] text-[var(--color-bone-muted)]">{client.id}</span></td><td>{client.phone ?? "—"}</td><td>{client.language.toUpperCase()}</td><td>{titleCase(client.marketing)}</td><td>{shortDate(client.createdAt)}</td><td><Link href={`/admin/clients/${client.id}`} className="text-[9px] tracking-[.14em] uppercase text-[var(--color-brass)]">Open</Link></td></tr>)}</tbody></table></div> : <Empty text="No client profiles have been linked yet." />}
   </AdminPageHeader>;
@@ -55,7 +55,7 @@ export async function AdminClientsPage() {
 
 export async function AdminClientDetail({ id }: { id: string }) {
   const client = await loadAdminClientDetail(id);
-  return <AdminPageHeader eyebrow="Client CRM" title={client?.name ?? "Client record"} copy={client ? "Authorized operational view of this client’s account." : "The client record is unavailable or outside your authorized business scope."}>
+  return <AdminPageHeader eyebrow="Client management" title={client?.name ?? "Client record"} copy={client ? "Authorized operational view of this client’s account." : "The client record is unavailable or outside your authorized business scope."}>
     {client ? <div className="grid gap-4">
       <section className={styles.metricGrid}>{Object.entries(client.totals).map(([label,value]) => <article key={label} className={styles.metric}><p className="text-[8px] tracking-[.17em] uppercase text-[var(--color-bone-muted)]">{titleCase(label)}</p><p className={styles.metricValue}>{value}</p><span className={styles.source}>Supabase-derived</span></article>)}</section>
       <div className="grid gap-4 xl:grid-cols-3"><section className={styles.card}><h2 className="font-display text-2xl">Profile</h2><div className="mt-5 grid gap-4"><Field label="Client ID" value={client.id} /><Field label="Phone" value={client.phone ?? "Not provided"} /><Field label="Language" value={client.language.toUpperCase()} /><Field label="Account status" value={titleCase(client.status)} /><Field label="Marketing" value={titleCase(client.marketing)} /></div>{client.tags.length ? <div className="mt-5 flex flex-wrap gap-2">{client.tags.map((tag) => <span key={tag} className="rounded-full bg-white/[.05] px-3 py-1 text-[9px] uppercase tracking-[.12em] text-[var(--color-brass)]">{tag}</span>)}</div> : null}</section>
@@ -67,7 +67,7 @@ export async function AdminClientDetail({ id }: { id: string }) {
 
 export async function AdminOrdersPage() {
   const data = await loadAdminPortalData();
-  return <AdminPageHeader eyebrow="Order oversight" title="Orders" copy="Square remains the financial source of truth. This CRM exposes normalized references, synchronization state, and controlled support workflows.">
+  return <AdminPageHeader eyebrow="Order oversight" title="Orders" copy="Square remains the financial source of truth. Review synchronized orders and handle client support without editing payment records here.">
     {data.orders.length ? <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Square order</th><th>State</th><th>Total</th><th>Last synchronized</th><th>Controls</th></tr></thead><tbody>{data.orders.map((order) => <tr key={order.id}><td>{order.squareId}</td><td>{titleCase(order.state)}</td><td>{money(order.totalCents)}</td><td>{dateTime(order.syncedAt)}</td><td><span className="text-[9px] text-[var(--color-bone-muted)]">Financial edits remain in Square</span></td></tr>)}</tbody></table></div> : <Empty text="No Square orders have been synchronized." />}
   </AdminPageHeader>;
 }
@@ -120,10 +120,44 @@ export async function AdminIntegrationsPage({ provider }: { provider?: string })
   </AdminPageHeader>;
 }
 
+export function AdminSettingsHub() {
+  return <AdminPageHeader eyebrow="Shop setup" title="Settings" copy="Advanced setup stays out of daily operations. Open only the area you need.">
+    <div className="grid gap-4 md:grid-cols-3">
+      <section className={styles.card}>
+        <p className="text-[9px] tracking-[.18em] uppercase text-[var(--color-brass)]">Shop</p>
+        <h2 className="font-display mt-2 text-2xl">Services & sales</h2>
+        <div className="mt-5 grid gap-2">
+          <ModuleLink href="/admin/services" title="Services" />
+          <ModuleLink href="/admin/memberships" title="Memberships" />
+          <ModuleLink href="/admin/orders" title="Orders" />
+        </div>
+      </section>
+      <section className={styles.card}>
+        <p className="text-[9px] tracking-[.18em] uppercase text-[var(--color-brass)]">Access</p>
+        <h2 className="font-display mt-2 text-2xl">Team permissions</h2>
+        <div className="mt-5 grid gap-2">
+          <ModuleLink href="/admin/users" title="Users & invitations" />
+          <ModuleLink href="/admin/roles" title="Roles & permissions" />
+          <ModuleLink href="/admin/security" title="Security" />
+        </div>
+      </section>
+      <section className={styles.card}>
+        <p className="text-[9px] tracking-[.18em] uppercase text-[var(--color-brass)]">Systems</p>
+        <h2 className="font-display mt-2 text-2xl">Connections</h2>
+        <div className="mt-5 grid gap-2">
+          <ModuleLink href="/admin/integrations" title="Integrations" />
+          <ModuleLink href="/admin/webhooks" title="Webhook activity" />
+          <ModuleLink href="/admin/audit" title="Audit log" />
+        </div>
+      </section>
+    </div>
+  </AdminPageHeader>;
+}
+
 export async function AdminModulePage({ slug }: { slug: string }) {
   const [data, snapshot, session] = await Promise.all([loadAdminPortalData(), loadAdminModuleSnapshot(slug), getServerAuthSession()]);
   const owner = session.roles.some((role) => role === "owner" || role === "super_admin");
-  const page = copy[slug] ?? { eyebrow: "Owner CRM", title: titleCase(slug), description: "Authorized operational module with audit-ready provider boundaries.", icon: Activity };
+  const page = copy[slug] ?? { eyebrow: "Shop operations", title: titleCase(slug), description: "Authorized operational module with audit-ready provider boundaries.", icon: Activity };
   const Icon = page.icon;
   const analytics = slug === "analytics" ? data.metrics : [];
   return <AdminPageHeader eyebrow={page.eyebrow} title={page.title} copy={page.description}>

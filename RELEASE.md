@@ -35,3 +35,13 @@ This source package preserves the approved public website and delivers separate 
 8. Activate Square, SMS, automation schedules, membership billing, and AI only after their provider-specific tests pass.
 
 Start with `README.md`, `docs/FINAL_RELEASE_REPORT.md`, `docs/DEPLOYMENT.md`, and `docs/LAUNCH_CHECKLIST.md`.
+
+## v9 portal simplification and session continuity
+
+- Reduced the client portal to Home, Visits, Queue, and Account.
+- Replaced the admin CRM-style navigation with a concise shop-operations dashboard.
+- Added silent Supabase session renewal across public-site navigation.
+- Added authenticated Dashboard and Sign out controls to the public header.
+- Grouped advanced admin configuration under Settings.
+- Added integration tests for concise navigation and session continuity.
+

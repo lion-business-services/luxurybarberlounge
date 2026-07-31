@@ -93,7 +93,7 @@ const roleCopy: Record<PortalRole, { label: string; description: string }> = {
   client: { label: "Client portal", description: "Appointments, grooming preferences, and account controls" },
   barber: { label: "Barber workspace", description: "Schedule, clients, performance, and statements" },
   reception: { label: "Reception console", description: "Today’s floor, queue, and client check-in" },
-  admin: { label: "Owner & admin", description: "Operations, CRM, content, reporting, and controls" },
+  admin: { label: "Owner & admin", description: "Daily operations, people, automation, and shop controls" },
 };
 
 export function PortalShell({ role, children }: { role: PortalRole; children: React.ReactNode }) {

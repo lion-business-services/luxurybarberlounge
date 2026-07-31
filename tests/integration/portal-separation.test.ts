@@ -100,3 +100,28 @@ test("audit writes use the canonical immutable before and after columns", async 
     assert.doesNotMatch(source, /old_values|new_values/);
   }
 });
+
+test("client portal exposes only four primary destinations and a direct sign-out", async () => {
+  const shell = await readFile("src/components/client/ClientShell.tsx", "utf8");
+  for (const label of ["Home", "Visits", "Queue", "Account"]) assert.match(shell, new RegExp(`label: "${label}"`));
+  assert.doesNotMatch(shell, /label: "Rewards"|label: "Offers"|label: "Notifications"|label: "Services"/);
+  assert.match(shell, /\/api\/auth\/logout/);
+});
+
+test("admin navigation is an operations dashboard rather than a full CRM menu", async () => {
+  const shell = await readFile("src/components/admin/AdminShell.tsx", "utf8");
+  for (const label of ["Dashboard", "Appointments", "Queue", "Clients", "Barbers", "Commissions", "Automations", "Settings"]) {
+    assert.match(shell, new RegExp(`label: "${label}"`));
+  }
+  assert.doesNotMatch(shell, /Owner CRM|Executive dashboard|Marketing & CRM/);
+});
+
+test("public navigation silently renews sessions and keeps dashboard and sign-out available", async () => {
+  const sessionRoute = await readFile("src/app/api/auth/session/route.ts", "utf8");
+  const header = await readFile("src/components/Header.tsx", "utf8");
+  assert.match(sessionRoute, /refreshSession/);
+  assert.match(sessionRoute, /setAuthCookies/);
+  assert.match(header, /portalUrl/);
+  assert.match(header, /Dashboard/);
+  assert.match(header, /\/api\/auth\/logout/);
+});

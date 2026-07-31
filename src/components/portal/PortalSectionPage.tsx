@@ -51,7 +51,7 @@ const copy: Record<string, { title: string; eyebrow: string; description: string
   services: { title: "Services & pricing", eyebrow: "Admin & owner", description: "Edit public service content, durations, pricing, deposits, eligibility, SEO, and Square mapping." },
   memberships: { title: "Memberships", eyebrow: "Admin & owner", description: "Plan content, billing mapping, members, usage, requests, promotions, and exceptions." },
   content: { title: "Content management", eyebrow: "Admin & owner", description: "Manage pages, navigation, barbers, gallery, journal, FAQs, policies, media, and publish state." },
-  marketing: { title: "Marketing & CRM", eyebrow: "Admin & owner", description: "Segments, campaigns, referrals, reviews, reactivation, and consent-safe audience activity." },
+  marketing: { title: "Marketing", eyebrow: "Admin & owner", description: "Segments, campaigns, referrals, reviews, reactivation, and consent-safe audience activity." },
   automations: { title: "Automations", eyebrow: "Admin & owner", description: "Triggers, conditions, timing, channels, templates, run history, retries, and suppression controls." },
   analytics: { title: "Analytics", eyebrow: "Admin & owner", description: "Clearly labeled Square-derived, Supabase-derived, calculated, estimated, and demo metrics." },
   integrations: { title: "Integrations", eyebrow: "Admin & owner", description: "Credential-safe status for Square, Supabase, email, SMS, AI, analytics, and monitoring." },
