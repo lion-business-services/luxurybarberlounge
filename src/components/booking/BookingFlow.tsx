@@ -70,14 +70,23 @@ export function BookingFlow() {
       if (saved) setDraft({ ...newDraft(), ...JSON.parse(saved) as Partial<Draft>, startsAt: "" });
     } catch { /* damaged draft is safely ignored */ }
     track(searchParams.get("utm_medium") === "qr" ? "qr_booking_page_viewed" : "booking_page_viewed");
-    fetch("/api/booking/catalog", { cache: "no-store" }).then(async (response) => {
-      const payload = await response.json() as { ok: boolean; catalog?: BookingCatalog; message?: string };
-      if (!response.ok || !payload.catalog) throw new Error(payload.message || "Booking is temporarily unavailable.");
-      if (!payload.catalog.services.length || !payload.catalog.barbers.length) throw new Error("Online booking is waiting for the live barber schedule. Please call the lounge and we will reserve your chair.");
-      setCatalog(payload.catalog);
+    const loadCatalog = async () => {
+      let lastMessage = "Booking is temporarily unavailable.";
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const response = await fetch(`/api/booking/catalog?attempt=${attempt}`, { cache: "no-store" });
+        const payload = await response.json() as { ok: boolean; catalog?: BookingCatalog; message?: string; setupRequired?: boolean };
+        if (response.ok && payload.catalog?.services.length && payload.catalog.barbers.length) return payload.catalog;
+        lastMessage = payload.message || lastMessage;
+        if (!payload.setupRequired || attempt === 2) break;
+        await new Promise((resolve) => window.setTimeout(resolve, 900 * (attempt + 1)));
+      }
+      throw new Error(lastMessage);
+    };
+    loadCatalog().then((loadedCatalog) => {
+      setCatalog(loadedCatalog);
       const serviceSlug = searchParams.get("service");
       const barberSlug = searchParams.get("barber");
-      setDraft((current) => ({ ...current, serviceId: payload.catalog?.services.find((item) => item.slug === serviceSlug)?.id || current.serviceId, barberId: payload.catalog?.barbers.find((item) => item.slug === barberSlug)?.id || current.barberId, firstAvailable: barberSlug ? false : current.firstAvailable }));
+      setDraft((current) => ({ ...current, serviceId: loadedCatalog.services.find((item) => item.slug === serviceSlug)?.id || current.serviceId, barberId: loadedCatalog.barbers.find((item) => item.slug === barberSlug)?.id || current.barberId, firstAvailable: barberSlug ? false : current.firstAvailable }));
     }).catch((caught) => setError(caught instanceof Error ? caught.message : "Booking is temporarily unavailable.")).finally(() => setLoadingCatalog(false));
   }, [searchParams]);
 

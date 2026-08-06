@@ -178,7 +178,7 @@ test("public navigation silently renews sessions and keeps dashboard and sign-ou
 test("queue updates create consent-aware transactional notifications", async () => {
   const helper = await readFile("src/lib/queue/notifications.ts", "utf8");
   const operations = await readFile("src/app/api/operations/queue/route.ts", "utf8");
-  const processor = await readFile("src/app/api/cron/notifications/route.ts", "utf8");
+  const processor = await readFile("src/lib/notifications/process.ts", "utf8");
   assert.match(helper, /auth\.admin\.getUserById/);
   assert.match(helper, /features\.sms && input\.smsConsent/);
   assert.match(helper, /queue:\$\{input\.entryId\}:\$\{input\.status\}/);

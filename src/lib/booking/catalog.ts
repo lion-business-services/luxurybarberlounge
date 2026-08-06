@@ -9,9 +9,37 @@ function english(value: unknown) {
   return String(value ?? "");
 }
 
+export class BookingCatalogError extends Error {
+  constructor(public readonly code: string, message = code) {
+    super(message);
+    this.name = "BookingCatalogError";
+  }
+}
+
+function requireResult(error: { message?: string; code?: string } | null, code: string) {
+  if (error) {
+    console.error("booking-catalog-operation", { code, providerCode: error.code, providerMessage: error.message?.slice(0, 240) });
+    throw new BookingCatalogError(code);
+  }
+}
+
+function isoDate() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: businessConfig.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+/**
+ * Ensures the minimum verified production catalog exists before it is returned.
+ * This is deliberately idempotent: a fresh production database becomes usable
+ * after migrations are applied, while owner edits remain intact on later reads.
+ */
 export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<ReturnType<typeof createUntypedAdminSupabase>>; catalog: BookingCatalog }> {
   const admin = createUntypedAdminSupabase();
-  if (!admin) throw new Error("SUPABASE_NOT_CONFIGURED");
+  if (!admin) throw new BookingCatalogError("SUPABASE_NOT_CONFIGURED");
 
   const { data: business, error: businessError } = await admin.from("businesses").upsert({
     name: businessConfig.name,
@@ -24,7 +52,8 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
     default_language: "en",
     status: "active",
   }, { onConflict: "slug" }).select("id").single();
-  if (businessError || !business?.id) throw new Error("BUSINESS_NOT_CONFIGURED");
+  requireResult(businessError, "BUSINESS_NOT_CONFIGURED");
+  if (!business?.id) throw new BookingCatalogError("BUSINESS_NOT_CONFIGURED");
 
   const { data: location, error: locationError } = await admin.from("locations").upsert({
     business_id: business.id,
@@ -40,15 +69,17 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
     timezone: businessConfig.timezone,
     active: true,
   }, { onConflict: "business_id,slug" }).select("id,name,timezone,address_line_1,city,region,postal_code").single();
-  if (locationError || !location?.id) throw new Error("LOCATION_NOT_CONFIGURED");
+  requireResult(locationError, "LOCATION_NOT_CONFIGURED");
+  if (!location?.id) throw new BookingCatalogError("LOCATION_NOT_CONFIGURED");
 
-  await admin.from("business_hours").upsert(businessConfig.hours.map((item) => ({
+  const hoursResult = await admin.from("business_hours").upsert(businessConfig.hours.map((item) => ({
     location_id: location.id,
     weekday: item.weekday,
     opens_at: item.closed ? null : item.open,
     closes_at: item.closed ? null : item.close,
     closed: Boolean(item.closed),
   })), { onConflict: "location_id,weekday" });
+  requireResult(hoursResult.error, "BUSINESS_HOURS_UNAVAILABLE");
 
   const { data: categoryRows, error: categoryError } = await admin.from("service_categories").upsert(serviceCategories.map((item, index) => ({
     business_id: business.id,
@@ -58,7 +89,7 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
     sort_order: index,
     active: true,
   })), { onConflict: "business_id,slug" }).select("id,slug,name,description");
-  if (categoryError) throw new Error("SERVICE_CATEGORIES_UNAVAILABLE");
+  requireResult(categoryError, "SERVICE_CATEGORIES_UNAVAILABLE");
   const categoryBySlug = new Map((categoryRows ?? []).map((item) => [item.slug, item]));
 
   const { data: serviceRows, error: serviceError } = await admin.from("services").upsert(services.map((item, index) => ({
@@ -80,8 +111,8 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
     content_status: "published",
     active: true,
     sort_order: index,
-  })), { onConflict: "business_id,slug" }).select("id,slug,category_id,name,short_description,full_description,price_cents,duration_minutes,deposit_cents");
-  if (serviceError) throw new Error("SERVICES_UNAVAILABLE");
+  })), { onConflict: "business_id,slug" }).select("id,slug,category_id,name,short_description,full_description,price_cents,duration_minutes,deposit_cents,active,bookable,content_status");
+  requireResult(serviceError, "SERVICES_UNAVAILABLE");
   const serviceBySlug = new Map((serviceRows ?? []).map((item) => [item.slug, item]));
 
   const { data: addonRows, error: addonError } = await admin.from("service_addons").upsert(serviceAddOns.map((item) => ({
@@ -94,10 +125,12 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
     duration_minutes: item.minutes,
     active: true,
   })), { onConflict: "business_id,slug" }).select("id,slug,service_id,name,description,price_cents,duration_minutes");
-  if (addonError) throw new Error("ADDONS_UNAVAILABLE");
+  requireResult(addonError, "ADDONS_UNAVAILABLE");
 
   const verifiedSourceBarbers = barbers.filter((item) => item.active && item.identityStatus === "verified");
-  const { error: barberError } = await admin.from("barber_profiles").upsert(verifiedSourceBarbers.map((item) => ({
+  if (!verifiedSourceBarbers.length) throw new BookingCatalogError("NO_VERIFIED_BARBERS");
+
+  const barberUpsert = await admin.from("barber_profiles").upsert(verifiedSourceBarbers.map((item) => ({
     business_id: business.id,
     slug: item.slug,
     display_name: item.name,
@@ -110,11 +143,11 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
     social_links: {},
     featured: Boolean(item.featured),
     active: true,
-    demo: item.identityStatus !== "verified",
+    demo: false,
     status: "published",
     sort_order: item.sortOrder,
   })), { onConflict: "business_id,slug" });
-  if (barberError) throw new Error("BARBERS_UNAVAILABLE");
+  requireResult(barberUpsert.error, "BARBERS_UNAVAILABLE");
 
   const { data: barberRows, error: liveBarberError } = await admin
     .from("barber_profiles")
@@ -122,9 +155,10 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
     .eq("business_id", business.id)
     .eq("active", true)
     .eq("demo", false)
-    .neq("status", "archived")
+    .eq("status", "published")
     .order("sort_order");
-  if (liveBarberError) throw new Error("BARBERS_UNAVAILABLE");
+  requireResult(liveBarberError, "BARBERS_UNAVAILABLE");
+  if (!(barberRows ?? []).length) throw new BookingCatalogError("NO_LIVE_BARBERS");
 
   const eligibility: Array<{ barber_profile_id: string; service_id: string; active: boolean }> = [];
   for (const barber of verifiedSourceBarbers) {
@@ -135,52 +169,96 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
       if (service) eligibility.push({ barber_profile_id: row.id, service_id: service.id, active: true });
     }
   }
-  if (eligibility.length) await admin.from("barber_profile_services").upsert(eligibility, { onConflict: "barber_profile_id,service_id" });
+  if (!eligibility.length) throw new BookingCatalogError("NO_BOOKABLE_SERVICE_MAPPINGS");
+  const eligibilityUpsert = await admin.from("barber_profile_services").upsert(eligibility, { onConflict: "barber_profile_id,service_id" });
+  requireResult(eligibilityUpsert.error, "BOOKING_MIGRATIONS_REQUIRED");
 
   const liveBarberIds = (barberRows ?? []).map((item) => item.id);
-  if (liveBarberIds.length) {
-    const { data: existingSchedules } = await admin
-      .from("barber_schedules")
-      .select("barber_profile_id")
-      .in("barber_profile_id", liveBarberIds)
-      .eq("location_id", location.id)
-      .eq("active", true);
-    const scheduled = new Set((existingSchedules ?? []).map((item) => String(item.barber_profile_id)));
-    const scheduleRows = (barberRows ?? [])
-      .filter((barber) => !scheduled.has(String(barber.id)))
-      .flatMap((barber) => businessConfig.hours.filter((item) => !item.closed).map((item) => ({
-        barber_user_id: null,
-        barber_profile_id: barber.id,
-        location_id: location.id,
-        weekday: item.weekday,
-        starts_at: item.open,
-        ends_at: item.close,
-        active: true,
-        effective_from: "2026-08-04",
-        effective_to: null,
-      })));
-    if (scheduleRows.length) await admin.from("barber_schedules").insert(scheduleRows);
+  const { data: existingSchedules, error: scheduleReadError } = await admin
+    .from("barber_schedules")
+    .select("id,barber_profile_id,weekday,active,effective_from,effective_to")
+    .in("barber_profile_id", liveBarberIds)
+    .eq("location_id", location.id);
+  requireResult(scheduleReadError, "BOOKING_MIGRATIONS_REQUIRED");
+
+  const today = isoDate();
+  const scheduleRows = (barberRows ?? []).flatMap((barber) => businessConfig.hours
+    .filter((item) => !item.closed)
+    .filter((item) => !(existingSchedules ?? []).some((schedule) =>
+      String(schedule.barber_profile_id) === String(barber.id)
+      && Number(schedule.weekday) === item.weekday
+      && Boolean(schedule.active)
+      && (!schedule.effective_to || String(schedule.effective_to) >= today)))
+    .map((item) => ({
+      barber_user_id: null,
+      barber_profile_id: barber.id,
+      location_id: location.id,
+      weekday: item.weekday,
+      starts_at: item.open,
+      ends_at: item.close,
+      active: true,
+      effective_from: today,
+      effective_to: null,
+    })));
+  if (scheduleRows.length) {
+    const scheduleInsert = await admin.from("barber_schedules").insert(scheduleRows);
+    requireResult(scheduleInsert.error, "BARBER_SCHEDULES_UNAVAILABLE");
   }
 
-  const { data: eligibilityRows } = liveBarberIds.length
-    ? await admin.from("barber_profile_services").select("barber_profile_id,service_id,active").in("barber_profile_id", liveBarberIds).eq("active", true)
-    : { data: [] };
+  const { data: eligibilityRows, error: eligibilityReadError } = await admin
+    .from("barber_profile_services")
+    .select("barber_profile_id,service_id,active")
+    .in("barber_profile_id", liveBarberIds)
+    .eq("active", true);
+  requireResult(eligibilityReadError, "BOOKING_MIGRATIONS_REQUIRED");
+
+  const { data: scheduleCheck, error: scheduleCheckError } = await admin
+    .from("barber_schedules")
+    .select("barber_profile_id,weekday")
+    .in("barber_profile_id", liveBarberIds)
+    .eq("location_id", location.id)
+    .eq("active", true)
+    .or(`effective_to.is.null,effective_to.gte.${today}`);
+  requireResult(scheduleCheckError, "BARBER_SCHEDULES_UNAVAILABLE");
+  if (!(scheduleCheck ?? []).length) throw new BookingCatalogError("NO_ACTIVE_BARBER_SCHEDULES");
+
   const categories = (categoryRows ?? []).map((item) => ({ id: item.id, slug: item.slug, name: english(item.name), description: english(item.description) }));
   const categoryById = new Map(categories.map((item) => [item.id, item]));
   const eligibleServiceIds = new Set((eligibilityRows ?? []).map((item) => String(item.service_id)));
-  const catalogServices = (serviceRows ?? []).filter((item) => eligibleServiceIds.has(String(item.id))).map((item) => ({
-    id: item.id,
-    slug: item.slug,
-    categoryId: item.category_id ?? "",
-    categoryName: categoryById.get(item.category_id ?? "")?.name ?? "Services",
-    name: english(item.name),
-    description: english(item.full_description) || english(item.short_description),
-    preparation: english(services.find((source) => source.slug === item.slug)?.preparation),
-    durationMinutes: Number(item.duration_minutes ?? 30),
-    priceCents: Number(item.price_cents ?? 0),
-    depositCents: Number(item.deposit_cents ?? 0),
-    relatedServiceIds: [],
-  }));
+  const catalogServices = (serviceRows ?? [])
+    .filter((item) => item.active && item.bookable && item.content_status === "published" && eligibleServiceIds.has(String(item.id)))
+    .map((item) => ({
+      id: item.id,
+      slug: item.slug,
+      categoryId: item.category_id ?? "",
+      categoryName: categoryById.get(item.category_id ?? "")?.name ?? "Services",
+      name: english(item.name),
+      description: english(item.full_description) || english(item.short_description),
+      preparation: english(services.find((source) => source.slug === item.slug)?.preparation),
+      durationMinutes: Number(item.duration_minutes ?? 30),
+      priceCents: Number(item.price_cents ?? 0),
+      depositCents: Number(item.deposit_cents ?? 0),
+      relatedServiceIds: [],
+    }));
+  if (!catalogServices.length) throw new BookingCatalogError("NO_BOOKABLE_SERVICES");
+
+  const catalogBarbers = (barberRows ?? []).map((item) => {
+    const source = barbers.find((barber) => barber.slug === item.slug);
+    return {
+      id: item.id,
+      slug: item.slug,
+      name: english(item.display_name),
+      portrait: source?.image.card ?? null,
+      title: english(item.professional_title),
+      biography: english(item.short_intro),
+      specialties: Array.isArray(item.specialties) ? item.specialties.map(String) : [],
+      languages: Array.isArray(item.languages) ? item.languages.map(String) : [],
+      serviceIds: (eligibilityRows ?? []).filter((entry) => entry.barber_profile_id === item.id).map((entry) => entry.service_id),
+      demo: Boolean(item.demo),
+    };
+  }).filter((barber) => barber.serviceIds.length > 0);
+  if (!catalogBarbers.length) throw new BookingCatalogError("NO_BOOKABLE_BARBERS");
+
   return {
     admin,
     catalog: {
@@ -194,21 +272,7 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
       categories,
       services: catalogServices,
       addons: (addonRows ?? []).map((item) => ({ id: item.id, slug: item.slug, serviceId: item.service_id, name: english(item.name), description: english(item.description), durationMinutes: Number(item.duration_minutes), priceCents: Number(item.price_cents) })),
-      barbers: (barberRows ?? []).filter((item) => !item.demo).map((item) => {
-        const source = barbers.find((barber) => barber.slug === item.slug);
-        return {
-          id: item.id,
-          slug: item.slug,
-          name: english(item.display_name),
-          portrait: source?.image.card ?? null,
-          title: english(item.professional_title),
-          biography: english(item.short_intro),
-          specialties: Array.isArray(item.specialties) ? item.specialties.map(String) : [],
-          languages: Array.isArray(item.languages) ? item.languages.map(String) : [],
-          serviceIds: (eligibilityRows ?? []).filter((entry) => entry.barber_profile_id === item.id).map((entry) => entry.service_id),
-          demo: Boolean(item.demo),
-        };
-      }),
+      barbers: catalogBarbers,
     },
   };
 }

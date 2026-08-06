@@ -7,10 +7,10 @@ Validation date: 2026-08-06
 
 - Format guard: passed.
 - Content validation: passed, 31 services, 9 source barber profiles, 3 membership definitions.
-- Migration validation: passed, 14 ordered transactional migrations.
-- RLS validation: passed across 14 migrations and 14 protected domains.
+- Migration validation: passed, 15 ordered transactional migrations.
+- RLS validation: passed across 15 migrations and 14 protected domains.
 - Route validation: passed, 167 page routes and 66 literal internal destinations.
-- Repository validation: passed, 167 pages, 14 migrations, 403 source files.
+- Repository validation: passed, 167 pages, 15 migrations, 403 source files.
 - Vercel configuration validation: passed.
 - Performance architecture validation: passed, one Lenis owner and no GSAP overlap.
 - Secret scan: passed.

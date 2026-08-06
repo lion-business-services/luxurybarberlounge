@@ -188,7 +188,7 @@ Key documentation:
 - `docs/BOOKING_QA.md`
 - `docs/LAUNCH_CHECKLIST.md`
 
-Apply migrations through `202608060014`, regenerate Supabase types, configure the values in `.env.example`, and run `npm run check:source && npm run build` before production promotion.
+Apply migrations through `202608060015`, regenerate Supabase types, configure the values in `.env.example`, and run `npm run check:source && npm run build` before production promotion.
 
 ## Production booking release v11
 

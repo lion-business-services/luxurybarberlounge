@@ -5,6 +5,7 @@ import { businessConfig } from "@/lib/config/business";
 import { searchSupabaseAvailability } from "@/lib/booking/availability";
 import { ensureBookingCatalog } from "@/lib/booking/catalog";
 import { queueBookingNotifications } from "@/lib/booking/notifications";
+import { processNotificationJobs } from "@/lib/notifications/process";
 import { bookingSubmissionSchema } from "@/lib/booking/schema";
 import { dateInZone } from "@/lib/booking/timezone";
 import { sendFormSubmitBooking } from "@/lib/email/formsubmit";
@@ -157,7 +158,14 @@ export async function POST(request: NextRequest) {
       await admin.from("appointments").update({ formsubmit_status: formSubmit.status }).eq("id", record.id);
     }
     await queueBookingNotifications(admin, record, token);
-    return NextResponse.json({ ok: true, confirmation: { id: record.id, reference: record.public_reference, status: record.status, startsAt: record.starts_at, endsAt: record.ends_at, serviceName: record.service_name_snapshot, barberName: record.barber_name_snapshot, locationName: catalog.location.name, locationAddress: catalog.location.address, durationMinutes, estimatedPriceCents: priceCents, depositCents: service.depositCents, manageToken: token, notificationState: formSubmitStatus === "sent" ? "sent" : "queued" }, formSubmit: { status: formSubmitStatus } }, { status: 201 });
+    let notificationState = "queued";
+    try {
+      const notificationResult = await processNotificationJobs(admin, { appointmentId: record.id, limit: 10 });
+      notificationState = notificationResult.delivered > 0 ? "sent" : "queued";
+    } catch (notificationError) {
+      console.error("booking-notification-immediate", { code: notificationError instanceof Error ? notificationError.message : "DELIVERY_DEFERRED" });
+    }
+    return NextResponse.json({ ok: true, confirmation: { id: record.id, reference: record.public_reference, status: record.status, startsAt: record.starts_at, endsAt: record.ends_at, serviceName: record.service_name_snapshot, barberName: record.barber_name_snapshot, locationName: catalog.location.name, locationAddress: catalog.location.address, durationMinutes, estimatedPriceCents: priceCents, depositCents: service.depositCents, manageToken: token, notificationState }, formSubmit: { status: formSubmitStatus } }, { status: 201 });
   } catch (error) {
     console.error("booking-submit", { code: error instanceof Error ? error.message.slice(0, 120) : "BOOKING_FAILED" });
     return NextResponse.json({ ok: false, message: `We could not reserve that appointment. Please try again or call the lounge at ${businessConfig.phone}.` }, { status: 503 });

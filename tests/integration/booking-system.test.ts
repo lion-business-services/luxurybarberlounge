@@ -131,17 +131,42 @@ test("queue display is privacy-safe and appointments synchronize with queue oper
   assert.match(queue, /assigned_staff_user_id/);
 });
 
-test("notification jobs are idempotent and record client and barber delivery state", async () => {
+test("notification jobs are idempotent, immediately deliver confirmations, and retain cron retries", async () => {
   const jobs = await source("src/lib/booking/notifications.ts");
+  const processor = await source("src/lib/notifications/process.ts");
   const worker = await source("src/app/api/cron/notifications/route.ts");
+  const submit = await source("src/app/api/booking/submit/route.ts");
   assert.match(jobs, /booking-confirmed:\$\{appointment\.id\}/);
   assert.match(jobs, /booking-reminder-24h:\$\{appointment\.id\}/);
   assert.match(jobs, /barber-booking-assigned/);
-  assert.match(worker, /idempotencyKey/);
-  assert.match(worker, /client_confirmation_status/);
-  assert.match(worker, /barber_notification_status/);
+  assert.match(processor, /idempotencyKey/);
+  assert.match(processor, /client_confirmation_status/);
+  assert.match(processor, /barber_notification_status/);
+  assert.match(worker, /processNotificationJobs/);
+  assert.match(submit, /processNotificationJobs\(admin, \{ appointmentId: record\.id/);
 });
 
+
+
+test("booking launch migration seeds a verified live barber, core services, eligibility, and schedule", async () => {
+  const migration = await source("supabase/migrations/202608060015_booking_launch_activation.sql");
+  assert.match(migration, /ruben-diaz-jr/);
+  assert.match(migration, /barber_profile_services/);
+  assert.match(migration, /barber_schedules/);
+  assert.match(migration, /service_locations/);
+  assert.match(migration, /booking_enabled/);
+});
+
+test("booking catalog refuses silent partial setup and never caches an empty catalog", async () => {
+  const catalog = await source("src/lib/booking/catalog.ts");
+  const route = await source("src/app/api/booking/catalog/route.ts");
+  assert.match(catalog, /BOOKING_MIGRATIONS_REQUIRED/);
+  assert.match(catalog, /NO_BOOKABLE_SERVICES/);
+  assert.match(catalog, /NO_ACTIVE_BARBER_SCHEDULES/);
+  assert.match(catalog, /requireResult\(eligibilityUpsert\.error/);
+  assert.match(route, /force-dynamic/);
+  assert.match(route, /private, no-store/);
+});
 test("required booking documentation and safe environment template are packaged", async () => {
   const required = [
     "BOOKING_SYSTEM.md", "BOOKING_FLOW.md", "BOOKING_DATA_MODEL.md", "AVAILABILITY_ENGINE.md",

@@ -1,6 +1,6 @@
 import "server-only";
 import { businessConfig } from "@/lib/config/business";
-import { ensureBookingCatalog } from "@/lib/booking/catalog";
+import { BookingCatalogError, ensureBookingCatalog } from "@/lib/booking/catalog";
 import { addDays, weekdayForDate, zonedDateTimeToUtc } from "@/lib/booking/timezone";
 import type { AvailabilitySlot } from "@/lib/booking/types";
 
@@ -38,7 +38,7 @@ export async function searchSupabaseAvailability(input: {
   const rangeStart = zonedDateTimeToUtc(input.startDate, "00:00:00", catalog.location.timezone);
   const rangeEnd = zonedDateTimeToUtc(addDays(input.startDate, input.days), "00:00:00", catalog.location.timezone);
   const barberIds = eligible.map((item) => item.id);
-  const [{ data: businessHours }, { data: holidayHours }, { data: schedules }, { data: breaks }, { data: timeOff }, { data: appointments }, { data: holds }, { data: settings }] = await Promise.all([
+  const [businessHoursResult, holidayHoursResult, schedulesResult, breaksResult, timeOffResult, appointmentsResult, holdsResult, settingsResult] = await Promise.all([
     admin.from("business_hours").select("weekday,opens_at,closes_at,closed").eq("location_id", input.locationId),
     admin.from("holiday_hours").select("service_date,opens_at,closes_at,closed").eq("location_id", input.locationId).gte("service_date", input.startDate).lt("service_date", addDays(input.startDate, input.days)),
     admin.from("barber_schedules").select("barber_profile_id,weekday,starts_at,ends_at,effective_from,effective_to,active").in("barber_profile_id", barberIds).eq("location_id", input.locationId).eq("active", true),
@@ -48,6 +48,19 @@ export async function searchSupabaseAvailability(input: {
     admin.from("slot_holds").select("barber_profile_id,starts_at,ends_at,status,expires_at").in("barber_profile_id", barberIds).lt("starts_at", rangeEnd.toISOString()).gt("ends_at", rangeStart.toISOString()).eq("status", "active").gt("expires_at", new Date().toISOString()),
     admin.from("location_settings").select("default_buffer_minutes,settings").eq("location_id", input.locationId).maybeSingle(),
   ]);
+  const failedLookup = [businessHoursResult, holidayHoursResult, schedulesResult, breaksResult, timeOffResult, appointmentsResult, holdsResult, settingsResult].find((result) => result.error);
+  if (failedLookup?.error) {
+    console.error("booking-availability-lookup", { code: failedLookup.error.code, message: failedLookup.error.message?.slice(0, 240) });
+    throw new BookingCatalogError("BOOKING_MIGRATIONS_REQUIRED");
+  }
+  const businessHours = businessHoursResult.data;
+  const holidayHours = holidayHoursResult.data;
+  const schedules = schedulesResult.data;
+  const breaks = breaksResult.data;
+  const timeOff = timeOffResult.data;
+  const appointments = appointmentsResult.data;
+  const holds = holdsResult.data;
+  const settings = settingsResult.data;
   const bufferMinutes = Number(settings?.default_buffer_minutes ?? businessConfig.defaultBufferMinutes);
   const now = Date.now();
   const minimum = now + businessConfig.minimumLeadMinutes * 60_000;
