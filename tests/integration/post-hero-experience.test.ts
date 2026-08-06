@@ -25,6 +25,7 @@ const requiredMedia = [
 ];
 
 const barberSlugs = [
+  "ruben-diaz-jr",
   "angelica-aquino",
   "hommy-rivera",
   "barber-los",
@@ -34,7 +35,6 @@ const barberSlugs = [
   "russ-hawkins",
   "daniel-penalo",
 ];
-const founderSlug = "ruben-diaz-jr";
 
 const protectedHeroHashes: Record<string, string> = {
   "src/components/hero/CinematicHero.tsx": "a83153477108ca6d3819b39ac689cfd368d037330112c48c6ea36d6684ccd779",
@@ -58,14 +58,21 @@ test("post-hero cinematic media is packaged", () => {
   }
 });
 
-test("all eight mapped barber portrait sets and the separate founder portrait are packaged", () => {
-  for (const slug of [...barberSlugs, founderSlug]) {
+test("all nine active barber portrait sets are packaged in responsive formats", () => {
+  for (const slug of barberSlugs) {
     for (const relative of [
       `public/media/barbers/originals/${slug}.jpeg`,
       `public/media/barbers/cards/${slug}.webp`,
+      `public/media/barbers/cards/${slug}.avif`,
+      `public/media/barbers/cards/${slug}.jpg`,
       `public/media/barbers/profiles/${slug}.webp`,
       `public/media/barbers/profiles/${slug}.avif`,
+      `public/media/barbers/profiles/${slug}.jpg`,
       `public/media/barbers/mobile/${slug}.webp`,
+      `public/media/barbers/mobile/${slug}.avif`,
+      `public/media/barbers/booking/${slug}.avif`,
+      `public/media/barbers/tablet/${slug}.avif`,
+      `public/media/barbers/desktop/${slug}.avif`,
     ]) {
       assert.equal(existsSync(join(root, relative)), true, `Missing ${relative}`);
     }

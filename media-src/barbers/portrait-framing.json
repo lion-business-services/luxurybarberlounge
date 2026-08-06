@@ -1,27 +1,216 @@
 {
-  "version": "2026-08-06",
-  "sourceCanvas": { "width": 512, "height": 512 },
-  "normalizedCanvas": { "width": 512, "height": 512 },
-  "normalization": {
-    "targetFaceHeight": 175,
-    "targetEyeY": 130,
-    "method": "non-destructive resize, translation, and dark-background extension",
-    "faceChangesAllowed": false
-  },
+  "version": "2026-08-06-ruben-release",
+  "method": "EXIF orientation, authentic-source 4:5 focal crop, Lanczos resize, subtle sharpening",
+  "faceChangesAllowed": false,
   "outputs": {
-    "card": { "width": 720, "height": 900, "format": "webp" },
-    "mobile": { "width": 540, "height": 720, "format": "webp" },
-    "profileWebp": { "width": 1200, "height": 1500, "format": "webp" },
-    "profileAvif": { "width": 1200, "height": 1500, "format": "avif" }
+    "cards": {
+      "width": 720,
+      "height": 900,
+      "formats": [
+        "webp",
+        "avif",
+        "jpg"
+      ]
+    },
+    "mobile": {
+      "width": 540,
+      "height": 675,
+      "formats": [
+        "webp",
+        "avif",
+        "jpg"
+      ]
+    },
+    "booking": {
+      "width": 640,
+      "height": 800,
+      "formats": [
+        "webp",
+        "avif",
+        "jpg"
+      ]
+    },
+    "tablet": {
+      "width": 960,
+      "height": 1200,
+      "formats": [
+        "webp",
+        "avif",
+        "jpg"
+      ]
+    },
+    "profiles": {
+      "width": 1200,
+      "height": 1500,
+      "formats": [
+        "webp",
+        "avif",
+        "jpg"
+      ]
+    },
+    "desktop": {
+      "width": 1200,
+      "height": 1500,
+      "formats": [
+        "webp",
+        "avif",
+        "jpg"
+      ]
+    }
   },
   "portraits": [
-    { "slug": "angelica-aquino", "source": "uploaded-square/03-angelica-aquino.png", "faceBox": [157, 48, 174, 174], "background": "#121516" },
-    { "slug": "hommy-rivera", "source": "uploaded-square/02-hommy-rivera.png", "faceBox": [157, 25, 212, 212], "background": "#181b1b" },
-    { "slug": "barber-los", "source": "uploaded-square/09-barber-los.png", "faceBox": [185, 46, 144, 144], "background": "#111313" },
-    { "slug": "jose", "source": "uploaded-square/08-jose.png", "faceBox": [122, 45, 208, 208], "background": "#0b0d0c" },
-    { "slug": "elvis", "source": "uploaded-square/07-elvis.png", "faceBox": [107, 65, 185, 185], "background": "#060a09" },
-    { "slug": "alfredo-hernandez-pollo", "source": "uploaded-square/06-alfredo-hernandez-pollo.png", "faceBox": [189, 40, 169, 169], "background": "#0f1110" },
-    { "slug": "russ-hawkins", "source": "uploaded-square/05-russ-hawkins.png", "faceBox": [97, 57, 159, 159], "background": "#131515" },
-    { "slug": "daniel-penalo", "source": "uploaded-square/04-daniel-penalo.png", "faceBox": [219, 50, 198, 198], "background": "#141819" }
+    {
+      "slug": "alfredo-hernandez-pollo",
+      "source": "public/media/barbers/originals/alfredo-hernandez-pollo.jpeg",
+      "sourceWidth": 1600,
+      "sourceHeight": 1067,
+      "safeFocalPoint": {
+        "x": 0.5,
+        "y": 0.18
+      },
+      "objectPosition": {
+        "card": "50% 18%",
+        "mobile": "50% 18%",
+        "booking": "50% 18%",
+        "profile": "50% 18%",
+        "desktop": "50% 18%"
+      }
+    },
+    {
+      "slug": "angelica-aquino",
+      "source": "public/media/barbers/originals/angelica-aquino.jpeg",
+      "sourceWidth": 1067,
+      "sourceHeight": 1600,
+      "safeFocalPoint": {
+        "x": 0.5,
+        "y": 0.2
+      },
+      "objectPosition": {
+        "card": "50% 20%",
+        "mobile": "50% 20%",
+        "booking": "50% 20%",
+        "profile": "50% 20%",
+        "desktop": "50% 20%"
+      }
+    },
+    {
+      "slug": "barber-los",
+      "source": "public/media/barbers/originals/barber-los.jpeg",
+      "sourceWidth": 843,
+      "sourceHeight": 1264,
+      "safeFocalPoint": {
+        "x": 0.5,
+        "y": 0.18
+      },
+      "objectPosition": {
+        "card": "50% 18%",
+        "mobile": "50% 18%",
+        "booking": "50% 18%",
+        "profile": "50% 18%",
+        "desktop": "50% 18%"
+      }
+    },
+    {
+      "slug": "daniel-penalo",
+      "source": "public/media/barbers/originals/daniel-penalo.jpeg",
+      "sourceWidth": 1067,
+      "sourceHeight": 1600,
+      "safeFocalPoint": {
+        "x": 0.5,
+        "y": 0.16
+      },
+      "objectPosition": {
+        "card": "50% 16%",
+        "mobile": "50% 16%",
+        "booking": "50% 16%",
+        "profile": "50% 16%",
+        "desktop": "50% 16%"
+      }
+    },
+    {
+      "slug": "elvis",
+      "source": "public/media/barbers/originals/elvis.jpeg",
+      "sourceWidth": 684,
+      "sourceHeight": 1024,
+      "safeFocalPoint": {
+        "x": 0.5,
+        "y": 0.16
+      },
+      "objectPosition": {
+        "card": "50% 16%",
+        "mobile": "50% 16%",
+        "booking": "50% 16%",
+        "profile": "50% 16%",
+        "desktop": "50% 16%"
+      }
+    },
+    {
+      "slug": "hommy-rivera",
+      "source": "public/media/barbers/originals/hommy-rivera.jpeg",
+      "sourceWidth": 1600,
+      "sourceHeight": 1067,
+      "safeFocalPoint": {
+        "x": 0.5,
+        "y": 0.24
+      },
+      "objectPosition": {
+        "card": "50% 24%",
+        "mobile": "50% 24%",
+        "booking": "50% 24%",
+        "profile": "50% 24%",
+        "desktop": "50% 24%"
+      }
+    },
+    {
+      "slug": "jose",
+      "source": "public/media/barbers/originals/jose.jpeg",
+      "sourceWidth": 1067,
+      "sourceHeight": 1600,
+      "safeFocalPoint": {
+        "x": 0.5,
+        "y": 0.18
+      },
+      "objectPosition": {
+        "card": "50% 18%",
+        "mobile": "50% 18%",
+        "booking": "50% 18%",
+        "profile": "50% 18%",
+        "desktop": "50% 18%"
+      }
+    },
+    {
+      "slug": "ruben-diaz-jr",
+      "source": "public/media/barbers/originals/ruben-diaz-jr.jpeg",
+      "sourceWidth": 1067,
+      "sourceHeight": 1600,
+      "safeFocalPoint": {
+        "x": 0.5,
+        "y": 0.24
+      },
+      "objectPosition": {
+        "card": "50% 24%",
+        "mobile": "50% 24%",
+        "booking": "50% 24%",
+        "profile": "50% 24%",
+        "desktop": "50% 24%"
+      }
+    },
+    {
+      "slug": "russ-hawkins",
+      "source": "public/media/barbers/originals/russ-hawkins.jpeg",
+      "sourceWidth": 1067,
+      "sourceHeight": 1600,
+      "safeFocalPoint": {
+        "x": 0.5,
+        "y": 0.2
+      },
+      "objectPosition": {
+        "card": "50% 20%",
+        "mobile": "50% 20%",
+        "booking": "50% 20%",
+        "profile": "50% 20%",
+        "desktop": "50% 20%"
+      }
+    }
   ]
 }

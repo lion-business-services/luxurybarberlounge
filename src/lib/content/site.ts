@@ -32,7 +32,7 @@ export const business = {
   instagram: "https://instagram.com/luxury_barberlounge",
   instagramHandle: "@luxury_barberlounge",
   facebook: "https://www.facebook.com/theluxurybarberlounge",
-  ownerName: "Rubén Díaz, Jr.",
+  ownerName: "Rubén Diaz, Jr.",
   ownerLanguage: ["English", "Spanish"],
   yearOpened: 2026,
   timezone: "America/New_York",
@@ -56,6 +56,7 @@ export const business = {
     label: { en: "Grand Opening · August 4 · 5:00 PM", es: "Gran Apertura · 4 de agosto · 5:00 PM" },
   },
   ownerConfirmation: [
+    "Rubén Diaz, Jr. recurring booking schedule, languages, walk-in setting, and public social link",
     "Angelica Aquino complete working-day range after Wednesday",
     "Barber Lo's years cutting, working days, and Instagram handle",
     "Exact Instagram punctuation for Alfredo Hernandez (Pollo)",
@@ -287,13 +288,31 @@ export type Barber = {
   specialties: Bi;
   specialtyTags: string[];
   languages: string;
+  languageCodes?: string[];
+  compactName?: string;
+  owner?: boolean;
   initials: string;
   serviceSlugs: string[];
   image: {
+    original: string;
     card: string;
+    cardAvif: string;
+    cardJpeg: string;
     profile: string;
     profileAvif: string;
+    profileJpeg: string;
+    booking: string;
+    bookingAvif: string;
+    bookingJpeg: string;
     mobile: string;
+    mobileAvif: string;
+    mobileJpeg: string;
+    tablet: string;
+    tabletAvif: string;
+    tabletJpeg: string;
+    desktop: string;
+    desktopAvif: string;
+    desktopJpeg: string;
     alt: Bi;
     objectPosition: { card: string; profile: string; mobile: string; booking: string };
   };
@@ -314,13 +333,44 @@ export type Barber = {
   contentStatus: ContentStatus;
 };
 
+function createBarberImage(
+  slug: string,
+  alt: Bi,
+  objectPosition: Barber["image"]["objectPosition"],
+): Barber["image"] {
+  const root = `/media/barbers`;
+  return {
+    original: `${root}/originals/${slug}.jpeg`,
+    card: `${root}/cards/${slug}.webp`,
+    cardAvif: `${root}/cards/${slug}.avif`,
+    cardJpeg: `${root}/cards/${slug}.jpg`,
+    profile: `${root}/profiles/${slug}.webp`,
+    profileAvif: `${root}/profiles/${slug}.avif`,
+    profileJpeg: `${root}/profiles/${slug}.jpg`,
+    booking: `${root}/booking/${slug}.webp`,
+    bookingAvif: `${root}/booking/${slug}.avif`,
+    bookingJpeg: `${root}/booking/${slug}.jpg`,
+    mobile: `${root}/mobile/${slug}.webp`,
+    mobileAvif: `${root}/mobile/${slug}.avif`,
+    mobileJpeg: `${root}/mobile/${slug}.jpg`,
+    tablet: `${root}/tablet/${slug}.webp`,
+    tabletAvif: `${root}/tablet/${slug}.avif`,
+    tabletJpeg: `${root}/tablet/${slug}.jpg`,
+    desktop: `${root}/desktop/${slug}.webp`,
+    desktopAvif: `${root}/desktop/${slug}.avif`,
+    desktopJpeg: `${root}/desktop/${slug}.jpg`,
+    alt,
+    objectPosition,
+  };
+}
+
 export const founderProfile = {
   slug: "ruben-diaz-jr",
-  name: "Ruben Diaz Jr.",
+  name: "Rubén Diaz, Jr.",
   image: {
     profile: "/media/barbers/profiles/ruben-diaz-jr.webp",
     profileAvif: "/media/barbers/profiles/ruben-diaz-jr.avif",
-    alt: { en: "Ruben Diaz Jr., founder of Luxury Barber Lounge", es: "Ruben Diaz Jr., fundador de Luxury Barber Lounge" },
+    alt: { en: "Rubén Diaz, Jr., owner and master barber at Luxury Barber Lounge", es: "Rubén Diaz, Jr., propietario y maestro barbero de Luxury Barber Lounge" },
     objectPosition: { profile: "50% 22%" },
   },
 } as const;
@@ -328,6 +378,33 @@ export const founderProfile = {
 const allStandardServices = ["haircut", "skin-fade", "beard", "cut-and-beard", "hot-towel-shave", "kids-haircut", "senior-haircut", "line-up"];
 
 export const barbers: Barber[] = [
+  {
+    slug: "ruben-diaz-jr",
+    name: "Rubén Diaz, Jr.",
+    compactName: "Ruben",
+    initials: "RD",
+    title: { en: "Owner and Master Barber", es: "Propietario y Maestro Barbero" },
+    bio: { en: "Rubén Diaz, Jr. founded Luxury Barber Lounge to elevate the traditional barbershop experience through precision, personal service, confidence, and a refined atmosphere.", es: "Rubén Diaz, Jr. fundó Luxury Barber Lounge para elevar la experiencia tradicional de barbería mediante precisión, servicio personal, confianza y un ambiente refinado." },
+    story: { en: "His approach combines disciplined craftsmanship with a commitment to making every client feel recognized, comfortable, and distinguished.", es: "Su enfoque combina una técnica disciplinada con el compromiso de hacer que cada cliente se sienta reconocido, cómodo y distinguido." },
+    specialties: { en: "Precision grooming, personal service, and refined barbering", es: "Grooming de precisión, servicio personal y barbería refinada" },
+    specialtyTags: ["precision grooming", "personal service", "refined barbering"],
+    languages: "Confirm with lounge",
+    languageCodes: [],
+    serviceSlugs: allStandardServices,
+    image: createBarberImage("ruben-diaz-jr", { en: "Rubén Diaz, Jr. of Luxury Barber Lounge", es: "Rubén Diaz, Jr. de Luxury Barber Lounge" }, { card: "50% 24%", profile: "50% 24%", mobile: "50% 22%", booking: "50% 24%" }),
+    identityStatus: "verified",
+    availability: { en: "Bookable when the owner schedule is published. Contact the lounge for current availability.", es: "Disponible para reservar cuando se publique el horario del propietario. Comunícate con el lounge para confirmar disponibilidad." },
+    workingDays: { en: "Pending owner schedule confirmation", es: "Pendiente de confirmación del horario del propietario" },
+    bookingWeekdays: [],
+    walkIns: false,
+    photoProvided: true,
+    socialStatus: "not-provided",
+    active: true,
+    featured: true,
+    owner: true,
+    sortOrder: 0,
+    contentStatus: "confirmed",
+  },
   {
     slug: "angelica-aquino",
     name: "Angelica Aquino",
@@ -339,7 +416,7 @@ export const barbers: Barber[] = [
     specialtyTags: ["all types of haircuts"],
     languages: "EN · ES",
     serviceSlugs: allStandardServices,
-    image: { card: "/media/barbers/cards/angelica-aquino.webp", profile: "/media/barbers/profiles/angelica-aquino.webp", profileAvif: "/media/barbers/profiles/angelica-aquino.avif", mobile: "/media/barbers/mobile/angelica-aquino.webp", alt: { en: "Angelica Aquino of Luxury Barber Lounge", es: "Angelica Aquino de Luxury Barber Lounge" }, objectPosition: { card: "50% 20%", profile: "50% 18%", mobile: "50% 18%", booking: "50% 20%" } },
+    image: createBarberImage("angelica-aquino", { en: "Angelica Aquino of Luxury Barber Lounge", es: "Angelica Aquino de Luxury Barber Lounge" }, { card: "50% 20%", profile: "50% 18%", mobile: "50% 18%", booking: "50% 20%" }),
     identityStatus: "verified",
     availability: { en: "Wednesday is confirmed. Additional working days are pending owner confirmation.", es: "Miercoles esta confirmado. Los dias adicionales esperan confirmacion." },
     workingDays: { en: "Wednesday confirmed; remaining range pending", es: "Miercoles confirmado; rango restante pendiente" },
@@ -366,7 +443,7 @@ export const barbers: Barber[] = [
     specialtyTags: ["all types of haircuts"],
     languages: "ES · EN",
     serviceSlugs: allStandardServices,
-    image: { card: "/media/barbers/cards/hommy-rivera.webp", profile: "/media/barbers/profiles/hommy-rivera.webp", profileAvif: "/media/barbers/profiles/hommy-rivera.avif", mobile: "/media/barbers/mobile/hommy-rivera.webp", alt: { en: "Hommy Rivera of Luxury Barber Lounge", es: "Hommy Rivera de Luxury Barber Lounge" }, objectPosition: { card: "50% 24%", profile: "50% 22%", mobile: "50% 22%", booking: "50% 24%" } },
+    image: createBarberImage("hommy-rivera", { en: "Hommy Rivera of Luxury Barber Lounge", es: "Hommy Rivera de Luxury Barber Lounge" }, { card: "50% 24%", profile: "50% 22%", mobile: "50% 22%", booking: "50% 24%" }),
     identityStatus: "verified",
     availability: { en: "Tuesday through Sunday", es: "Martes a domingo" },
     workingDays: { en: "Tuesday through Sunday", es: "Martes a domingo" },
@@ -393,7 +470,7 @@ export const barbers: Barber[] = [
     specialtyTags: ["all types of haircuts", "designs"],
     languages: "ES · EN",
     serviceSlugs: [...allStandardServices, "design"],
-    image: { card: "/media/barbers/cards/barber-los.webp", profile: "/media/barbers/profiles/barber-los.webp", profileAvif: "/media/barbers/profiles/barber-los.avif", mobile: "/media/barbers/mobile/barber-los.webp", alt: { en: "Barber Lo's of Luxury Barber Lounge", es: "Barber Lo's de Luxury Barber Lounge" }, objectPosition: { card: "50% 18%", profile: "50% 18%", mobile: "50% 18%", booking: "50% 18%" } },
+    image: createBarberImage("barber-los", { en: "Barber Lo's of Luxury Barber Lounge", es: "Barber Lo's de Luxury Barber Lounge" }, { card: "50% 18%", profile: "50% 18%", mobile: "50% 18%", booking: "50% 18%" }),
     identityStatus: "verified",
     availability: { en: "Schedule pending owner confirmation. Call the lounge for current openings.", es: "Horario pendiente. Llama al lounge para disponibilidad." },
     workingDays: { en: "Pending owner confirmation", es: "Pendiente de confirmacion" },
@@ -416,7 +493,7 @@ export const barbers: Barber[] = [
     specialtyTags: ["hot towel services", "facials"],
     languages: "EN · ES",
     serviceSlugs: allStandardServices,
-    image: { card: "/media/barbers/cards/jose.webp", profile: "/media/barbers/profiles/jose.webp", profileAvif: "/media/barbers/profiles/jose.avif", mobile: "/media/barbers/mobile/jose.webp", alt: { en: "Jose of Luxury Barber Lounge", es: "Jose de Luxury Barber Lounge" }, objectPosition: { card: "50% 18%", profile: "50% 18%", mobile: "50% 18%", booking: "50% 18%" } },
+    image: createBarberImage("jose", { en: "Jose of Luxury Barber Lounge", es: "Jose de Luxury Barber Lounge" }, { card: "50% 18%", profile: "50% 18%", mobile: "50% 18%", booking: "50% 18%" }),
     identityStatus: "verified",
     availability: { en: "Tuesday through Saturday", es: "Martes a sabado" },
     workingDays: { en: "Tuesday through Saturday", es: "Martes a sabado" },
@@ -440,7 +517,7 @@ export const barbers: Barber[] = [
     specialtyTags: ["fluffy texture", "fringe"],
     languages: "EN · ES",
     serviceSlugs: allStandardServices,
-    image: { card: "/media/barbers/cards/elvis.webp", profile: "/media/barbers/profiles/elvis.webp", profileAvif: "/media/barbers/profiles/elvis.avif", mobile: "/media/barbers/mobile/elvis.webp", alt: { en: "Elvis of Luxury Barber Lounge", es: "Elvis de Luxury Barber Lounge" }, objectPosition: { card: "50% 16%", profile: "50% 16%", mobile: "50% 16%", booking: "50% 16%" } },
+    image: createBarberImage("elvis", { en: "Elvis of Luxury Barber Lounge", es: "Elvis de Luxury Barber Lounge" }, { card: "50% 16%", profile: "50% 16%", mobile: "50% 16%", booking: "50% 16%" }),
     identityStatus: "verified",
     availability: { en: "Tuesday through Sunday", es: "Martes a domingo" },
     workingDays: { en: "Tuesday through Sunday", es: "Martes a domingo" },
@@ -463,7 +540,7 @@ export const barbers: Barber[] = [
     specialtyTags: ["all types of haircuts"],
     languages: "EN · ES",
     serviceSlugs: allStandardServices,
-    image: { card: "/media/barbers/cards/alfredo-hernandez-pollo.webp", profile: "/media/barbers/profiles/alfredo-hernandez-pollo.webp", profileAvif: "/media/barbers/profiles/alfredo-hernandez-pollo.avif", mobile: "/media/barbers/mobile/alfredo-hernandez-pollo.webp", alt: { en: "Alfredo Hernandez, known as Pollo, of Luxury Barber Lounge", es: "Alfredo Hernandez, conocido como Pollo, de Luxury Barber Lounge" }, objectPosition: { card: "50% 18%", profile: "50% 18%", mobile: "50% 18%", booking: "50% 18%" } },
+    image: createBarberImage("alfredo-hernandez-pollo", { en: "Alfredo Hernandez, known as Pollo, of Luxury Barber Lounge", es: "Alfredo Hernandez, conocido como Pollo, de Luxury Barber Lounge" }, { card: "50% 18%", profile: "50% 18%", mobile: "50% 18%", booking: "50% 18%" }),
     identityStatus: "verified",
     availability: { en: "Tuesday through Saturday", es: "Martes a sabado" },
     workingDays: { en: "Tuesday through Saturday", es: "Martes a sabado" },
@@ -488,7 +565,7 @@ export const barbers: Barber[] = [
     specialtyTags: ["all types of haircuts"],
     languages: "EN",
     serviceSlugs: allStandardServices,
-    image: { card: "/media/barbers/cards/russ-hawkins.webp", profile: "/media/barbers/profiles/russ-hawkins.webp", profileAvif: "/media/barbers/profiles/russ-hawkins.avif", mobile: "/media/barbers/mobile/russ-hawkins.webp", alt: { en: "Russ Hawkins of Luxury Barber Lounge", es: "Russ Hawkins de Luxury Barber Lounge" }, objectPosition: { card: "50% 20%", profile: "50% 20%", mobile: "50% 20%", booking: "50% 20%" } },
+    image: createBarberImage("russ-hawkins", { en: "Russ Hawkins of Luxury Barber Lounge", es: "Russ Hawkins de Luxury Barber Lounge" }, { card: "50% 20%", profile: "50% 20%", mobile: "50% 20%", booking: "50% 20%" }),
     identityStatus: "verified",
     availability: { en: "Tuesday through Saturday", es: "Martes a sabado" },
     workingDays: { en: "Tuesday through Saturday", es: "Martes a sabado" },
@@ -512,7 +589,7 @@ export const barbers: Barber[] = [
     specialtyTags: ["all types of haircuts"],
     languages: "ES",
     serviceSlugs: allStandardServices,
-    image: { card: "/media/barbers/cards/daniel-penalo.webp", profile: "/media/barbers/profiles/daniel-penalo.webp", profileAvif: "/media/barbers/profiles/daniel-penalo.avif", mobile: "/media/barbers/mobile/daniel-penalo.webp", alt: { en: "Daniel Penalo of Luxury Barber Lounge", es: "Daniel Penalo de Luxury Barber Lounge" }, objectPosition: { card: "50% 16%", profile: "50% 16%", mobile: "50% 16%", booking: "50% 16%" } },
+    image: createBarberImage("daniel-penalo", { en: "Daniel Penalo of Luxury Barber Lounge", es: "Daniel Penalo de Luxury Barber Lounge" }, { card: "50% 16%", profile: "50% 16%", mobile: "50% 16%", booking: "50% 16%" }),
     identityStatus: "verified",
     availability: { en: "Tuesday through Saturday", es: "Martes a sabado" },
     workingDays: { en: "Tuesday through Saturday", es: "Martes a sabado" },

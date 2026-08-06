@@ -17,7 +17,7 @@ npx supabase@latest migration list
 npm run types:supabase
 ```
 
-Remote migrations must match through `202608060016`.
+Remote migrations must match through `202608060017`. Verify that the public catalog RPC is executable by `anon` and that no service-role key is present in browser bundles.
 
 ## Vercel
 

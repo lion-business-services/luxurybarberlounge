@@ -1,6 +1,8 @@
 # Launch Checklist
 
-- [ ] Apply migrations through `202608060016`.
+- [ ] Apply migrations through `202608060017`.
+- [ ] Confirm the anonymous role can execute `get_public_booking_catalog()` and that `/api/booking/catalog` returns services and barbers without a service-role browser dependency.
+- [ ] Publish Ruben's actual schedule before marking him selectable for appointment times.
 - [ ] Regenerate and commit Supabase types.
 - [ ] Confirm business hours and holiday hours.
 - [ ] Confirm every live barber identity, staff account, services, schedule, breaks, and time off.

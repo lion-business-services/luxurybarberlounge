@@ -1,7 +1,8 @@
-# Canonical Barber Roster
+# Barber Roster
 
-The active public roster is:
+The active centralized roster is:
 
+- Rubén Diaz, Jr. (`ruben-diaz-jr`), Owner and Master Barber. Public and service-eligible; schedule, languages, walk-ins, and social link pending owner confirmation.
 - Angelica Aquino (`angelica-aquino`)
 - Hommy Rivera (`hommy-rivera`)
 - Barber Lo's (`barber-los`)
@@ -11,4 +12,4 @@ The active public roster is:
 - Russ Hawkins (`russ-hawkins`)
 - Daniel Penalo (`daniel-penalo`)
 
-Rubén Díaz, Jr. is stored separately as the founder profile. He is not part of the eight-person intake-confirmed active booking roster.
+The public roster is defined in `src/lib/content/site.ts`. Database consolidation and the privacy-safe booking catalog are provided by migration `202608060017_ruben_live_booking_release.sql`.

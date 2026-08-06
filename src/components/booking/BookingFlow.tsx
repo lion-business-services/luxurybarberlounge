@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, Loader2, MapPin, Phone, Scissors, ShieldCheck, UserRound } from "lucide-react";
@@ -31,8 +32,12 @@ type Draft = {
 };
 
 function localToday() {
-  const value = new Date();
-  return new Date(value.getTime() - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: businessConfig.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 function newDraft(): Draft {
@@ -86,7 +91,14 @@ export function BookingFlow() {
       setCatalog(loadedCatalog);
       const serviceSlug = searchParams.get("service");
       const barberSlug = searchParams.get("barber");
-      setDraft((current) => ({ ...current, serviceId: loadedCatalog.services.find((item) => item.slug === serviceSlug)?.id || current.serviceId, barberId: loadedCatalog.barbers.find((item) => item.slug === barberSlug)?.id || current.barberId, firstAvailable: barberSlug ? false : current.firstAvailable }));
+      const requestedBarber = loadedCatalog.barbers.find((item) => item.slug === barberSlug);
+      const useFirstAvailable = !barberSlug || barberSlug === "best-available" || !requestedBarber;
+      setDraft((current) => ({
+        ...current,
+        serviceId: loadedCatalog.services.find((item) => item.slug === serviceSlug)?.id || current.serviceId,
+        barberId: useFirstAvailable ? null : requestedBarber.id,
+        firstAvailable: useFirstAvailable,
+      }));
     }).catch((caught) => setError(caught instanceof Error ? caught.message : "Booking is temporarily unavailable.")).finally(() => setLoadingCatalog(false));
   }, [searchParams]);
 
@@ -115,7 +127,10 @@ export function BookingFlow() {
 
   const canContinue = useMemo(() => {
     if (step === 0) return Boolean(service);
-    if (step === 1) return draft.firstAvailable || Boolean(draft.barberId);
+    if (step === 1) {
+      if (draft.firstAvailable) return eligibleBarbers.some((barber) => barber.bookable);
+      return Boolean(eligibleBarbers.find((barber) => barber.id === draft.barberId)?.bookable);
+    }
     if (step === 2) return Boolean(selectedSlot);
     if (step === 3) return Boolean(draft.firstName.trim() && draft.lastName.trim() && /@/.test(draft.email) && draft.phone.replace(/\D/g, "").length >= 10 && draft.policyAccepted);
     return true;
@@ -172,11 +187,115 @@ export function BookingFlow() {
 }
 
 function StepTitle({ number, title, copy }: { number: string; title: string; copy: string }) { return <header><p className="text-[10px] tracking-[.28em] uppercase text-[var(--color-brass)]">Step {number}</p><h2 className="font-display mt-3 text-3xl sm:text-5xl">{title}</h2><p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--color-bone-muted)]">{copy}</p></header>; }
-function ServiceStep({ catalog, draft, update }: { catalog: BookingCatalog; draft: Draft; update: <K extends keyof Draft>(key: K, value: Draft[K]) => void }) { return <div><StepTitle number="1" title="Choose your service" copy="Prices shown are starting estimates. Your barber confirms any change before the service begins." /><div className="mt-7 grid gap-3 sm:grid-cols-2">{catalog.services.map((item) => <label key={item.id} className={draft.serviceId === item.id ? "cursor-pointer rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5 p-4" : "cursor-pointer rounded-xl border border-[var(--color-ink-line)] p-4 hover:border-[var(--color-brass)]/50"}><input type="radio" name="service" value={item.id} checked={draft.serviceId === item.id} onChange={() => update("serviceId", item.id)} className="sr-only" /><span className="font-display text-xl">{item.name}</span><span className="mt-2 block text-xs leading-5 text-[var(--color-bone-muted)]">{item.description}</span><span className="mt-4 flex justify-between text-[10px] tracking-[.12em] uppercase"><span>{item.durationMinutes} min</span><span className="text-[var(--color-brass)]">From ${(item.priceCents / 100).toFixed(0)}</span></span></label>)}</div><fieldset className="mt-8"><legend className="text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Optional enhancements</legend><div className="mt-3 grid gap-3 sm:grid-cols-2">{catalog.addons.map((item) => <label key={item.id} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-[var(--color-ink-line)] px-4"><input type="checkbox" checked={draft.addonIds.includes(item.id)} onChange={(event) => update("addonIds", event.target.checked ? [...draft.addonIds, item.id] : draft.addonIds.filter((id) => id !== item.id))} className="h-5 w-5 accent-[var(--color-brass)]" /><span className="flex-1 text-sm">{item.name}</span><span className="text-xs text-[var(--color-brass)]">+${(item.priceCents / 100).toFixed(0)}</span></label>)}</div></fieldset></div>; }
-function BarberStep({ barbers, draft, update }: { barbers: BookingCatalog["barbers"]; draft: Draft; update: <K extends keyof Draft>(key: K, value: Draft[K]) => void }) { return <div><StepTitle number="2" title="Choose your barber" copy="Select a specific professional or let the system find the first eligible opening." /><label className={draft.firstAvailable ? "mt-7 flex cursor-pointer items-center gap-4 rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5 p-5" : "mt-7 flex cursor-pointer items-center gap-4 rounded-xl border border-[var(--color-ink-line)] p-5"}><input type="radio" name="barber" checked={draft.firstAvailable} onChange={() => { update("firstAvailable", true); update("barberId", null); }} className="h-5 w-5 accent-[var(--color-brass)]" /><div><span className="font-display text-2xl">First available</span><span className="mt-1 block text-sm text-[var(--color-bone-muted)]">The earliest eligible barber for your selected service.</span></div></label><div className="mt-4 grid gap-3 sm:grid-cols-2">{barbers.map((barber) => <label key={barber.id} className={!draft.firstAvailable && draft.barberId === barber.id ? "cursor-pointer overflow-hidden rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5" : "cursor-pointer overflow-hidden rounded-xl border border-[var(--color-ink-line)] hover:border-[var(--color-brass)]/50"}><input type="radio" name="barber" checked={!draft.firstAvailable && draft.barberId === barber.id} onChange={() => { update("firstAvailable", false); update("barberId", barber.id); }} className="sr-only" />{barber.portrait ? <div className="relative aspect-[4/5] overflow-hidden bg-black"><Image src={barber.portrait} alt={barber.name} fill sizes="(max-width: 640px) 100vw, 50vw" style={{ objectPosition: barber.portraitPosition }} className="object-cover" /></div> : null}<div className="grid min-h-[12rem] grid-rows-[auto_auto_4rem_auto] p-4"><span className="font-display text-2xl">{barber.name}</span><span className="mt-1 block text-xs text-[var(--color-brass)]">{barber.title}</span><span className="mt-3 block line-clamp-3 min-h-[4rem] text-xs leading-5 text-[var(--color-bone-muted)]">{barber.biography}</span><span className="mt-3 block text-[9px] tracking-[.12em] uppercase text-[var(--color-bone-muted)]">{barber.languages.join(" · ")}</span></div></label>)}</div></div>; }
+function ServiceStep({ catalog, draft, update }: { catalog: BookingCatalog; draft: Draft; update: <K extends keyof Draft>(key: K, value: Draft[K]) => void }) {
+  return <div>
+    <StepTitle number="1" title="Choose your service" copy="Review the exact duration, price, and required 50% deposit before choosing a chair." />
+    <div className="mt-7 grid gap-3 sm:grid-cols-2">
+      {catalog.services.map((item) => <label key={item.id} className={draft.serviceId === item.id ? "cursor-pointer rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5 p-4" : "cursor-pointer rounded-xl border border-[var(--color-ink-line)] p-4 hover:border-[var(--color-brass)]/50"}>
+        <input type="radio" name="service" value={item.id} checked={draft.serviceId === item.id} onChange={() => update("serviceId", item.id)} className="sr-only" />
+        <span className="font-display text-xl">{item.name}</span>
+        <span className="mt-2 block text-xs leading-5 text-[var(--color-bone-muted)]">{item.description}</span>
+        <span className="mt-4 grid grid-cols-3 gap-2 text-[9px] tracking-[.12em] uppercase">
+          <span>{item.durationMinutes} min</span>
+          <span className="text-center text-[var(--color-brass)]">${(item.priceCents / 100).toFixed(0)}</span>
+          <span className="text-right">Deposit ${(item.depositCents / 100).toFixed(0)}</span>
+        </span>
+      </label>)}
+    </div>
+    <fieldset className="mt-8">
+      <legend className="text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Optional enhancements</legend>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">{catalog.addons.map((item) => <label key={item.id} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-[var(--color-ink-line)] px-4"><input type="checkbox" checked={draft.addonIds.includes(item.id)} onChange={(event) => update("addonIds", event.target.checked ? [...draft.addonIds, item.id] : draft.addonIds.filter((id) => id !== item.id))} className="h-5 w-5 accent-[var(--color-brass)]" /><span className="flex-1 text-sm">{item.name}</span><span className="text-xs text-[var(--color-brass)]">+${(item.priceCents / 100).toFixed(0)}</span></label>)}</div>
+    </fieldset>
+  </div>;
+}
+function BarberStep({ barbers, draft, update }: { barbers: BookingCatalog["barbers"]; draft: Draft; update: <K extends keyof Draft>(key: K, value: Draft[K]) => void }) {
+  const firstAvailableReady = barbers.some((barber) => barber.bookable);
+  return <div>
+    <StepTitle number="2" title="Choose your barber" copy="Select a specific professional or let the system find the first eligible opening." />
+    <label className={draft.firstAvailable ? "mt-7 flex cursor-pointer items-center gap-4 rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5 p-5" : "mt-7 flex cursor-pointer items-center gap-4 rounded-xl border border-[var(--color-ink-line)] p-5"}>
+      <input type="radio" name="barber" checked={draft.firstAvailable} disabled={!firstAvailableReady} onChange={() => { update("firstAvailable", true); update("barberId", null); }} className="h-5 w-5 accent-[var(--color-brass)]" />
+      <div><span className="font-display text-2xl">First available</span><span className="mt-1 block text-sm text-[var(--color-bone-muted)]">{firstAvailableReady ? "The earliest eligible barber for your selected service." : "No confirmed schedules are posted for this service yet."}</span></div>
+    </label>
+    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      {barbers.map((barber) => {
+        const selected = !draft.firstAvailable && draft.barberId === barber.id;
+        const cardClass = barber.bookable
+          ? (selected ? "overflow-hidden rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5" : "overflow-hidden rounded-xl border border-[var(--color-ink-line)] hover:border-[var(--color-brass)]/50")
+          : "overflow-hidden rounded-xl border border-[var(--color-ink-line)] opacity-65";
+        return <article key={barber.id} className={cardClass}>
+          <label aria-disabled={!barber.bookable} className={barber.bookable ? "block cursor-pointer" : "block"}>
+            <input type="radio" name="barber" checked={selected} disabled={!barber.bookable} onChange={() => { update("firstAvailable", false); update("barberId", barber.id); }} className="sr-only" />
+            {barber.portrait ? <div className="relative aspect-[4/5] overflow-hidden bg-black"><picture>{barber.portraitAvif ? <source srcSet={barber.portraitAvif} type="image/avif" /> : null}<source srcSet={barber.portrait} type="image/webp" /><Image src={barber.portraitJpeg ?? barber.portrait} alt={barber.name} fill sizes="(max-width: 640px) 100vw, 50vw" style={{ objectPosition: barber.portraitPosition }} className="object-cover" /></picture></div> : null}
+            <div className="grid min-h-[15.5rem] grid-rows-[auto_auto_4rem_auto_auto_auto] p-4 pb-2">
+              <span className="font-display text-2xl">{barber.name}</span>
+              <span className="mt-1 block text-xs text-[var(--color-brass)]">{barber.title}</span>
+              <span className="mt-3 block line-clamp-3 min-h-[4rem] text-xs leading-5 text-[var(--color-bone-muted)]">{barber.biography}</span>
+              <span className="mt-3 block line-clamp-2 min-h-[2.5rem] text-[9px] leading-5 tracking-[.12em] uppercase text-[var(--color-bone-muted)]">{barber.specialties.join(" · ")}</span>
+              <span className="mt-2 block text-[9px] tracking-[.12em] uppercase text-[var(--color-bone-muted)]">{barber.languages.length ? barber.languages.join(" · ") : "Languages confirmed at booking"}</span>
+              <span className={barber.bookable ? "mt-3 block text-[9px] tracking-[.12em] uppercase text-emerald-200" : "mt-3 block text-[9px] leading-5 tracking-[.12em] uppercase text-[var(--color-brass)]"}>{barber.bookable ? "Schedule available" : barber.availabilityNote}</span>
+            </div>
+          </label>
+          <div className="px-4 pb-4"><Link href={`/barbers/${barber.slug}`} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center text-[9px] tracking-[.16em] uppercase text-[var(--color-brass)]">View profile</Link></div>
+        </article>;
+      })}
+    </div>
+  </div>;
+}
 function TimeStep({ draft, update, slots, loading, timezone }: { draft: Draft; update: <K extends keyof Draft>(key: K, value: Draft[K]) => void; slots: AvailabilitySlot[]; loading: boolean; timezone: string }) { return <div><StepTitle number="3" title="Choose a real available time" copy={`Availability is shown in ${timezone.replaceAll("_", " ")} and rechecked when you confirm.`} /><label className="mt-7 block max-w-xs text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Date<input type="date" value={draft.date} min={localToday()} onChange={(event) => update("date", event.target.value)} className="form-control mt-2 min-h-14 w-full text-base normal-case tracking-normal" /></label>{loading ? <div className="mt-7 grid gap-3 sm:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <div key={index} className="h-14 animate-pulse rounded-xl bg-white/5" />)}</div> : slots.length ? <fieldset className="mt-7"><legend className="text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Available times</legend><div className="mt-3 grid gap-3 sm:grid-cols-3">{slots.map((slot) => <label key={slot.id} className={draft.startsAt === slot.startsAt ? "cursor-pointer rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5 p-4 text-center" : "cursor-pointer rounded-xl border border-[var(--color-ink-line)] p-4 text-center hover:border-[var(--color-brass)]/50"}><input type="radio" name="time" checked={draft.startsAt === slot.startsAt} onChange={() => update("startsAt", slot.startsAt)} className="sr-only" /><span className="block text-base">{new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(new Date(slot.startsAt))}</span><span className="mt-1 block text-[9px] tracking-[.12em] uppercase text-[var(--color-bone-muted)]">{slot.barberName}</span></label>)}</div></fieldset> : <div className="mt-7 rounded-xl border border-dashed border-[var(--color-ink-line)] p-7 text-center"><CalendarDays className="mx-auto h-6 w-6 text-[var(--color-brass)]" /><p className="font-display mt-3 text-2xl">No openings on this date</p><p className="mt-2 text-sm text-[var(--color-bone-muted)]">Choose another day or call the lounge for assistance.</p></div>}</div>; }
-function DetailsStep({ draft, update, fieldErrors, image, setImage }: { draft: Draft; update: <K extends keyof Draft>(key: K, value: Draft[K]) => void; fieldErrors: Record<string, string[]>; image: File | null; setImage: (file: File | null) => void }) { return <div><StepTitle number="4" title="Tell us who is coming" copy="We use these details only to manage your appointment and requested communication preferences." /><div className="mt-7 grid gap-5 sm:grid-cols-2"><Field label="First name" value={draft.firstName} onChange={(value) => update("firstName", value)} error={fieldErrors.firstName?.[0]} autoComplete="given-name" /><Field label="Last name" value={draft.lastName} onChange={(value) => update("lastName", value)} error={fieldErrors.lastName?.[0]} autoComplete="family-name" /><Field label="Email" type="email" value={draft.email} onChange={(value) => update("email", value)} error={fieldErrors.email?.[0]} autoComplete="email" inputMode="email" /><Field label="Phone" type="tel" value={draft.phone} onChange={(value) => update("phone", value)} error={fieldErrors.phone?.[0]} autoComplete="tel" inputMode="tel" /></div><fieldset className="mt-6"><legend className="text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Have you visited us before?</legend><div className="mt-3 flex flex-wrap gap-3">{(["yes", "no", "unsure"] as const).map((value) => <label key={value} className="flex min-h-12 cursor-pointer items-center gap-2 rounded-full border border-[var(--color-ink-line)] px-4"><input type="radio" name="existing-client" checked={draft.existingClient === value} onChange={() => update("existingClient", value)} className="accent-[var(--color-brass)]" /><span className="text-sm capitalize">{value}</span></label>)}</div></fieldset><label className="mt-6 block text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Optional notes<textarea value={draft.notes} onChange={(event) => update("notes", event.target.value)} maxLength={1000} rows={4} className="form-control mt-2 w-full resize-y text-base normal-case tracking-normal" placeholder="Hair goals, accessibility needs, or anything the barber should know." /></label><label className="mt-6 block rounded-xl border border-dashed border-[var(--color-ink-line)] p-4"><span className="text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Optional inspiration image</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file=event.target.files?.[0]??null; if(file&&file.size>10*1024*1024){event.target.value="";setImage(null);}else setImage(file); }} className="mt-3 block w-full text-sm text-[var(--color-bone-muted)] file:mr-4 file:rounded-full file:border-0 file:bg-[var(--color-brass)] file:px-4 file:py-2 file:text-xs file:uppercase file:tracking-wider file:text-black" />{image ? <small className="mt-2 block text-[var(--color-bone-muted)]">{image.name}</small> : null}</label><div className="mt-6 space-y-3"><Consent checked={draft.emailConsent} onChange={(value) => update("emailConsent", value)}>Email me appointment confirmations and updates.</Consent><Consent checked={draft.smsConsent} onChange={(value) => update("smsConsent", value)}>Text me appointment and queue updates. Message and data rates may apply.</Consent><Consent checked={draft.policyAccepted} onChange={(value) => update("policyAccepted", value)} required>I acknowledge the booking, cancellation, and no-show policy.</Consent></div></div>; }
-function ReviewStep({ draft, service, addons, barber, slot, location, duration, estimatedPrice }: { draft: Draft; service: BookingCatalog["services"][number] | undefined; addons: BookingCatalog["addons"]; barber: BookingCatalog["barbers"][number] | undefined; slot: AvailabilitySlot | undefined; location: BookingCatalog["location"]; duration: number; estimatedPrice: number }) { return <div><StepTitle number="5" title="Review your appointment" copy="The selected time is revalidated and reserved atomically when you confirm. A success message appears only after the booking is saved." /><dl className="mt-7 grid gap-4 sm:grid-cols-2"><Review label="Service" value={service?.name ?? "—"} /><Review label="Add-ons" value={addons.length ? addons.map((item) => item.name).join(", ") : "None"} /><Review label="Barber" value={barber?.name ?? "—"} /><Review label="Date and time" value={slot ? new Intl.DateTimeFormat("en-US", { timeZone: location.timezone, dateStyle: "full", timeStyle: "short" }).format(new Date(slot.startsAt)) : "—"} /><Review label="Duration" value={`${duration} minutes`} /><Review label="Estimated price" value={`$${(estimatedPrice / 100).toFixed(2)}`} /><Review label="Client" value={`${draft.firstName} ${draft.lastName}`} /><Review label="Contact" value={`${draft.email} · ${draft.phone}`} /><Review label="Location" value={location.address} /><Review label="Policy" value="Acknowledged" /></dl><div className="mt-7 flex gap-3 rounded-xl border border-[var(--color-brass)]/25 bg-[var(--color-brass)]/5 p-4 text-xs leading-6 text-[var(--color-bone-muted)]"><ShieldCheck className="mt-1 h-4 w-4 shrink-0 text-[var(--color-brass)]" />Your booking is stored before email notifications are attempted. An email-provider interruption will not erase a successfully reserved appointment.</div></div>; }
+function DetailsStep({ draft, update, fieldErrors, image, setImage }: { draft: Draft; update: <K extends keyof Draft>(key: K, value: Draft[K]) => void; fieldErrors: Record<string, string[]>; image: File | null; setImage: (file: File | null) => void }) {
+  return <div>
+    <StepTitle number="4" title="Tell us who is coming" copy="We use these details only to manage your appointment and requested communication preferences." />
+    <div className="mt-7 grid gap-5 sm:grid-cols-2">
+      <Field label="First name" value={draft.firstName} onChange={(value) => update("firstName", value)} error={fieldErrors.firstName?.[0]} autoComplete="given-name" />
+      <Field label="Last name" value={draft.lastName} onChange={(value) => update("lastName", value)} error={fieldErrors.lastName?.[0]} autoComplete="family-name" />
+      <Field label="Email" type="email" value={draft.email} onChange={(value) => update("email", value)} error={fieldErrors.email?.[0]} autoComplete="email" inputMode="email" />
+      <Field label="Phone" type="tel" value={draft.phone} onChange={(value) => update("phone", value)} error={fieldErrors.phone?.[0]} autoComplete="tel" inputMode="tel" />
+    </div>
+    <div className="mt-6 grid gap-6 sm:grid-cols-2">
+      <fieldset>
+        <legend className="text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Preferred language</legend>
+        <div className="mt-3 flex flex-wrap gap-3">
+          {(["en", "es"] as const).map((value) => <label key={value} className="flex min-h-12 cursor-pointer items-center gap-2 rounded-full border border-[var(--color-ink-line)] px-4"><input type="radio" name="preferred-language" checked={draft.preferredLanguage === value} onChange={() => update("preferredLanguage", value)} className="accent-[var(--color-brass)]" /><span className="text-sm">{value === "en" ? "English" : "Español"}</span></label>)}
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend className="text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Have you visited us before?</legend>
+        <div className="mt-3 flex flex-wrap gap-3">{(["yes", "no", "unsure"] as const).map((value) => <label key={value} className="flex min-h-12 cursor-pointer items-center gap-2 rounded-full border border-[var(--color-ink-line)] px-4"><input type="radio" name="existing-client" checked={draft.existingClient === value} onChange={() => update("existingClient", value)} className="accent-[var(--color-brass)]" /><span className="text-sm capitalize">{value}</span></label>)}</div>
+      </fieldset>
+    </div>
+    <label className="mt-6 block text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Optional notes<textarea value={draft.notes} onChange={(event) => update("notes", event.target.value)} maxLength={1000} rows={4} className="form-control mt-2 w-full resize-y text-base normal-case tracking-normal" placeholder="Hair goals, accessibility needs, or anything the barber should know." /></label>
+    <label className="mt-6 block rounded-xl border border-dashed border-[var(--color-ink-line)] p-4"><span className="text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Optional inspiration image</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file=event.target.files?.[0]??null; if(file&&file.size>10*1024*1024){event.target.value="";setImage(null);setErrorForFile(event.currentTarget, "Image must be 10 MB or smaller.");}else setImage(file); }} className="mt-3 block w-full text-sm text-[var(--color-bone-muted)] file:mr-4 file:rounded-full file:border-0 file:bg-[var(--color-brass)] file:px-4 file:py-2 file:text-xs file:uppercase file:tracking-wider file:text-black" />{image ? <small className="mt-2 block text-[var(--color-bone-muted)]">{image.name}</small> : null}</label>
+    <div className="mt-6 space-y-3"><Consent checked={draft.emailConsent} onChange={(value) => update("emailConsent", value)}>Email me appointment confirmations and updates.</Consent><Consent checked={draft.smsConsent} onChange={(value) => update("smsConsent", value)}>Text me appointment and queue updates. Message and data rates may apply.</Consent><Consent checked={draft.policyAccepted} onChange={(value) => update("policyAccepted", value)} required>I acknowledge the booking, cancellation, and no-show policy.</Consent></div>
+  </div>;
+}
+
+function setErrorForFile(input: HTMLInputElement, message: string) {
+  input.setCustomValidity(message);
+  input.reportValidity();
+  window.setTimeout(() => input.setCustomValidity(""), 2500);
+}
+
+function ReviewStep({ draft, service, addons, barber, slot, location, duration, estimatedPrice }: { draft: Draft; service: BookingCatalog["services"][number] | undefined; addons: BookingCatalog["addons"]; barber: BookingCatalog["barbers"][number] | undefined; slot: AvailabilitySlot | undefined; location: BookingCatalog["location"]; duration: number; estimatedPrice: number }) {
+  const deposit = Math.round(estimatedPrice / 2);
+  return <div>
+    <StepTitle number="5" title="Review your appointment" copy="The selected time is revalidated and reserved atomically when you confirm. A success message appears only after the booking is saved." />
+    <dl className="mt-7 grid gap-4 sm:grid-cols-2">
+      <Review label="Service" value={service?.name ?? "—"} />
+      <Review label="Add-ons" value={addons.length ? addons.map((item) => item.name).join(", ") : "None"} />
+      <Review label="Barber" value={barber?.name ?? "—"} />
+      <Review label="Date and time" value={slot ? new Intl.DateTimeFormat("en-US", { timeZone: location.timezone, dateStyle: "full", timeStyle: "short" }).format(new Date(slot.startsAt)) : "—"} />
+      <Review label="Duration" value={`${duration} minutes`} />
+      <Review label="Price" value={`$${(estimatedPrice / 100).toFixed(2)}`} />
+      <Review label="Required deposit" value={`$${(deposit / 100).toFixed(2)} (50%)`} />
+      <Review label="Client" value={`${draft.firstName} ${draft.lastName}`} />
+      <Review label="Contact" value={`${draft.email} · ${draft.phone}`} />
+      <Review label="Preferred language" value={draft.preferredLanguage === "es" ? "Español" : "English"} />
+      <Review label="Location" value={location.address} />
+      <Review label="Policy" value="Acknowledged" />
+    </dl>
+    <div className="mt-7 flex gap-3 rounded-xl border border-[var(--color-brass)]/25 bg-[var(--color-brass)]/5 p-4 text-xs leading-6 text-[var(--color-bone-muted)]"><ShieldCheck className="mt-1 h-4 w-4 shrink-0 text-[var(--color-brass)]" />Your booking is stored before email notifications are attempted. An email-provider interruption will not erase a successfully reserved appointment.</div>
+  </div>;
+}
 function BookingSummary({ service, barber, slot, location, duration, estimatedPrice }: { service: BookingCatalog["services"][number] | undefined; barber: BookingCatalog["barbers"][number] | undefined; slot: AvailabilitySlot | undefined; location: BookingCatalog["location"]; duration: number; estimatedPrice: number }) { return <aside className="h-fit border border-[var(--color-brass)]/25 bg-black/25 p-6 lg:sticky lg:top-24"><p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">Your appointment</p><dl className="mt-6 space-y-5"><Summary icon={<Scissors className="h-4 w-4" />} label="Service" value={service?.name ?? "Choose a service"} /><Summary icon={<UserRound className="h-4 w-4" />} label="Barber" value={barber?.name ?? "Choose a barber"} /><Summary icon={<CalendarDays className="h-4 w-4" />} label="Time" value={slot ? new Intl.DateTimeFormat("en-US", { timeZone: location.timezone, dateStyle: "medium", timeStyle: "short" }).format(new Date(slot.startsAt)) : "Choose a time"} /><Summary icon={<Clock3 className="h-4 w-4" />} label="Duration" value={duration ? `${duration} minutes` : "—"} /><Summary icon={<MapPin className="h-4 w-4" />} label="Location" value={location.address} /></dl><div className="mt-7 border-t border-[var(--color-ink-line)] pt-5"><p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-bone-muted)]">Estimated total</p><p className="font-display mt-2 text-3xl text-[var(--color-brass)]">{estimatedPrice ? `$${(estimatedPrice / 100).toFixed(2)}` : "—"}</p></div><a href={businessConfig.phoneHref} onClick={() => trackClick("call_action")} className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-[var(--color-ink-line)] text-[10px] tracking-[.18em] uppercase"><Phone className="h-4 w-4" />Need help? Call</a></aside>; }
 function trackClick(eventName: string) {
   if (typeof window === "undefined" || navigator.doNotTrack === "1" || localStorage.getItem("analytics-consent") === "denied") return;

@@ -45,8 +45,11 @@ Optimized derivatives are organized under:
 - `public/media/barbers/cards`
 - `public/media/barbers/profiles`
 - `public/media/barbers/mobile`
+- `public/media/barbers/booking`
+- `public/media/barbers/tablet`
+- `public/media/barbers/desktop`
 
-Rubén Díaz Jr. is the verified identity. The other eight public names and profile descriptions are intentionally centralized temporary launch content awaiting owner approval. Replace them only in `src/lib/content/site.ts`; routes, booking selectors, directory cards, profile pages, and the homepage update automatically.
+Rubén Diaz, Jr. and the eight client-mapped barbers are centralized in `src/lib/content/site.ts`. Ruben uses the supplied owner portrait and is now a public barber profile, while his owner authorization remains server-controlled and separate. Routes, booking selectors, directory cards, profile pages, and the homepage update from the same roster.
 
 ## Motion system
 

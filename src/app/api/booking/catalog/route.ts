@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { BookingCatalogError, ensureBookingCatalog } from "@/lib/booking/catalog";
+import { BookingCatalogError, getBookingCatalog } from "@/lib/booking/catalog";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET() {
   try {
-    const { catalog } = await ensureBookingCatalog();
+    const catalog = await getBookingCatalog();
     return NextResponse.json(
       { ok: true, catalog },
       { headers: { "Cache-Control": "private, no-store, max-age=0" } },

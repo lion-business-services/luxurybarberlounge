@@ -20,15 +20,19 @@ export function BarbersView() {
           {roster.map((barber, index) => (
             <Reveal key={barber.slug} delay={Math.min(index * 55, 240)} variant={index % 2 ? "right" : "left"}>
               <article className="group relative h-[42rem] overflow-hidden border border-[var(--color-ink-line)] bg-[var(--color-ink-soft)] transition duration-500 hover:border-[var(--color-brass)]/60">
-                <Image
-                  src={barber.image.card}
-                  alt={barber.image.alt[lang]}
-                  fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                  style={{ objectPosition: barber.image.objectPosition.card }}
-                  className="object-cover transition duration-700 group-hover:scale-[1.025]"
-                  priority={index < 2}
-                />
+                <picture>
+                  <source srcSet={barber.image.cardAvif} type="image/avif" />
+                  <source srcSet={barber.image.card} type="image/webp" />
+                  <Image
+                    src={barber.image.cardJpeg}
+                    alt={barber.image.alt[lang]}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                    style={{ objectPosition: barber.image.objectPosition.card }}
+                    className="object-cover transition duration-700 group-hover:scale-[1.025]"
+                    priority={index < 2}
+                  />
+                </picture>
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_40%,rgba(5,5,5,.96)_84%)]" />
                 <div className="absolute inset-x-0 bottom-0 z-10 grid min-h-[23rem] grid-rows-[auto_auto_4.75rem_6rem_auto] p-6 sm:p-7">
                   <p className="text-[9px] tracking-[0.3em] uppercase text-[var(--color-brass)]">{barber.title[lang]}</p>
@@ -40,7 +44,7 @@ export function BarbersView() {
                   </div>
                   <div className="mt-6 flex flex-wrap items-center gap-3">
                     <Link href={`/barbers/${barber.slug}`} className="inline-flex items-center gap-2 text-[10px] tracking-[0.22em] uppercase text-[var(--color-bone)] transition hover:text-[var(--color-brass)]">{lang === "es" ? "Ver perfil" : "View profile"}<ArrowUpRight className="h-4 w-4" /></Link>
-                    <Link href={`/book?barber=${barber.slug}`} data-magnetic="true" className="ml-auto inline-flex rounded-full bg-[var(--color-brass)] px-5 py-2.5 text-[10px] tracking-[0.2em] uppercase text-[var(--color-ink)]">{copy.common.book[lang]}</Link>
+                    <Link href={`/book?barber=${barber.slug}`} data-magnetic="true" className="ml-auto inline-flex rounded-full bg-[var(--color-brass)] px-5 py-2.5 text-[10px] tracking-[0.2em] uppercase text-[var(--color-ink)]">{barber.bookingWeekdays.length ? copy.common.book[lang] : lang === "es" ? "Ver disponibilidad" : "Check availability"}</Link>
                   </div>
                 </div>
               </article>

@@ -1,3 +1,5 @@
+> Historical validation record. Superseded by `docs/VALIDATION_REPORT.md`.
+
 # Performance Release Validation
 
 ## Passed

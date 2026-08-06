@@ -18,6 +18,7 @@ function unique(values: string[], label: string) {
 }
 
 const expectedBarbers = [
+  "Rubén Diaz, Jr.",
   "Angelica Aquino",
   "Hommy Rivera",
   "Barber Lo's",
@@ -75,7 +76,7 @@ assert.deepEqual(
 );
 
 assert.equal(services.length, 9, "Only the nine client-confirmed bookable services may be active");
-assert.equal(barbers.length, 8, "The public barber roster must contain the eight mapped client profiles");
+assert.equal(barbers.length, 9, "The public barber roster must contain Ruben plus the eight mapped client profiles");
 assert.equal(tiers.length, 2, "The two completed membership plans must be published");
 assert.equal(packages.length, 3, "The three completed packages must be published");
 assert.equal(giftCards.offered, true);
@@ -119,6 +120,11 @@ for (const barber of barbers) {
   for (const path of [barber.image.card, barber.image.profile, barber.image.profileAvif, barber.image.mobile]) {
     assert.equal(existsSync(`public${path}`), true, `Missing portrait derivative: ${path}`);
   }
+  for (const folder of ["cards", "mobile", "booking", "tablet", "profiles", "desktop"]) {
+    for (const extension of ["avif", "webp", "jpg"]) {
+      assert.equal(existsSync(`public/media/barbers/${folder}/${barber.slug}.${extension}`), true, `Missing responsive image: ${folder}/${barber.slug}.${extension}`);
+    }
+  }
   for (const weekday of barber.bookingWeekdays) {
     assert.notEqual(weekday, 1, `${barber.name} cannot be scheduled on closed Monday`);
     assert.ok(hours.some((day) => day.weekday === weekday && !day.closed), `${barber.name} schedule must use an open business day`);
@@ -129,5 +135,11 @@ for (const barber of barbers) {
 assert.equal(barbers.find((item) => item.slug === "barber-los")?.walkIns, false);
 assert.deepEqual(barbers.find((item) => item.slug === "barber-los")?.bookingWeekdays, []);
 assert.deepEqual(barbers.find((item) => item.slug === "angelica-aquino")?.bookingWeekdays, [3]);
+const ruben = barbers.find((item) => item.slug === "ruben-diaz-jr");
+assert.equal(ruben?.title.en, "Owner and Master Barber");
+assert.equal(ruben?.owner, true);
+assert.equal(ruben?.compactName, "Ruben");
+assert.deepEqual(ruben?.bookingWeekdays, []);
+assert.deepEqual(ruben?.languageCodes, []);
 
 console.log(`Content validation passed: ${services.length} services, ${barbers.length} barbers, ${tiers.length} memberships, ${packages.length} packages.`);

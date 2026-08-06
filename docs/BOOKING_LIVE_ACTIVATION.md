@@ -1,6 +1,6 @@
 # Booking Live Activation
 
-Apply all migrations in order through `202608060016_final_client_content_release.sql`. Migration 016 is the final authoritative content release and supersedes earlier provisional launch snapshots when a clean database is built.
+Apply all migrations in order through `202608060017_ruben_live_booking_release.sql`. Migration 016 is the authoritative client-intake content release. Migration 017 adds Ruben, consolidates duplicate owner/barber records, installs responsive image metadata, and creates the privacy-safe public catalog RPC used by `/book`.
 
 Before enabling live booking:
 

@@ -27,6 +27,8 @@ export type BookingCatalogBarber = {
   slug: string;
   name: string;
   portrait: string | null;
+  portraitAvif: string | null;
+  portraitJpeg: string | null;
   portraitPosition: string;
   title: string;
   biography: string;
@@ -34,6 +36,8 @@ export type BookingCatalogBarber = {
   languages: string[];
   serviceIds: string[];
   demo: boolean;
+  bookable: boolean;
+  availabilityNote: string;
 };
 
 export type BookingCatalog = {

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerAuthSession } from "@/lib/auth/server";
 import { businessConfig } from "@/lib/config/business";
 import { searchSupabaseAvailability } from "@/lib/booking/availability";
-import { ensureBookingCatalog } from "@/lib/booking/catalog";
+import { getBookingAdminContext } from "@/lib/booking/catalog";
 import { queueBookingNotifications } from "@/lib/booking/notifications";
 import { processNotificationJobs } from "@/lib/notifications/process";
 import { bookingSubmissionSchema } from "@/lib/booking/schema";
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   const input = parsed.data;
   if (input.company) return NextResponse.json({ ok: true, reference: "LBL-RECEIVED" }, { status: 201 });
   try {
-    const { admin, catalog } = await ensureBookingCatalog();
+    const { admin, catalog } = await getBookingAdminContext();
     const durableKey = createHash("sha256").update(`booking-submit:${requestFingerprint(request.headers)}`).digest("hex");
     const { data: durableLimit, error: durableLimitError } = await admin.rpc("consume_rate_limit", {
       p_key: durableKey,

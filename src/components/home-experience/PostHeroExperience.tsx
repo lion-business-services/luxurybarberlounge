@@ -334,7 +334,11 @@ function BarberProfiles({ lang, reduced }: { lang: Lang; reduced: boolean }) {
                 exit={reduced ? undefined : { opacity: 0, x: -28, scale: 0.99 }}
                 transition={{ duration: 0.5, ease: homeMotion.ease }}
               >
-                <Image src={active.image.profile} alt={active.image.alt[lang]} fill sizes="(max-width: 760px) 92vw, 46vw" priority={activeIndex === 0} style={{ objectPosition: active.image.objectPosition.profile }} className="object-cover" />
+                <picture>
+                  <source srcSet={active.image.profileAvif} type="image/avif" />
+                  <source srcSet={active.image.profile} type="image/webp" />
+                  <Image src={active.image.profileJpeg} alt={active.image.alt[lang]} fill sizes="(max-width: 760px) 92vw, 46vw" priority={activeIndex === 0} style={{ objectPosition: active.image.objectPosition.profile }} className="object-cover" />
+                </picture>
               </motion.div>
             </AnimatePresence>
           </div>
@@ -352,7 +356,7 @@ function BarberProfiles({ lang, reduced }: { lang: Lang; reduced: boolean }) {
               <p>{active.bio[lang]}</p>
               <div className={styles.barberMeta}>{active.specialties[lang]} · {active.languages}</div>
               <p className={styles.barberAvailability}>{active.availability[lang]}</p>
-              <div className={styles.actions}><Link href={`/book?barber=${active.slug}`} data-magnetic="true" className={styles.primary}>{lang === "es" ? "Reservar esta silla" : "Book this barber"}</Link><Link href={`/barbers/${active.slug}`} className={styles.secondary}>{lang === "es" ? "Ver perfil" : "View profile"}</Link></div>
+              <div className={styles.actions}><Link href={`/book?barber=${active.slug}`} data-magnetic="true" className={styles.primary}>{active.bookingWeekdays.length ? (lang === "es" ? "Reservar esta silla" : "Book this barber") : (lang === "es" ? "Ver disponibilidad" : "Check availability")}</Link><Link href={`/barbers/${active.slug}`} className={styles.secondary}>{lang === "es" ? "Ver perfil" : "View profile"}</Link></div>
             </motion.div>
           </AnimatePresence>
         </div>
@@ -366,7 +370,7 @@ function BarberProfiles({ lang, reduced }: { lang: Lang; reduced: boolean }) {
               key={barber.slug}
               onClick={() => show(index)}
             >
-              <Image src={barber.image.card} alt="" width={120} height={150} style={{ objectPosition: barber.image.objectPosition.card }} />
+              <picture><source srcSet={barber.image.cardAvif} type="image/avif" /><source srcSet={barber.image.card} type="image/webp" /><Image src={barber.image.cardJpeg} alt="" width={120} height={150} sizes="120px" style={{ objectPosition: barber.image.objectPosition.card }} /></picture>
               <span>{barber.name}</span>
             </button>
           ))}

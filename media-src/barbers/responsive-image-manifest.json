@@ -1,0 +1,627 @@
+{
+  "version": "2026-08-06-ruben-release",
+  "method": "authentic-source focal crop, Lanczos resize, subtle sharpening; no generative enhancement",
+  "aspectRatio": "4:5",
+  "outputs": {
+    "cards": [
+      720,
+      900
+    ],
+    "mobile": [
+      540,
+      675
+    ],
+    "booking": [
+      640,
+      800
+    ],
+    "tablet": [
+      960,
+      1200
+    ],
+    "profiles": [
+      1200,
+      1500
+    ],
+    "desktop": [
+      1200,
+      1500
+    ]
+  },
+  "barbers": [
+    {
+      "slug": "alfredo-hernandez-pollo",
+      "source": "public/media/barbers/originals/alfredo-hernandez-pollo.jpeg",
+      "sourceWidth": 1600,
+      "sourceHeight": 1067,
+      "focalPoint": {
+        "x": 0.5,
+        "y": 0.18
+      },
+      "derivatives": {
+        "cards": {
+          "width": 720,
+          "height": 900,
+          "files": {
+            "webp": "public/media/barbers/cards/alfredo-hernandez-pollo.webp",
+            "avif": "public/media/barbers/cards/alfredo-hernandez-pollo.avif",
+            "jpg": "public/media/barbers/cards/alfredo-hernandez-pollo.jpg"
+          }
+        },
+        "mobile": {
+          "width": 540,
+          "height": 675,
+          "files": {
+            "webp": "public/media/barbers/mobile/alfredo-hernandez-pollo.webp",
+            "avif": "public/media/barbers/mobile/alfredo-hernandez-pollo.avif",
+            "jpg": "public/media/barbers/mobile/alfredo-hernandez-pollo.jpg"
+          }
+        },
+        "booking": {
+          "width": 640,
+          "height": 800,
+          "files": {
+            "webp": "public/media/barbers/booking/alfredo-hernandez-pollo.webp",
+            "avif": "public/media/barbers/booking/alfredo-hernandez-pollo.avif",
+            "jpg": "public/media/barbers/booking/alfredo-hernandez-pollo.jpg"
+          }
+        },
+        "tablet": {
+          "width": 960,
+          "height": 1200,
+          "files": {
+            "webp": "public/media/barbers/tablet/alfredo-hernandez-pollo.webp",
+            "avif": "public/media/barbers/tablet/alfredo-hernandez-pollo.avif",
+            "jpg": "public/media/barbers/tablet/alfredo-hernandez-pollo.jpg"
+          }
+        },
+        "profiles": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/profiles/alfredo-hernandez-pollo.webp",
+            "avif": "public/media/barbers/profiles/alfredo-hernandez-pollo.avif",
+            "jpg": "public/media/barbers/profiles/alfredo-hernandez-pollo.jpg"
+          }
+        },
+        "desktop": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/desktop/alfredo-hernandez-pollo.webp",
+            "avif": "public/media/barbers/desktop/alfredo-hernandez-pollo.avif",
+            "jpg": "public/media/barbers/desktop/alfredo-hernandez-pollo.jpg"
+          }
+        }
+      }
+    },
+    {
+      "slug": "angelica-aquino",
+      "source": "public/media/barbers/originals/angelica-aquino.jpeg",
+      "sourceWidth": 1067,
+      "sourceHeight": 1600,
+      "focalPoint": {
+        "x": 0.5,
+        "y": 0.2
+      },
+      "derivatives": {
+        "cards": {
+          "width": 720,
+          "height": 900,
+          "files": {
+            "webp": "public/media/barbers/cards/angelica-aquino.webp",
+            "avif": "public/media/barbers/cards/angelica-aquino.avif",
+            "jpg": "public/media/barbers/cards/angelica-aquino.jpg"
+          }
+        },
+        "mobile": {
+          "width": 540,
+          "height": 675,
+          "files": {
+            "webp": "public/media/barbers/mobile/angelica-aquino.webp",
+            "avif": "public/media/barbers/mobile/angelica-aquino.avif",
+            "jpg": "public/media/barbers/mobile/angelica-aquino.jpg"
+          }
+        },
+        "booking": {
+          "width": 640,
+          "height": 800,
+          "files": {
+            "webp": "public/media/barbers/booking/angelica-aquino.webp",
+            "avif": "public/media/barbers/booking/angelica-aquino.avif",
+            "jpg": "public/media/barbers/booking/angelica-aquino.jpg"
+          }
+        },
+        "tablet": {
+          "width": 960,
+          "height": 1200,
+          "files": {
+            "webp": "public/media/barbers/tablet/angelica-aquino.webp",
+            "avif": "public/media/barbers/tablet/angelica-aquino.avif",
+            "jpg": "public/media/barbers/tablet/angelica-aquino.jpg"
+          }
+        },
+        "profiles": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/profiles/angelica-aquino.webp",
+            "avif": "public/media/barbers/profiles/angelica-aquino.avif",
+            "jpg": "public/media/barbers/profiles/angelica-aquino.jpg"
+          }
+        },
+        "desktop": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/desktop/angelica-aquino.webp",
+            "avif": "public/media/barbers/desktop/angelica-aquino.avif",
+            "jpg": "public/media/barbers/desktop/angelica-aquino.jpg"
+          }
+        }
+      }
+    },
+    {
+      "slug": "barber-los",
+      "source": "public/media/barbers/originals/barber-los.jpeg",
+      "sourceWidth": 843,
+      "sourceHeight": 1264,
+      "focalPoint": {
+        "x": 0.5,
+        "y": 0.18
+      },
+      "derivatives": {
+        "cards": {
+          "width": 720,
+          "height": 900,
+          "files": {
+            "webp": "public/media/barbers/cards/barber-los.webp",
+            "avif": "public/media/barbers/cards/barber-los.avif",
+            "jpg": "public/media/barbers/cards/barber-los.jpg"
+          }
+        },
+        "mobile": {
+          "width": 540,
+          "height": 675,
+          "files": {
+            "webp": "public/media/barbers/mobile/barber-los.webp",
+            "avif": "public/media/barbers/mobile/barber-los.avif",
+            "jpg": "public/media/barbers/mobile/barber-los.jpg"
+          }
+        },
+        "booking": {
+          "width": 640,
+          "height": 800,
+          "files": {
+            "webp": "public/media/barbers/booking/barber-los.webp",
+            "avif": "public/media/barbers/booking/barber-los.avif",
+            "jpg": "public/media/barbers/booking/barber-los.jpg"
+          }
+        },
+        "tablet": {
+          "width": 960,
+          "height": 1200,
+          "files": {
+            "webp": "public/media/barbers/tablet/barber-los.webp",
+            "avif": "public/media/barbers/tablet/barber-los.avif",
+            "jpg": "public/media/barbers/tablet/barber-los.jpg"
+          }
+        },
+        "profiles": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/profiles/barber-los.webp",
+            "avif": "public/media/barbers/profiles/barber-los.avif",
+            "jpg": "public/media/barbers/profiles/barber-los.jpg"
+          }
+        },
+        "desktop": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/desktop/barber-los.webp",
+            "avif": "public/media/barbers/desktop/barber-los.avif",
+            "jpg": "public/media/barbers/desktop/barber-los.jpg"
+          }
+        }
+      }
+    },
+    {
+      "slug": "daniel-penalo",
+      "source": "public/media/barbers/originals/daniel-penalo.jpeg",
+      "sourceWidth": 1067,
+      "sourceHeight": 1600,
+      "focalPoint": {
+        "x": 0.5,
+        "y": 0.16
+      },
+      "derivatives": {
+        "cards": {
+          "width": 720,
+          "height": 900,
+          "files": {
+            "webp": "public/media/barbers/cards/daniel-penalo.webp",
+            "avif": "public/media/barbers/cards/daniel-penalo.avif",
+            "jpg": "public/media/barbers/cards/daniel-penalo.jpg"
+          }
+        },
+        "mobile": {
+          "width": 540,
+          "height": 675,
+          "files": {
+            "webp": "public/media/barbers/mobile/daniel-penalo.webp",
+            "avif": "public/media/barbers/mobile/daniel-penalo.avif",
+            "jpg": "public/media/barbers/mobile/daniel-penalo.jpg"
+          }
+        },
+        "booking": {
+          "width": 640,
+          "height": 800,
+          "files": {
+            "webp": "public/media/barbers/booking/daniel-penalo.webp",
+            "avif": "public/media/barbers/booking/daniel-penalo.avif",
+            "jpg": "public/media/barbers/booking/daniel-penalo.jpg"
+          }
+        },
+        "tablet": {
+          "width": 960,
+          "height": 1200,
+          "files": {
+            "webp": "public/media/barbers/tablet/daniel-penalo.webp",
+            "avif": "public/media/barbers/tablet/daniel-penalo.avif",
+            "jpg": "public/media/barbers/tablet/daniel-penalo.jpg"
+          }
+        },
+        "profiles": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/profiles/daniel-penalo.webp",
+            "avif": "public/media/barbers/profiles/daniel-penalo.avif",
+            "jpg": "public/media/barbers/profiles/daniel-penalo.jpg"
+          }
+        },
+        "desktop": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/desktop/daniel-penalo.webp",
+            "avif": "public/media/barbers/desktop/daniel-penalo.avif",
+            "jpg": "public/media/barbers/desktop/daniel-penalo.jpg"
+          }
+        }
+      }
+    },
+    {
+      "slug": "elvis",
+      "source": "public/media/barbers/originals/elvis.jpeg",
+      "sourceWidth": 684,
+      "sourceHeight": 1024,
+      "focalPoint": {
+        "x": 0.5,
+        "y": 0.16
+      },
+      "derivatives": {
+        "cards": {
+          "width": 720,
+          "height": 900,
+          "files": {
+            "webp": "public/media/barbers/cards/elvis.webp",
+            "avif": "public/media/barbers/cards/elvis.avif",
+            "jpg": "public/media/barbers/cards/elvis.jpg"
+          }
+        },
+        "mobile": {
+          "width": 540,
+          "height": 675,
+          "files": {
+            "webp": "public/media/barbers/mobile/elvis.webp",
+            "avif": "public/media/barbers/mobile/elvis.avif",
+            "jpg": "public/media/barbers/mobile/elvis.jpg"
+          }
+        },
+        "booking": {
+          "width": 640,
+          "height": 800,
+          "files": {
+            "webp": "public/media/barbers/booking/elvis.webp",
+            "avif": "public/media/barbers/booking/elvis.avif",
+            "jpg": "public/media/barbers/booking/elvis.jpg"
+          }
+        },
+        "tablet": {
+          "width": 960,
+          "height": 1200,
+          "files": {
+            "webp": "public/media/barbers/tablet/elvis.webp",
+            "avif": "public/media/barbers/tablet/elvis.avif",
+            "jpg": "public/media/barbers/tablet/elvis.jpg"
+          }
+        },
+        "profiles": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/profiles/elvis.webp",
+            "avif": "public/media/barbers/profiles/elvis.avif",
+            "jpg": "public/media/barbers/profiles/elvis.jpg"
+          }
+        },
+        "desktop": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/desktop/elvis.webp",
+            "avif": "public/media/barbers/desktop/elvis.avif",
+            "jpg": "public/media/barbers/desktop/elvis.jpg"
+          }
+        }
+      }
+    },
+    {
+      "slug": "hommy-rivera",
+      "source": "public/media/barbers/originals/hommy-rivera.jpeg",
+      "sourceWidth": 1600,
+      "sourceHeight": 1067,
+      "focalPoint": {
+        "x": 0.5,
+        "y": 0.24
+      },
+      "derivatives": {
+        "cards": {
+          "width": 720,
+          "height": 900,
+          "files": {
+            "webp": "public/media/barbers/cards/hommy-rivera.webp",
+            "avif": "public/media/barbers/cards/hommy-rivera.avif",
+            "jpg": "public/media/barbers/cards/hommy-rivera.jpg"
+          }
+        },
+        "mobile": {
+          "width": 540,
+          "height": 675,
+          "files": {
+            "webp": "public/media/barbers/mobile/hommy-rivera.webp",
+            "avif": "public/media/barbers/mobile/hommy-rivera.avif",
+            "jpg": "public/media/barbers/mobile/hommy-rivera.jpg"
+          }
+        },
+        "booking": {
+          "width": 640,
+          "height": 800,
+          "files": {
+            "webp": "public/media/barbers/booking/hommy-rivera.webp",
+            "avif": "public/media/barbers/booking/hommy-rivera.avif",
+            "jpg": "public/media/barbers/booking/hommy-rivera.jpg"
+          }
+        },
+        "tablet": {
+          "width": 960,
+          "height": 1200,
+          "files": {
+            "webp": "public/media/barbers/tablet/hommy-rivera.webp",
+            "avif": "public/media/barbers/tablet/hommy-rivera.avif",
+            "jpg": "public/media/barbers/tablet/hommy-rivera.jpg"
+          }
+        },
+        "profiles": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/profiles/hommy-rivera.webp",
+            "avif": "public/media/barbers/profiles/hommy-rivera.avif",
+            "jpg": "public/media/barbers/profiles/hommy-rivera.jpg"
+          }
+        },
+        "desktop": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/desktop/hommy-rivera.webp",
+            "avif": "public/media/barbers/desktop/hommy-rivera.avif",
+            "jpg": "public/media/barbers/desktop/hommy-rivera.jpg"
+          }
+        }
+      }
+    },
+    {
+      "slug": "jose",
+      "source": "public/media/barbers/originals/jose.jpeg",
+      "sourceWidth": 1067,
+      "sourceHeight": 1600,
+      "focalPoint": {
+        "x": 0.5,
+        "y": 0.18
+      },
+      "derivatives": {
+        "cards": {
+          "width": 720,
+          "height": 900,
+          "files": {
+            "webp": "public/media/barbers/cards/jose.webp",
+            "avif": "public/media/barbers/cards/jose.avif",
+            "jpg": "public/media/barbers/cards/jose.jpg"
+          }
+        },
+        "mobile": {
+          "width": 540,
+          "height": 675,
+          "files": {
+            "webp": "public/media/barbers/mobile/jose.webp",
+            "avif": "public/media/barbers/mobile/jose.avif",
+            "jpg": "public/media/barbers/mobile/jose.jpg"
+          }
+        },
+        "booking": {
+          "width": 640,
+          "height": 800,
+          "files": {
+            "webp": "public/media/barbers/booking/jose.webp",
+            "avif": "public/media/barbers/booking/jose.avif",
+            "jpg": "public/media/barbers/booking/jose.jpg"
+          }
+        },
+        "tablet": {
+          "width": 960,
+          "height": 1200,
+          "files": {
+            "webp": "public/media/barbers/tablet/jose.webp",
+            "avif": "public/media/barbers/tablet/jose.avif",
+            "jpg": "public/media/barbers/tablet/jose.jpg"
+          }
+        },
+        "profiles": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/profiles/jose.webp",
+            "avif": "public/media/barbers/profiles/jose.avif",
+            "jpg": "public/media/barbers/profiles/jose.jpg"
+          }
+        },
+        "desktop": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/desktop/jose.webp",
+            "avif": "public/media/barbers/desktop/jose.avif",
+            "jpg": "public/media/barbers/desktop/jose.jpg"
+          }
+        }
+      }
+    },
+    {
+      "slug": "ruben-diaz-jr",
+      "source": "public/media/barbers/originals/ruben-diaz-jr.jpeg",
+      "sourceWidth": 1067,
+      "sourceHeight": 1600,
+      "focalPoint": {
+        "x": 0.5,
+        "y": 0.24
+      },
+      "derivatives": {
+        "cards": {
+          "width": 720,
+          "height": 900,
+          "files": {
+            "webp": "public/media/barbers/cards/ruben-diaz-jr.webp",
+            "avif": "public/media/barbers/cards/ruben-diaz-jr.avif",
+            "jpg": "public/media/barbers/cards/ruben-diaz-jr.jpg"
+          }
+        },
+        "mobile": {
+          "width": 540,
+          "height": 675,
+          "files": {
+            "webp": "public/media/barbers/mobile/ruben-diaz-jr.webp",
+            "avif": "public/media/barbers/mobile/ruben-diaz-jr.avif",
+            "jpg": "public/media/barbers/mobile/ruben-diaz-jr.jpg"
+          }
+        },
+        "booking": {
+          "width": 640,
+          "height": 800,
+          "files": {
+            "webp": "public/media/barbers/booking/ruben-diaz-jr.webp",
+            "avif": "public/media/barbers/booking/ruben-diaz-jr.avif",
+            "jpg": "public/media/barbers/booking/ruben-diaz-jr.jpg"
+          }
+        },
+        "tablet": {
+          "width": 960,
+          "height": 1200,
+          "files": {
+            "webp": "public/media/barbers/tablet/ruben-diaz-jr.webp",
+            "avif": "public/media/barbers/tablet/ruben-diaz-jr.avif",
+            "jpg": "public/media/barbers/tablet/ruben-diaz-jr.jpg"
+          }
+        },
+        "profiles": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/profiles/ruben-diaz-jr.webp",
+            "avif": "public/media/barbers/profiles/ruben-diaz-jr.avif",
+            "jpg": "public/media/barbers/profiles/ruben-diaz-jr.jpg"
+          }
+        },
+        "desktop": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/desktop/ruben-diaz-jr.webp",
+            "avif": "public/media/barbers/desktop/ruben-diaz-jr.avif",
+            "jpg": "public/media/barbers/desktop/ruben-diaz-jr.jpg"
+          }
+        }
+      }
+    },
+    {
+      "slug": "russ-hawkins",
+      "source": "public/media/barbers/originals/russ-hawkins.jpeg",
+      "sourceWidth": 1067,
+      "sourceHeight": 1600,
+      "focalPoint": {
+        "x": 0.5,
+        "y": 0.2
+      },
+      "derivatives": {
+        "cards": {
+          "width": 720,
+          "height": 900,
+          "files": {
+            "webp": "public/media/barbers/cards/russ-hawkins.webp",
+            "avif": "public/media/barbers/cards/russ-hawkins.avif",
+            "jpg": "public/media/barbers/cards/russ-hawkins.jpg"
+          }
+        },
+        "mobile": {
+          "width": 540,
+          "height": 675,
+          "files": {
+            "webp": "public/media/barbers/mobile/russ-hawkins.webp",
+            "avif": "public/media/barbers/mobile/russ-hawkins.avif",
+            "jpg": "public/media/barbers/mobile/russ-hawkins.jpg"
+          }
+        },
+        "booking": {
+          "width": 640,
+          "height": 800,
+          "files": {
+            "webp": "public/media/barbers/booking/russ-hawkins.webp",
+            "avif": "public/media/barbers/booking/russ-hawkins.avif",
+            "jpg": "public/media/barbers/booking/russ-hawkins.jpg"
+          }
+        },
+        "tablet": {
+          "width": 960,
+          "height": 1200,
+          "files": {
+            "webp": "public/media/barbers/tablet/russ-hawkins.webp",
+            "avif": "public/media/barbers/tablet/russ-hawkins.avif",
+            "jpg": "public/media/barbers/tablet/russ-hawkins.jpg"
+          }
+        },
+        "profiles": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/profiles/russ-hawkins.webp",
+            "avif": "public/media/barbers/profiles/russ-hawkins.avif",
+            "jpg": "public/media/barbers/profiles/russ-hawkins.jpg"
+          }
+        },
+        "desktop": {
+          "width": 1200,
+          "height": 1500,
+          "files": {
+            "webp": "public/media/barbers/desktop/russ-hawkins.webp",
+            "avif": "public/media/barbers/desktop/russ-hawkins.avif",
+            "jpg": "public/media/barbers/desktop/russ-hawkins.jpg"
+          }
+        }
+      }
+    }
+  ]
+}

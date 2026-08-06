@@ -6,18 +6,19 @@ The approved cinematic black, charcoal, ivory, brass, and bronze public design i
 
 ## Final client content
 
-The public roster contains eight mapped barber profiles, with the original photograph-to-person relationship preserved:
+The public roster contains nine barber profiles, with the original photograph-to-person relationship preserved:
 
-1. Angelica Aquino
-2. Hommy Rivera
-3. Barber Lo's
-4. Jose
-5. Elvis
-6. Alfredo Hernandez (Pollo)
-7. Russ Hawkins
-8. Daniel Penalo
+1. Rubén Diaz, Jr.
+2. Angelica Aquino
+3. Hommy Rivera
+4. Barber Lo's
+5. Jose
+6. Elvis
+7. Alfredo Hernandez (Pollo)
+8. Russ Hawkins
+9. Daniel Penalo
 
-Rubén Díaz, Jr. remains a separate founder profile and is not seeded as an active booking provider.
+Rubén Diaz, Jr. is represented once as the owner/founder and as a public barber profile. His public profile does not grant administrative access. The verified owner account receives separate server-assigned `owner` and `barber` roles, and Ruben becomes selectable only after an owner-managed schedule is published.
 
 The active service catalog contains nine client-confirmed services. Every booking deposit is 50% of the service total. Color is explicitly unavailable. The two memberships, three packages, and gift cards starting at $50 are defined in `src/lib/content/site.ts` and mirrored by the final Supabase migration and development seed.
 
@@ -35,6 +36,7 @@ See:
 The repository includes:
 
 - A multi-step `/book` experience using live catalog and availability endpoints
+- A privacy-safe public catalog RPC, so normal `/book` page loads do not require the service-role key
 - Server-side availability calculation with schedules, breaks, time off, existing appointments, temporary holds, lead time, booking window, service duration, and buffers
 - Atomic Supabase appointment creation with overlap constraints, advisory locking, idempotency, service snapshots, public references, audit history, and secure guest-management tokens
 - Admin appointments workspace, client appointments, barber schedule views, reception queue, kiosk flow, and privacy-safe shop queue display
@@ -94,9 +96,10 @@ Apply migrations in timestamp order through:
 
 ```text
 supabase/migrations/202608060016_final_client_content_release.sql
+supabase/migrations/202608060017_ruben_live_booking_release.sql
 ```
 
-The final migration replaces the provisional launch snapshot with the client-confirmed roster, exact hours, exact catalog, eligibility, confirmed schedules, membership versions, packages, voucher configuration, and barber intake settings. The development seed is in `supabase/seed/seed.sql` and must not be run against production.
+Migration 016 replaces the provisional launch snapshot with the client-confirmed roster, exact hours, catalog, eligibility, schedules, membership versions, packages, voucher configuration, and intake settings. Migration 017 consolidates Ruben records, adds responsive image metadata, and installs the privacy-safe public booking-catalog RPC. The development seed is in `supabase/seed/seed.sql` and must not be run against production.
 
 ## Credential-dependent activation
 
@@ -109,6 +112,7 @@ Keep provider flags disabled until each integration passes its checklist:
 - Square environment, application ID, access token, location ID, webhook signature key, catalog mappings, and team-member mappings
 - Cron secret and hosting cron schedules
 - Optional SMS provider values
+- Ruben's actual booking schedule, language list, walk-in setting, and any public social link
 
 See `docs/OWNER_CONFIRMATIONS_REQUIRED.md`, `docs/LAUNCH_CHECKLIST.md`, and `.env.example`.
 

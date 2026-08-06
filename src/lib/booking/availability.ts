@@ -1,6 +1,6 @@
 import "server-only";
 import { businessConfig } from "@/lib/config/business";
-import { BookingCatalogError, ensureBookingCatalog } from "@/lib/booking/catalog";
+import { BookingCatalogError, getBookingAdminContext } from "@/lib/booking/catalog";
 import { addDays, weekdayForDate, zonedDateTimeToUtc } from "@/lib/booking/timezone";
 import type { AvailabilitySlot } from "@/lib/booking/types";
 
@@ -21,7 +21,7 @@ export async function searchSupabaseAvailability(input: {
   startDate: string;
   days: number;
 }) {
-  const { admin, catalog } = await ensureBookingCatalog();
+  const { admin, catalog } = await getBookingAdminContext();
   if (input.locationId !== catalog.location.id) return { source: "supabase" as const, slots: [] as AvailabilitySlot[] };
   const service = catalog.services.find((item) => item.id === input.serviceId);
   if (!service) return { source: "supabase" as const, slots: [] as AvailabilitySlot[] };

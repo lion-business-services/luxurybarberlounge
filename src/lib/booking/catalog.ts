@@ -1,5 +1,5 @@
 import "server-only";
-import { createUntypedAdminSupabase } from "@/lib/auth/server";
+import { createPublicServerSupabase, createUntypedAdminSupabase } from "@/lib/auth/server";
 import { businessConfig } from "@/lib/config/business";
 import { barbers, serviceAddOns, serviceCategories, services } from "@/lib/content/site";
 import type { BookingCatalog } from "@/lib/booking/types";
@@ -195,7 +195,7 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
     biography: item.bio,
     story: item.story,
     specialties: item.specialtyTags,
-    languages: item.languages.split("·").map((value) => value.trim().toLowerCase()),
+    languages: item.languageCodes ?? item.languages.split("·").map((value) => value.trim().toLowerCase()).filter(Boolean),
     social_links: item.socialStatus === "active" && item.socialUrl
       ? { instagram: item.socialUrl, instagramHandle: item.instagramHandle }
       : { instagramStatus: item.socialStatus, instagramHandle: item.instagramHandle ?? null },
@@ -240,23 +240,28 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
 
   const liveBarberIds = (barberRows ?? []).map((item) => item.id);
   const today = isoDate();
-  const existingScheduleResult = await admin
+
+  // Owner-managed schedules are operational data. Catalog reads must never erase
+  // them. Default rows are inserted only for a barber who has no active schedule.
+  const currentScheduleResult = await admin
     .from("barber_schedules")
-    .update({ active: false, effective_to: today })
+    .select("barber_profile_id,weekday")
     .in("barber_profile_id", liveBarberIds)
     .eq("location_id", location.id)
-    .eq("active", true);
-  requireResult(existingScheduleResult.error, "BOOKING_MIGRATIONS_REQUIRED");
+    .eq("active", true)
+    .or(`effective_to.is.null,effective_to.gte.${today}`);
+  requireResult(currentScheduleResult.error, "BARBER_SCHEDULES_UNAVAILABLE");
+  const barbersWithSchedules = new Set((currentScheduleResult.data ?? []).map((item) => String(item.barber_profile_id)));
 
   const hourByWeekday = new Map(businessConfig.hours.map((item) => [item.weekday, item]));
   const scheduleRows = verifiedSourceBarbers.flatMap((sourceBarber) => {
     const row = (barberRows ?? []).find((item) => item.slug === sourceBarber.slug);
-    if (!row) return [];
+    if (!row || barbersWithSchedules.has(String(row.id))) return [];
     return sourceBarber.bookingWeekdays.flatMap((weekday) => {
       const businessHour = hourByWeekday.get(weekday);
       if (!businessHour || businessHour.closed) return [];
       return [{
-        barber_user_id: null,
+        barber_user_id: row.staff_user_id ?? null,
         barber_profile_id: row.id,
         location_id: location.id,
         weekday,
@@ -319,7 +324,9 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
       id: item.id,
       slug: item.slug,
       name: english(item.display_name),
-      portrait: source?.image.card ?? null,
+      portrait: source?.image.booking ?? null,
+      portraitAvif: source?.image.bookingAvif ?? null,
+      portraitJpeg: source?.image.bookingJpeg ?? null,
       portraitPosition: source?.image.objectPosition.booking ?? "50% 20%",
       title: english(item.professional_title),
       biography: english(item.short_intro),
@@ -327,8 +334,10 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
       languages: Array.isArray(item.languages) ? item.languages.map(String) : [],
       serviceIds: (eligibilityRows ?? []).filter((entry) => entry.barber_profile_id === item.id).map((entry) => entry.service_id),
       demo: Boolean(item.demo),
+      bookable: scheduledBarberIds.has(String(item.id)),
+      availabilityNote: source?.availability.en ?? "Contact the lounge for availability.",
     };
-  }).filter((barber) => barber.serviceIds.length > 0 && scheduledBarberIds.has(String(barber.id)));
+  }).filter((barber) => barber.serviceIds.length > 0);
   if (!catalogBarbers.length) throw new BookingCatalogError("NO_BOOKABLE_BARBERS");
 
   return {
@@ -347,4 +356,93 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
       barbers: catalogBarbers,
     },
   };
+}
+
+
+type PublicCatalogRpc = {
+  location?: { id?: string; name?: string; timezone?: string; address?: string };
+  categories?: Array<{ id?: string; slug?: string; name?: unknown; description?: unknown }>;
+  services?: Array<{ id?: string; slug?: string; category_id?: string | null; name?: unknown; short_description?: unknown; full_description?: unknown; price_cents?: number; duration_minutes?: number; deposit_cents?: number }>;
+  addons?: Array<{ id?: string; slug?: string; service_id?: string | null; name?: unknown; description?: unknown; price_cents?: number; duration_minutes?: number }>;
+  barbers?: Array<{ id?: string; slug?: string; display_name?: unknown; professional_title?: unknown; short_intro?: unknown; specialties?: unknown; languages?: unknown; service_ids?: unknown; bookable?: boolean; demo?: boolean }>;
+};
+
+function publicCatalogFromRpc(payload: PublicCatalogRpc): BookingCatalog {
+  if (!payload.location?.id || !payload.location.timezone) throw new BookingCatalogError("LOCATION_NOT_CONFIGURED");
+  const categories = (payload.categories ?? []).flatMap((item) => item.id && item.slug ? [{ id: item.id, slug: item.slug, name: english(item.name), description: english(item.description) }] : []);
+  const categoryById = new Map(categories.map((item) => [item.id, item]));
+  const catalogServices = (payload.services ?? []).flatMap((item) => item.id && item.slug ? [{
+    id: item.id,
+    slug: item.slug,
+    categoryId: item.category_id ?? "",
+    categoryName: categoryById.get(item.category_id ?? "")?.name ?? "Services",
+    name: english(item.name),
+    description: english(item.full_description) || english(item.short_description),
+    preparation: english(services.find((source) => source.slug === item.slug)?.preparation),
+    durationMinutes: Number(item.duration_minutes ?? 30),
+    priceCents: Number(item.price_cents ?? 0),
+    depositCents: Number(item.deposit_cents ?? 0),
+    relatedServiceIds: [],
+  }] : []);
+  if (!catalogServices.length) throw new BookingCatalogError("NO_BOOKABLE_SERVICES");
+  const catalogBarbers = (payload.barbers ?? []).flatMap((item) => {
+    if (!item.id || !item.slug) return [];
+    const source = barbers.find((barber) => barber.slug === item.slug);
+    const serviceIds = Array.isArray(item.service_ids) ? item.service_ids.map(String) : [];
+    if (!serviceIds.length) return [];
+    return [{
+      id: item.id,
+      slug: item.slug,
+      name: english(item.display_name),
+      portrait: source?.image.booking ?? null,
+      portraitAvif: source?.image.bookingAvif ?? null,
+      portraitJpeg: source?.image.bookingJpeg ?? null,
+      portraitPosition: source?.image.objectPosition.booking ?? "50% 20%",
+      title: english(item.professional_title),
+      biography: english(item.short_intro),
+      specialties: Array.isArray(item.specialties) ? item.specialties.map(String) : [],
+      languages: Array.isArray(item.languages) ? item.languages.map(String) : [],
+      serviceIds,
+      demo: Boolean(item.demo),
+      bookable: Boolean(item.bookable),
+      availabilityNote: source?.availability.en ?? "Contact the lounge for availability.",
+    }];
+  });
+  if (!catalogBarbers.length) throw new BookingCatalogError("NO_BOOKABLE_BARBERS");
+  return {
+    source: "supabase",
+    location: { id: payload.location.id, name: payload.location.name ?? "Northfield Lounge", timezone: payload.location.timezone, address: payload.location.address ?? [businessConfig.address.line1, businessConfig.address.city, businessConfig.address.region, businessConfig.address.postalCode].filter(Boolean).join(", ") },
+    categories,
+    services: catalogServices,
+    addons: (payload.addons ?? []).flatMap((item) => item.id && item.slug ? [{ id: item.id, slug: item.slug, serviceId: item.service_id ?? null, name: english(item.name), description: english(item.description), durationMinutes: Number(item.duration_minutes ?? 0), priceCents: Number(item.price_cents ?? 0) }] : []),
+    barbers: catalogBarbers,
+  };
+}
+
+/** Read-only public catalog path. Normal booking-page loads never require the service-role key. */
+export async function readPublicBookingCatalog(): Promise<BookingCatalog> {
+  const client = createPublicServerSupabase();
+  if (!client) throw new BookingCatalogError("SUPABASE_NOT_CONFIGURED");
+  const { data, error } = await client.rpc("get_public_booking_catalog");
+  if (error || !data) {
+    console.error("booking-public-catalog", { code: error?.code, message: error?.message?.slice(0, 240) });
+    throw new BookingCatalogError("BOOKING_MIGRATIONS_REQUIRED");
+  }
+  return publicCatalogFromRpc(data as PublicCatalogRpc);
+}
+
+export async function getBookingCatalog(): Promise<BookingCatalog> {
+  try {
+    return await readPublicBookingCatalog();
+  } catch (publicError) {
+    if (!createUntypedAdminSupabase()) throw publicError;
+    const { catalog } = await ensureBookingCatalog();
+    return catalog;
+  }
+}
+
+export async function getBookingAdminContext() {
+  const admin = createUntypedAdminSupabase();
+  if (!admin) throw new BookingCatalogError("SUPABASE_ADMIN_NOT_CONFIGURED");
+  return { admin, catalog: await getBookingCatalog() };
 }

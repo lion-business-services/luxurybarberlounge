@@ -58,10 +58,39 @@ for (const barber of barbers) {
   const social = barber.socialStatus === "active" && barber.socialUrl
     ? { instagram: barber.socialUrl, instagramHandle: barber.instagramHandle }
     : { instagramStatus: barber.socialStatus.replaceAll("-", "_"), instagramHandle: barber.instagramHandle ?? null };
-  lines.push(`insert into public.barber_profiles (business_id,slug,display_name,professional_title,short_intro,biography,story,specialties,languages,social_links,featured,active,demo,status,sort_order) values ((select id from public.businesses where slug='luxury-barber-lounge'),${sql(barber.slug)},${sql(barber.name)},${json(barber.title)},${json(barber.bio)},${json(barber.bio)},${json(barber.story)},${json(barber.specialtyTags)},array[${barber.languages.split(" · ").map((value) => sql(value.toLowerCase())).join(",")}]::text[],${json(social)},${barber.featured ? "true" : "false"},true,false,'published',${barber.sortOrder * 10}) on conflict (business_id,slug) do update set display_name=excluded.display_name,professional_title=excluded.professional_title,short_intro=excluded.short_intro,biography=excluded.biography,story=excluded.story,specialties=excluded.specialties,languages=excluded.languages,social_links=excluded.social_links,featured=excluded.featured,active=true,demo=false,status='published',sort_order=excluded.sort_order;`);
+  const languageCodes = barber.languageCodes
+    ?? barber.languages.split(" · ").map((value) => value.trim().toLowerCase()).filter(Boolean);
+  lines.push(`insert into public.barber_profiles (business_id,slug,display_name,professional_title,short_intro,biography,story,specialties,languages,social_links,featured,active,demo,status,sort_order) values ((select id from public.businesses where slug='luxury-barber-lounge'),${sql(barber.slug)},${sql(barber.name)},${json(barber.title)},${json(barber.bio)},${json(barber.bio)},${json(barber.story)},${json(barber.specialtyTags)},array[${languageCodes.map((value) => sql(value)).join(",")}]::text[],${json(social)},${barber.featured ? "true" : "false"},true,false,'published',${barber.sortOrder * 10}) on conflict (business_id,slug) do update set display_name=excluded.display_name,professional_title=excluded.professional_title,short_intro=excluded.short_intro,biography=excluded.biography,story=excluded.story,specialties=excluded.specialties,languages=excluded.languages,social_links=excluded.social_links,featured=excluded.featured,active=true,demo=false,status='published',sort_order=excluded.sort_order;`);
   lines.push(`insert into public.barber_profile_settings (barber_profile_id,years_cutting,walk_ins,photo_provided,working_days,instagram_handle,instagram_status,intake_notes) values ((select id from public.barber_profiles where business_id=(select id from public.businesses where slug='luxury-barber-lounge') and slug=${sql(barber.slug)}),${sql(barber.yearsCutting)},${barber.walkIns ? "true" : "false"},${barber.photoProvided ? "true" : "false"},${json(barber.workingDays)},${sql(barber.instagramHandle)},${sql(barber.socialStatus.replaceAll("-", "_"))},${json({ schedulePending: barber.bookingWeekdays.length === 0 })}) on conflict (barber_profile_id) do update set years_cutting=excluded.years_cutting,walk_ins=excluded.walk_ins,photo_provided=excluded.photo_provided,working_days=excluded.working_days,instagram_handle=excluded.instagram_handle,instagram_status=excluded.instagram_status,intake_notes=excluded.intake_notes,updated_at=timezone('utc',now());`);
 }
 lines.push(`update public.barber_profiles set active=false,featured=false where business_id=(select id from public.businesses where slug='luxury-barber-lounge') and slug not in (${barbers.map((item) => sql(item.slug)).join(",")});`, "");
+
+const imageOutputs = [
+  { imageType: "original", folder: "originals", extension: "jpeg", width: null, height: null, sortOrder: 0 },
+  { imageType: "homepage", folder: "cards", extension: "webp", width: 720, height: 900, sortOrder: 10 },
+  { imageType: "directory", folder: "cards", extension: "avif", width: 720, height: 900, sortOrder: 20 },
+  { imageType: "profile", folder: "profiles", extension: "avif", width: 1200, height: 1500, sortOrder: 30 },
+  { imageType: "booking", folder: "booking", extension: "avif", width: 640, height: 800, sortOrder: 40 },
+  { imageType: "mobile", folder: "mobile", extension: "avif", width: 540, height: 675, sortOrder: 50 },
+  { imageType: "tablet", folder: "tablet", extension: "avif", width: 960, height: 1200, sortOrder: 60 },
+  { imageType: "desktop", folder: "desktop", extension: "avif", width: 1200, height: 1500, sortOrder: 70 },
+] as const;
+
+for (const barber of barbers) {
+  for (const output of imageOutputs) {
+    const extension = output.imageType === "original" ? "jpeg" : output.extension;
+    const storagePath = `media/barbers/${output.folder}/${barber.slug}.${extension}`;
+    const position = output.imageType === "mobile"
+      ? { mobile: barber.image.objectPosition.mobile }
+      : output.imageType === "tablet"
+        ? { tablet: barber.image.objectPosition.card }
+        : output.imageType === "profile" || output.imageType === "desktop"
+          ? { desktop: barber.image.objectPosition.profile, mobile: barber.image.objectPosition.mobile }
+          : { desktop: barber.image.objectPosition.card, mobile: barber.image.objectPosition.mobile };
+    lines.push(`insert into public.barber_images (barber_user_id,barber_profile_id,image_type,storage_path,width,height,object_position,alt_text,sort_order,active) values (null,(select id from public.barber_profiles where business_id=(select id from public.businesses where slug='luxury-barber-lounge') and slug=${sql(barber.slug)}),${sql(output.imageType)},${sql(storagePath)},${output.width ?? "null"},${output.height ?? "null"},${json(position)},${json(barber.image.alt)},${output.sortOrder},true) on conflict (barber_profile_id,image_type,storage_path) do update set width=excluded.width,height=excluded.height,object_position=excluded.object_position,alt_text=excluded.alt_text,sort_order=excluded.sort_order,active=true;`);
+  }
+}
+lines.push("");
 
 lines.push("update public.barber_profile_services set active=false where barber_profile_id in (select id from public.barber_profiles where business_id=(select id from public.businesses where slug='luxury-barber-lounge'));", "");
 for (const barber of barbers) {

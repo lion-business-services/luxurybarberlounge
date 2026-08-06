@@ -12,4 +12,4 @@ Timezone: `America/New_York`
 | Saturday | 8:00 AM to 9:00 PM |
 | Sunday | 9:00 AM to 4:00 PM |
 
-Walk-ins are accepted during open business hours, subject to real-time capacity and barber eligibility. These hours are centralized in `src/lib/content/site.ts`, mirrored to `business_hours` by migration `202608060016`, and used by booking availability, queue behavior, structured data, public pages, email content, and tests.
+Walk-ins are accepted during open business hours, subject to real-time capacity and individual barber eligibility. These hours are centralized in `src/lib/content/site.ts`, mirrored to `business_hours` by migration `202608060016`, and used by booking availability, queue behavior, structured data, public pages, email content, and tests. Ruben's walk-in setting remains disabled until the owner confirms it.

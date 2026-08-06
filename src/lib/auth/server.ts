@@ -131,7 +131,13 @@ export async function ensureDefaultRole(user: User) {
   const ownerEmail = process.env.INITIAL_OWNER_EMAIL?.trim().toLowerCase();
   const verifiedEmail = user.email?.trim().toLowerCase();
   const invitedRole = await consumePendingInvitation(user);
-  const desired: AppRole = ownerEmail && verifiedEmail === ownerEmail ? "owner" : invitedRole ?? "client";
+  const isVerifiedOwner = Boolean(
+    ownerEmail
+      && verifiedEmail === ownerEmail
+      && user.email_confirmed_at,
+  );
+  const desired: AppRole = isVerifiedOwner ? "owner" : invitedRole ?? "client";
+  const requiredRoles: AppRole[] = isVerifiedOwner ? ["owner", "barber"] : [desired];
 
   const { data: business } = await admin
     .from("businesses")
@@ -172,32 +178,62 @@ export async function ensureDefaultRole(user: User) {
     }
   }
 
-  if (!existing.includes(desired)) {
+  for (const roleKey of requiredRoles) {
+    if (existing.includes(roleKey)) continue;
     const { data: role } = await admin
       .from("roles")
       .select("id")
-      .eq("key", desired)
+      .eq("key", roleKey)
       .maybeSingle();
 
+    if (!role?.id) continue;
+    let scoped = admin
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("role_id", role.id);
+    scoped = businessId === null ? scoped.is("business_id", null) : scoped.eq("business_id", businessId);
+    const { data: assigned } = await scoped.maybeSingle();
 
-    if (role?.id) {
-      let scoped = admin
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("role_id", role.id);
-      scoped = businessId === null ? scoped.is("business_id", null) : scoped.eq("business_id", businessId);
-      const { data: assigned } = await scoped.maybeSingle();
-
-      if (!assigned) {
-        const { error } = await admin.from("user_roles").insert({
-          user_id: user.id,
-          role_id: role.id,
-          business_id: businessId,
-        });
-        if (error && error.code !== "23505") throw error;
-      }
+    if (!assigned) {
+      const { error } = await admin.from("user_roles").insert({
+        user_id: user.id,
+        role_id: role.id,
+        business_id: businessId,
+      });
+      if (error && error.code !== "23505") throw error;
     }
+  }
+
+  // The owner account has two deliberately separate assignments: an owner role
+  // for administration and a barber role linked to Ruben's public profile. The
+  // public record never grants owner access; only this verified, server-side
+  // bootstrap path can establish the owner role.
+  if (isVerifiedOwner && businessId) {
+    const { data: location } = await admin
+      .from("locations")
+      .select("id")
+      .eq("business_id", businessId)
+      .eq("active", true)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    const { error: staffError } = await admin.from("staff_profiles").upsert({
+      user_id: user.id,
+      business_id: businessId,
+      location_id: typeof location?.id === "string" ? location.id : null,
+      professional_title: "Owner and Master Barber",
+      active: true,
+    }, { onConflict: "user_id" });
+    if (staffError) throw staffError;
+
+    const { error: barberLinkError } = await admin
+      .from("barber_profiles")
+      .update({ staff_user_id: user.id })
+      .eq("business_id", businessId)
+      .eq("slug", "ruben-diaz-jr");
+    if (barberLinkError) throw barberLinkError;
   }
 
   const roles = await getRolesForUser(user.id);
@@ -205,7 +241,11 @@ export async function ensureDefaultRole(user: User) {
     user_id: user.id,
     event_type: "otp_verified",
     outcome: "success",
-    metadata: { roles, owner_bootstrap_match: desired === "owner" },
+    metadata: {
+      roles,
+      owner_bootstrap_match: isVerifiedOwner,
+      owner_barber_profile_linked: isVerifiedOwner,
+    },
   });
   return roles.length ? roles : [desired];
 }

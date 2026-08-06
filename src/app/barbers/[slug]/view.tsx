@@ -23,7 +23,8 @@ export function BarberDetailView({ barber }: { barber: Barber }) {
             <LuxuryCard className="relative min-h-[640px] overflow-hidden p-0" elevated>
               <picture>
                 <source srcSet={barber.image.profileAvif} type="image/avif" />
-                <Image src={barber.image.profile} alt={barber.image.alt[lang]} fill sizes="(max-width: 1024px) 100vw, 43vw" style={{ objectPosition: barber.image.objectPosition.profile }} className="object-cover" priority />
+                <source srcSet={barber.image.profile} type="image/webp" />
+                <Image src={barber.image.profileJpeg} alt={barber.image.alt[lang]} fill sizes="(max-width: 1024px) 100vw, 43vw" style={{ objectPosition: barber.image.objectPosition.profile }} className="object-cover" priority />
               </picture>
               <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_58%,rgba(5,5,5,.72))]" />
             </LuxuryCard>
@@ -37,7 +38,7 @@ export function BarberDetailView({ barber }: { barber: Barber }) {
                 <div className="flex gap-3"><Languages className="h-5 w-5 shrink-0 text-[var(--color-brass)]" aria-hidden /><div><p className="text-[9px] tracking-[0.25em] uppercase text-[var(--color-bone-muted)]">{lang === "es" ? "Idiomas" : "Languages"}</p><p className="mt-2 text-sm leading-6">{barber.languages}</p></div></div>
               </div>
               <p className="mt-7 text-xs leading-6 text-[var(--color-bone-muted)]">{barber.availability[lang]}</p>
-              <Link href={`/book?barber=${barber.slug}`} data-magnetic="true" className="mt-9 inline-flex items-center gap-3 rounded-full bg-[var(--color-brass)] px-7 py-3.5 text-[11px] tracking-[0.24em] uppercase text-[var(--color-ink)] hover:bg-[var(--color-brass-light)]">{lang === "es" ? `Reservar con ${barber.name}` : `Book with ${barber.name}`}<ArrowUpRight className="h-4 w-4" aria-hidden /></Link>
+              <Link href={`/book?barber=${barber.slug}`} data-magnetic="true" className="mt-9 inline-flex items-center gap-3 rounded-full bg-[var(--color-brass)] px-7 py-3.5 text-[11px] tracking-[0.24em] uppercase text-[var(--color-ink)] hover:bg-[var(--color-brass-light)]">{barber.bookingWeekdays.length ? (lang === "es" ? `Reservar con ${barber.name}` : `Book with ${barber.name}`) : (lang === "es" ? `Ver disponibilidad de ${barber.name}` : `Check ${barber.name}'s availability`)}<ArrowUpRight className="h-4 w-4" aria-hidden /></Link>
             </LuxuryCard>
           </Reveal>
         </div>

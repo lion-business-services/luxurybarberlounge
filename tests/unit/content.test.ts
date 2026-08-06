@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { barbers, business, giftCards, hours, packages, services, tiers, unavailableServices } from "../../src/lib/content/site.ts";
 
 const names = [
+  "Rubén Diaz, Jr.",
   "Angelica Aquino",
   "Hommy Rivera",
   "Barber Lo's",
@@ -41,6 +42,11 @@ test("the active barber roster uses the correct mapped identities", () => {
   assert.deepEqual(barbers.map((item) => item.name), names);
   assert.ok(barbers.every((item) => item.identityStatus === "verified" && item.photoProvided));
   assert.equal(barbers.find((item) => item.slug === "barber-los")?.walkIns, false);
+  const ruben = barbers.find((item) => item.slug === "ruben-diaz-jr");
+  assert.equal(ruben?.title.en, "Owner and Master Barber");
+  assert.equal(ruben?.owner, true);
+  assert.deepEqual(ruben?.bookingWeekdays, []);
+  assert.deepEqual(ruben?.languageCodes, []);
 });
 
 test("client-confirmed catalog uses exact prices, durations, and fifty percent deposits", () => {
