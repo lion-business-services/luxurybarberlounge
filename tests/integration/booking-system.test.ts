@@ -156,3 +156,20 @@ test("required booking documentation and safe environment template are packaged"
   assert.match(env, /BOOKING_MANAGE_SECRET=/);
   assert.doesNotMatch(env, /sb_secret_|re_[A-Za-z0-9]{20,}|SQUARE_ACCESS_TOKEN=\S+/);
 });
+
+test("rescheduling preserves the booked duration without requiring add-on identifiers", async () => {
+  const availability = await source("src/lib/booking/availability.ts");
+  assert.match(availability, /addonIds\?: string\[\]/);
+  assert.match(availability, /durationMinutesOverride\?: number/);
+  assert.match(availability, /input\.durationMinutesOverride \?\?/);
+
+  for (const routePath of [
+    "src/app/api/admin/appointments/route.ts",
+    "src/app/api/booking/manage/[reference]/route.ts",
+    "src/app/api/client/appointments/route.ts",
+  ]) {
+    const route = await source(routePath);
+    assert.match(route, /addonIds: \[\]/);
+    assert.match(route, /durationMinutesOverride:/);
+  }
+});

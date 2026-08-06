@@ -15,7 +15,8 @@ function overlaps(start: Date, end: Date, otherStart: string, otherEnd: string) 
 export async function searchSupabaseAvailability(input: {
   locationId: string;
   serviceId: string;
-  addonIds: string[];
+  addonIds?: string[];
+  durationMinutesOverride?: number;
   barberIds?: string[];
   startDate: string;
   days: number;
@@ -24,9 +25,12 @@ export async function searchSupabaseAvailability(input: {
   if (input.locationId !== catalog.location.id) return { source: "supabase" as const, slots: [] as AvailabilitySlot[] };
   const service = catalog.services.find((item) => item.id === input.serviceId);
   if (!service) return { source: "supabase" as const, slots: [] as AvailabilitySlot[] };
-  const addons = catalog.addons.filter((item) => input.addonIds.includes(item.id));
-  if (addons.length !== input.addonIds.length) return { source: "supabase" as const, slots: [] as AvailabilitySlot[] };
-  const durationMinutes = service.durationMinutes + addons.reduce((sum, item) => sum + item.durationMinutes, 0);
+  const addonIds = input.addonIds ?? [];
+  const addons = catalog.addons.filter((item) => addonIds.includes(item.id));
+  if (input.durationMinutesOverride === undefined && addons.length !== addonIds.length) {
+    return { source: "supabase" as const, slots: [] as AvailabilitySlot[] };
+  }
+  const durationMinutes = input.durationMinutesOverride ?? (service.durationMinutes + addons.reduce((sum, item) => sum + item.durationMinutes, 0));
   const priceCents = service.priceCents + addons.reduce((sum, item) => sum + item.priceCents, 0);
   const eligible = catalog.barbers.filter((barber) => barber.serviceIds.includes(service.id) && (!input.barberIds?.length || input.barberIds.includes(barber.id)));
   if (!eligible.length) return { source: "supabase" as const, slots: [] as AvailabilitySlot[] };

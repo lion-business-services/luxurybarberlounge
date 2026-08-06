@@ -1,28 +1,29 @@
 # Troubleshooting
 
-## Next.js compiler cannot load
+## Booking route unavailable
 
-Delete copied dependencies and perform a clean install on the current operating system:
+Check Supabase environment values, migrations, at least one live non-demo barber, service eligibility, and active schedules.
 
-```bash
-rm -rf node_modules .next
-npm ci
-```
+## No time slots
 
-Do not ship `node_modules` in the deployment ZIP.
+Check business/holiday hours, barber schedule, breaks, time off, service duration, buffer, lead time, existing appointments, and holds.
 
-## Portal redirects to login
+## Slot taken
 
-This is expected in production while server auth is not activated. For an intentional preview of seeded dashboards, set `NEXT_PUBLIC_PORTAL_DEMO_MODE=true` in a non-production environment.
+This is expected race protection. Refresh availability and choose an alternative.
 
-## Booking shows preview data
+## Appointment saved but no email
 
-Square booking is disabled or incomplete. Configure sandbox values, map services/team, test webhooks, and enable the matching feature flags.
+Open `/admin/appointments`. Inspect FormSubmit and notification state. The appointment remains valid; use retry and inspect cron logs.
 
-## Supabase write returns permission denied
+## Client cannot see guest booking
 
-Confirm the user role, business scope, session, migration version, and RLS policy. Do not bypass RLS from the browser.
+Verify OTP email exactly matches the booking email and inspect `clients.auth_user_id` and `appointments.auth_user_id`. Never merge by name.
 
-## Hero motion is reduced
+## Vercel Node warning
 
-Check `prefers-reduced-motion`, pointer type, save-data/device constraints, viewport size, and the experimental hero flag. The static fallback is intentional.
+Use Node 22.x in both Vercel and `package.json`, keep the root directory correct, install optional dependencies, and redeploy without cache.
+
+## Square not active
+
+Keep Square flags false. Supabase booking remains operational. Configure Square only after production permissions and mappings are verified.

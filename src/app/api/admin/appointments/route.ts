@@ -127,7 +127,7 @@ export async function PATCH(request: NextRequest) {
     const durationMinutes = Number(appointment.service_duration_snapshot_minutes || 30);
     const start = new Date(input.startsAt);
     const end = new Date(start.getTime() + durationMinutes * 60_000);
-    const availability = await searchSupabaseAvailability({ locationId: appointment.location_id, serviceId: appointment.service_id, barberIds: [appointment.barber_profile_id], startDate: new Intl.DateTimeFormat("en-CA", { timeZone: appointment.timezone }).format(start), days: 1 });
+    const availability = await searchSupabaseAvailability({ locationId: appointment.location_id, serviceId: appointment.service_id, addonIds: [], durationMinutesOverride: durationMinutes, barberIds: [appointment.barber_profile_id], startDate: new Intl.DateTimeFormat("en-CA", { timeZone: appointment.timezone }).format(start), days: 1 });
     if (!availability.slots.some((slot) => slot.startsAt === start.toISOString() && slot.barberId === appointment.barber_profile_id)) return NextResponse.json({ ok: false, code: "SLOT_TAKEN", message: "That time is no longer available." }, { status: 409 });
     const { data, error } = await value.admin.rpc("reschedule_appointment_atomic", { p_appointment_id: appointment.id, p_starts_at: start.toISOString(), p_ends_at: end.toISOString(), p_actor: value.session.user.id, p_actor_role: value.actorRole, p_reason: input.reason || "Rescheduled by shop" });
     if (error || !data) return NextResponse.json({ ok: false, message: /SLOT_CONFLICT/.test(error?.message ?? "") ? "That time is no longer available." : "The appointment could not be rescheduled." }, { status: /SLOT_CONFLICT/.test(error?.message ?? "") ? 409 : 503 });

@@ -44,7 +44,7 @@ export async function PATCH(request: NextRequest) {
   const durationMinutes = Number(appointment.service_duration_snapshot_minutes || 30);
   const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
   const date = new Intl.DateTimeFormat("en-CA", { timeZone: appointment.timezone || businessConfig.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(startsAt);
-  const availability = await searchSupabaseAvailability({ locationId: appointment.location_id, serviceId: appointment.service_id, barberIds: [appointment.barber_profile_id], startDate: date, days: 1 });
+  const availability = await searchSupabaseAvailability({ locationId: appointment.location_id, serviceId: appointment.service_id, addonIds: [], durationMinutesOverride: durationMinutes, barberIds: [appointment.barber_profile_id], startDate: date, days: 1 });
   if (!availability.slots.some((slot) => slot.startsAt === startsAt.toISOString() && slot.barberId === appointment.barber_profile_id)) return NextResponse.json({ ok: false, code: "SLOT_TAKEN", message: "That time is no longer available. Choose another open time." }, { status: 409 });
   const admin = createUntypedAdminSupabase();
   if (!admin) return NextResponse.json({ ok: false, message: "Booking service is unavailable." }, { status: 503 });
