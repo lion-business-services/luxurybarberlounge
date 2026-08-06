@@ -44,7 +44,7 @@ The repository contains the production implementation and activation documentati
 
 ## Go-live gates
 
-1. Apply migrations through `202608060015_booking_abuse_protection.sql`.
+1. Apply migrations through `202608060016_booking_abuse_protection.sql`.
 2. Regenerate hosted Supabase types with `npm run types:supabase`.
 3. Configure the environment variables listed in `.env.example`.
 4. Complete the controlled FormSubmit activation submission and inbox approval.

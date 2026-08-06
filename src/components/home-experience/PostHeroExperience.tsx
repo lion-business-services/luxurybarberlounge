@@ -242,7 +242,7 @@ function PrecisionScene({ lang, reduced }: { lang: Lang; reduced: boolean }) {
 
 function SignatureServices({ lang }: { lang: Lang }) {
   const featured = useMemo(() => {
-    const preferred = ["signature-haircut", "skin-fade", "fade-cut", "groom-package", "beard-trim", "hot-towel-shave"];
+    const preferred = ["haircut", "skin-fade", "cut-and-beard", "beard", "hot-towel-shave", "line-up"];
     const selected = preferred.map((slug) => services.find((item) => item.slug === slug)).filter(Boolean);
     if (selected.length >= 6) return selected.slice(0, 6) as typeof services;
     return [...selected, ...services.filter((item) => !selected.includes(item))].slice(0, 6) as typeof services;

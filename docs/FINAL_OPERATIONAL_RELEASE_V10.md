@@ -1,3 +1,5 @@
+> **Historical release record.** Superseded by `RELEASE-V11.3.md` and `docs/FINAL_RELEASE_REPORT.md`.
+
 # Luxury Barber Lounge Final Operational Release v10
 
 ## Purpose
@@ -91,7 +93,7 @@ All processor routes require `CRON_SECRET`.
 Completed in the release environment:
 
 - Formatting guard passed.
-- Content validation passed: 31 services, 9 public barber profiles, 3 membership definitions.
+- Content validation passed: 9 services, 8 public barber profiles, 2 membership definitions.
 - Migration validation passed: 10 ordered transactional migrations.
 - RLS validation passed across 14 protected domains.
 - Route validation passed: 166 page routes and 66 literal destinations.

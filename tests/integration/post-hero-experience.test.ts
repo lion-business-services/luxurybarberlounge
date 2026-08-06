@@ -25,16 +25,16 @@ const requiredMedia = [
 ];
 
 const barberSlugs = [
-  "ruben-diaz-jr",
-  "amaya-reyes",
-  "adrian-cole",
-  "mateo-cruz",
-  "julian-vega",
-  "elias-moreno",
-  "nico-santos",
-  "marcus-bennett",
-  "andre-silva",
+  "angelica-aquino",
+  "hommy-rivera",
+  "barber-los",
+  "jose",
+  "elvis",
+  "alfredo-hernandez-pollo",
+  "russ-hawkins",
+  "daniel-penalo",
 ];
+const founderSlug = "ruben-diaz-jr";
 
 const protectedHeroHashes: Record<string, string> = {
   "src/components/hero/CinematicHero.tsx": "a83153477108ca6d3819b39ac689cfd368d037330112c48c6ea36d6684ccd779",
@@ -58,8 +58,8 @@ test("post-hero cinematic media is packaged", () => {
   }
 });
 
-test("all nine barber portrait sets are packaged", () => {
-  for (const slug of barberSlugs) {
+test("all eight mapped barber portrait sets and the separate founder portrait are packaged", () => {
+  for (const slug of [...barberSlugs, founderSlug]) {
     for (const relative of [
       `public/media/barbers/originals/${slug}.jpeg`,
       `public/media/barbers/cards/${slug}.webp`,
@@ -124,4 +124,16 @@ test("mobile hero and concierge collision safeguards are present", () => {
   assert.match(hero, /100svh|155svh/);
   assert.match(concierge, /scroll/);
   assert.match(css, /safe-area-inset-bottom/);
+});
+
+test("barber cards use fixed geometry and context-specific portrait focal points", () => {
+  const directory = readFileSync(join(root, "src/app/barbers/view.tsx"), "utf8");
+  const booking = readFileSync(join(root, "src/components/booking/BookingFlow.tsx"), "utf8");
+  const content = readFileSync(join(root, "src/lib/content/site.ts"), "utf8");
+  assert.match(directory, /h-\[42rem\]/);
+  assert.match(directory, /grid-rows-\[auto_auto_4\.75rem_6rem_auto\]/);
+  assert.match(booking, /aspect-\[4\/5\]/);
+  assert.match(booking, /portraitPosition/);
+  assert.match(content, /objectPosition: \{ card:/);
+  assert.match(content, /booking:/);
 });

@@ -4,7 +4,7 @@
 2. Link the CLI to the correct project.
 3. Run `npx supabase@latest migration list`.
 4. Run `npx supabase@latest db push`.
-5. Confirm local and remote migrations match through `202608060015`.
+5. Confirm local and remote migrations match through `202608060016`.
 6. Generate database types with `npm run types:supabase` while authenticated.
 7. Confirm RLS and operational role assignments.
 8. Redeploy Vercel after environment changes.

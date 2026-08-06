@@ -6,7 +6,7 @@ import { BarberDetailView } from "./view";
 type Props = { params: Promise<{ slug: string }> };
 
 export function generateStaticParams() {
-  return barbers.map((barber) => ({ slug: barber.slug }));
+  return barbers.filter((barber) => barber.active).map((barber) => ({ slug: barber.slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

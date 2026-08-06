@@ -1,3 +1,5 @@
+> **Historical release record.** Superseded by `RELEASE-V11.3.md` and `docs/FINAL_RELEASE_REPORT.md`.
+
 # Luxury Barber Lounge v11.2 Booking Activation Fix
 
 This release corrects the production condition that allowed `/api/booking/catalog` to return an empty live catalog and caused `/book` to display “Online booking is temporarily unavailable.”

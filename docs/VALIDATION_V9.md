@@ -3,7 +3,7 @@
 ## Passed
 
 - Format guard
-- Content validation: 31 services, 9 barbers, 3 memberships
+- Content validation: 9 services, 8 barbers, 2 memberships
 - Migration validation: 9 ordered transactional migrations
 - RLS validation: 14 protected domains
 - Route validation: 165 page routes and 69 literal internal destinations

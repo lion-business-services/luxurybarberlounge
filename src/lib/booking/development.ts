@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { barbers, business, services } from "../content/site.ts";
+import { barbers, business, hours, services } from "../content/site.ts";
 import type {
   BookingAvailability,
   BookingInput,
@@ -40,6 +40,7 @@ export class DevelopmentBookingProvider implements BookingProvider {
 
   async listTeamMembers(_locationId?: string, serviceId?: string): Promise<BookingTeamMember[]> {
     return barbers
+      .filter((item) => item.active && item.bookingWeekdays.length > 0)
       .filter((item) => !serviceId || item.serviceSlugs.includes(serviceId))
       .map((item) => ({
         id: item.slug,
@@ -68,26 +69,37 @@ export class DevelopmentBookingProvider implements BookingProvider {
       : barbersForService;
     const slots: BookingAvailability[] = [];
     const cursor = new Date(start);
-    cursor.setMinutes(0, 0, 0);
+    cursor.setSeconds(0, 0);
+    cursor.setMinutes(Math.ceil(cursor.getMinutes() / 20) * 20);
     while (cursor < end && slots.length < 18) {
-      const hour = cursor.getHours();
       const day = cursor.getDay();
-      if (day !== 0 && day !== 1 && hour >= 9 && hour < 18) {
-        for (const barber of eligible) {
-          const ends = new Date(cursor.getTime() + service.minutes * 60_000);
-          slots.push({
-            id: `${barber.id}-${cursor.toISOString()}`,
-            startsAt: cursor.toISOString(),
-            endsAt: ends.toISOString(),
-            locationId: input.locationId,
-            teamMemberId: barber.id,
-            serviceId: input.serviceId,
-            live: false,
-          });
-          if (slots.length >= 18) break;
+      const businessDay = hours.find((item) => item.weekday === day);
+      if (businessDay && !businessDay.closed) {
+        const [openHour, openMinute] = businessDay.open.split(":").map(Number);
+        const [closeHour, closeMinute] = businessDay.close.split(":").map(Number);
+        const opens = new Date(cursor);
+        opens.setHours(openHour, openMinute, 0, 0);
+        const closes = new Date(cursor);
+        closes.setHours(closeHour, closeMinute, 0, 0);
+        const ends = new Date(cursor.getTime() + service.minutes * 60_000);
+        if (cursor >= opens && ends <= closes) {
+          for (const teamMember of eligible) {
+            const sourceBarber = barbers.find((item) => item.slug === teamMember.slug);
+            if (!sourceBarber?.bookingWeekdays.includes(day)) continue;
+            slots.push({
+              id: `${teamMember.id}-${cursor.toISOString()}`,
+              startsAt: cursor.toISOString(),
+              endsAt: ends.toISOString(),
+              locationId: input.locationId,
+              teamMemberId: teamMember.id,
+              serviceId: input.serviceId,
+              live: false,
+            });
+            if (slots.length >= 18) break;
+          }
         }
       }
-      cursor.setMinutes(cursor.getMinutes() + 60);
+      cursor.setMinutes(cursor.getMinutes() + 20);
     }
     return slots;
   }

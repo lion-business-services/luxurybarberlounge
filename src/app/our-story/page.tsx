@@ -3,9 +3,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, MapPin, Scissors } from "lucide-react";
 import { Reveal } from "@/components/motion";
-import { barbers, business } from "@/lib/content/site";
+import { business, founderProfile } from "@/lib/content/site";
 
-const ruben = barbers.find((barber) => barber.slug === "ruben-diaz-jr") ?? barbers[0];
+const ruben = founderProfile;
 
 export const metadata: Metadata = {
   title: "Our Story | Rubén Diaz, Jr.",

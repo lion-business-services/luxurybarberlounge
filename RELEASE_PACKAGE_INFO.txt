@@ -1,1 +1,5 @@
-Luxury Barber Lounge operational final v10. See RELEASE_V10.md and docs/GO_LIVE_V10.md. No credentials included.
+Luxury Barber Lounge final client-content and booking release v11.3
+Date: 2026-08-06
+Current release report: docs/FINAL_RELEASE_REPORT.md
+Current manifest: release-manifest.json
+No production credentials or real environment files are included.

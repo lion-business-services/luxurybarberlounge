@@ -297,12 +297,12 @@ export function LocationPanel() {
 export function ServiceMatcher() {
   const [goal, setGoal] = useState("sharp");
   const matches = useMemo(() => {
-    const map: Record<string, string[]> = { sharp: ["fade-cut", "hair-shape-up"], transform: ["custom-cut", "hair-coloring"], beard: ["beard-trim", "hot-towel-shave"], care: ["scalp-treatment", "shampoo-conditioning"] };
+    const map: Record<string, string[]> = { sharp: ["skin-fade", "line-up"], transform: ["haircut", "design"], beard: ["beard", "hot-towel-shave"], care: ["cut-and-beard", "senior-haircut"] };
     return services.filter((service) => (map[goal] ?? []).includes(service.slug)).slice(0, 2);
   }, [goal]);
   return (
     <div className="grid gap-8 lg:grid-cols-[.75fr_1.25fr]">
-      <div className="border border-[var(--color-ink-line)] bg-[var(--color-ink-soft)]/65 p-6"><p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">What is the goal?</p><div className="mt-5 space-y-2">{[{v:"sharp",l:"Keep it sharp"},{v:"transform",l:"Create a new look"},{v:"beard",l:"Focus on beard or shave"},{v:"care",l:"Hair or scalp care"}].map((item)=><button key={item.v} type="button" onClick={()=>setGoal(item.v)} className={clsx("choice-card",goal===item.v&&"choice-card-active")}><strong>{item.l}</strong><Sparkles className="h-4 w-4 text-[var(--color-brass)]" /></button>)}</div></div>
+      <div className="border border-[var(--color-ink-line)] bg-[var(--color-ink-soft)]/65 p-6"><p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">What is the goal?</p><div className="mt-5 space-y-2">{[{v:"sharp",l:"Keep it sharp"},{v:"transform",l:"Create a new look"},{v:"beard",l:"Focus on beard or shave"},{v:"care",l:"Complete grooming or senior cut"}].map((item)=><button key={item.v} type="button" onClick={()=>setGoal(item.v)} className={clsx("choice-card",goal===item.v&&"choice-card-active")}><strong>{item.l}</strong><Sparkles className="h-4 w-4 text-[var(--color-brass)]" /></button>)}</div></div>
       <div className="grid gap-4 sm:grid-cols-2">{matches.map((match)=><article key={match.slug} className="border border-[var(--color-ink-line)] p-6"><p className="text-[9px] tracking-[.25em] uppercase text-[var(--color-brass)]">Recommended</p><h3 className="font-display mt-3 text-2xl">{match.name.en}</h3><p className="mt-3 text-sm leading-6 text-[var(--color-bone-muted)]">{match.blurb.en}</p><div className="mt-5 flex items-center justify-between border-t border-[var(--color-ink-line)] pt-4"><span>${match.from} · {match.minutes} min</span><Link href={`/book?service=${match.slug}`} className="text-[var(--color-brass)]"><ArrowUpRight className="h-4 w-4" /></Link></div></article>)}</div>
     </div>
   );

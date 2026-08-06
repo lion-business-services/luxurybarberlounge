@@ -17,7 +17,7 @@ npx supabase@latest migration list
 npm run types:supabase
 ```
 
-Remote migrations must match through `202608060015`.
+Remote migrations must match through `202608060016`.
 
 ## Vercel
 

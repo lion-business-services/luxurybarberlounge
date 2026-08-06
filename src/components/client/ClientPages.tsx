@@ -157,7 +157,7 @@ export async function ClientProfilePage() {
 }
 
 export function ClientBarbersPage() {
-  return <ClientPageHeader eyebrow="Meet the team" title="Barbers" copy="Choose a barber by specialties and public profile."><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{barbers.map((barber) => <article key={barber.slug} className={styles.card}><p className={styles.eyebrow}>{barber.title.en}</p><h2 className="font-display mt-3 text-2xl">{barber.name}</h2><p className={`mt-3 text-sm leading-6 ${styles.muted}`}>{barber.bio.en}</p><div className="mt-5 flex gap-3"><Link href={`/barbers/${barber.slug}`} className="text-[10px] tracking-[.16em] uppercase text-[var(--color-brass)]">Profile</Link><Link href={`/book?barber=${barber.slug}`} className="text-[10px] tracking-[.16em] uppercase">Book</Link></div></article>)}</div></ClientPageHeader>;
+  return <ClientPageHeader eyebrow="Meet the team" title="Barbers" copy="Choose a barber by specialties and public profile."><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{barbers.filter((barber) => barber.active).map((barber) => <article key={barber.slug} className={styles.card}><p className={styles.eyebrow}>{barber.title.en}</p><h2 className="font-display mt-3 text-2xl">{barber.name}</h2><p className={`mt-3 text-sm leading-6 ${styles.muted}`}>{barber.bio.en}</p><div className="mt-5 flex gap-3"><Link href={`/barbers/${barber.slug}`} className="text-[10px] tracking-[.16em] uppercase text-[var(--color-brass)]">Profile</Link><Link href={`/book?barber=${barber.slug}`} className="text-[10px] tracking-[.16em] uppercase">Book</Link></div></article>)}</div></ClientPageHeader>;
 }
 
 export function ClientServicesPage() {

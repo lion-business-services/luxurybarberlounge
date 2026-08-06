@@ -1,3 +1,5 @@
+> **Historical release record.** Superseded by `RELEASE-V11.3.md` and `docs/FINAL_RELEASE_REPORT.md`.
+
 # Luxury Barber Lounge v10
 
 ## Completed

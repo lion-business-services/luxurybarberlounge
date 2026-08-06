@@ -76,7 +76,7 @@ test("only verified production barbers and eligible services reach public bookin
   assert.match(catalog, /identityStatus === "verified"/);
   assert.match(catalog, /\.eq\("demo", false\)/);
   assert.match(catalog, /eligibleServiceIds/);
-  assert.match(catalog, /existingSchedules/);
+  assert.match(catalog, /scheduleCheck/);
   assert.match(hardening, /where demo = true/);
   assert.match(hardening, /status = 'archived'/);
 });
@@ -148,13 +148,27 @@ test("notification jobs are idempotent, immediately deliver confirmations, and r
 
 
 
-test("booking launch migration seeds a verified live barber, core services, eligibility, and schedule", async () => {
-  const migration = await source("supabase/migrations/202608060015_booking_launch_activation.sql");
-  assert.match(migration, /ruben-diaz-jr/);
+test("final client-content migration seeds the exact live roster, catalog, schedules, and policies", async () => {
+  const activation = await source("supabase/migrations/202608060015_booking_launch_activation.sql");
+  const migration = await source("supabase/migrations/202608060016_final_client_content_release.sql");
+  assert.match(activation, /authoritative_content_migration/);
+  assert.doesNotMatch(activation, /Signature Haircut|Fade Cut|Executive Grooming Package/);
+  for (const slug of [
+    "angelica-aquino", "hommy-rivera", "barber-los", "jose", "elvis",
+    "alfredo-hernandez-pollo", "russ-hawkins", "daniel-penalo",
+  ]) assert.match(migration, new RegExp(slug));
+  for (const slug of [
+    "haircut", "skin-fade", "beard", "cut-and-beard", "hot-towel-shave",
+    "kids-haircut", "senior-haircut", "line-up", "design",
+  ]) assert.match(migration, new RegExp(`'${slug}'`));
   assert.match(migration, /barber_profile_services/);
   assert.match(migration, /barber_schedules/);
   assert.match(migration, /service_locations/);
-  assert.match(migration, /booking_enabled/);
+  assert.match(migration, /barber_profile_settings/);
+  assert.match(migration, /starting_amount_cents/);
+  assert.match(migration, /kids_age_limit/);
+  assert.match(migration, /senior_age_threshold/);
+  assert.match(migration, /deposit_percent/);
 });
 
 test("booking catalog refuses silent partial setup and never caches an empty catalog", async () => {
@@ -174,6 +188,10 @@ test("required booking documentation and safe environment template are packaged"
     "ADMIN_APPOINTMENTS.md", "CLIENT_APPOINTMENTS.md", "BARBER_SCHEDULES.md", "QUEUE_INTEGRATION.md",
     "SQUARE_BOOKING_INTEGRATION.md", "SUPABASE_SETUP.md", "RESEND_EMAILS.md", "BOOKING_AUTOMATIONS.md",
     "BOOKING_SECURITY.md", "BOOKING_QA.md", "QR_BOOKING_SETUP.md", "DEPLOYMENT.md", "LAUNCH_CHECKLIST.md", "TROUBLESHOOTING.md",
+    "FINAL_CLIENT_CONTENT.md", "BARBER_DATA_MAPPING.md", "BARBER_IMAGE_FRAMING.md", "BUSINESS_HOURS.md",
+    "SERVICES_AND_PRICING.md", "MEMBERSHIPS_AND_PACKAGES.md", "BARBER_PORTAL.md", "QUEUE_SYSTEM.md",
+    "SHOP_QUEUE_DISPLAY.md", "EMAIL_INTEGRATION.md", "RESEND_SETUP.md", "SQUARE_SETUP.md", "SECURITY.md",
+    "RLS_TESTING.md", "PORTAL_QA.md", "OWNER_CONFIRMATIONS_REQUIRED.md",
   ];
   for (const file of required) assert.ok((await source(`docs/${file}`)).length > 80, file);
   const env = await source(".env.example");

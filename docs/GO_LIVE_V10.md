@@ -1,3 +1,5 @@
+> **Historical release record.** Superseded by `RELEASE-V11.3.md` and `docs/FINAL_RELEASE_REPORT.md`.
+
 # Luxury Barber Lounge v10 Go-Live Guide
 
 This release finishes the simplified client portal, owner operations dashboard, persistent Supabase sessions, privacy-safe in-shop queue display, barber service eligibility, and conservative commission reconciliation.

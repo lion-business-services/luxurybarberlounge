@@ -19,7 +19,7 @@ export function BarbersView() {
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
           {roster.map((barber, index) => (
             <Reveal key={barber.slug} delay={Math.min(index * 55, 240)} variant={index % 2 ? "right" : "left"}>
-              <article className="group relative min-h-[38rem] overflow-hidden border border-[var(--color-ink-line)] bg-[var(--color-ink-soft)] transition duration-500 hover:border-[var(--color-brass)]/60">
+              <article className="group relative h-[42rem] overflow-hidden border border-[var(--color-ink-line)] bg-[var(--color-ink-soft)] transition duration-500 hover:border-[var(--color-brass)]/60">
                 <Image
                   src={barber.image.card}
                   alt={barber.image.alt[lang]}
@@ -30,11 +30,11 @@ export function BarbersView() {
                   priority={index < 2}
                 />
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_40%,rgba(5,5,5,.96)_84%)]" />
-                <div className="absolute inset-x-0 bottom-0 z-10 p-6 sm:p-7">
+                <div className="absolute inset-x-0 bottom-0 z-10 grid min-h-[23rem] grid-rows-[auto_auto_4.75rem_6rem_auto] p-6 sm:p-7">
                   <p className="text-[9px] tracking-[0.3em] uppercase text-[var(--color-brass)]">{barber.title[lang]}</p>
                   <h2 className="font-display mt-2 text-3xl text-[var(--color-bone)]">{barber.name}</h2>
-                  <p className="mt-3 line-clamp-3 text-sm leading-6 text-[var(--color-bone-muted)]">{barber.bio[lang]}</p>
-                  <div className="mt-5 grid gap-3 border-t border-white/10 pt-5">
+                  <p className="mt-3 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-[var(--color-bone-muted)]">{barber.bio[lang]}</p>
+                  <div className="mt-5 grid min-h-[6rem] content-start gap-3 border-t border-white/10 pt-5">
                     <p className="flex gap-2 text-[10px] leading-5 tracking-[0.16em] uppercase text-[var(--color-bone-muted)]"><Scissors className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-brass)]" aria-hidden />{barber.specialties[lang]}</p>
                     <p className="flex gap-2 text-[10px] tracking-[0.18em] uppercase text-[var(--color-bone-muted)]"><Languages className="h-4 w-4 shrink-0 text-[var(--color-brass)]" aria-hidden />{barber.languages}</p>
                   </div>

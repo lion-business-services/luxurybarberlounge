@@ -1,14 +1,16 @@
 # Booking Live Activation
 
-The public booking page depends on the production booking migrations and the verified launch catalog.
+Apply all migrations in order through `202608060016_final_client_content_release.sql`. Migration 016 is the final authoritative content release and supersedes earlier provisional launch snapshots when a clean database is built.
 
-1. Link the local repository to the correct Supabase project.
-2. Run `npx supabase@latest db push`.
-3. Confirm local and remote migrations match through `202608060015_booking_launch_activation.sql`.
-4. Redeploy Vercel without the previous build cache.
-5. Open `/api/booking/catalog`. It must return `ok: true`, at least one verified barber, at least one service, and the Northfield location.
-6. Open `/book`, choose a service, choose Rubén or first available, choose a time, and submit a controlled test appointment.
-7. Confirm the appointment appears in `/admin/appointments`.
-8. Confirm the client and shop emails appear in Resend Logs.
+Before enabling live booking:
 
-Migration 015 seeds only verified production information: Rubén Díaz Jr., five core services, service eligibility, business hours, a live weekly schedule, and the Northfield location. Temporary barber identities remain excluded from public booking.
+1. Configure the production Supabase URL, anon key, and server-only service-role key.
+2. Apply migrations and run live RLS tests.
+3. Configure `BOOKING_MANAGE_SECRET` and production application URLs.
+4. Verify staff accounts, barber links, schedules, breaks, and time off.
+5. Activate FormSubmit and/or Resend, then verify delivery and retry logs.
+6. Configure protected cron schedules.
+7. Keep Square flags disabled until location, catalog, team-member, customer, and webhook mappings pass QA.
+8. Run lint, semantic type checking, production build, browser/device QA, accessibility checks, and an end-to-end double-booking test.
+
+Barber Lo's remains unavailable for online scheduling until working days are confirmed. Angelica is enabled only for the confirmed Wednesday schedule.

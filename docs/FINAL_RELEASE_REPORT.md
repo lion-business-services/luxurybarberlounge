@@ -1,38 +1,42 @@
 # Final Release Report
 
-Release: `portal-crm-production-ready-v8`
-Date: 2026-07-30
+Release: `final-client-content-booking-v11.3`
+Date: 2026-08-06
+Repository basis: `luxury-barber-lounge-booking-live-v11.2.zip`
 
-1. **Root cause:** generic portal reuse, overlapping navigation/data concepts, and role fallback behavior made client and admin experiences substantially identical. Deterministic role priority and separate application architectures now resolve the defect.
-2. **Client architecture:** separate `/client/**` layout, shell, navigation, CSS, loaders, states, and actions.
-3. **Admin architecture:** separate `/admin/**` executive CRM with manager operations and owner-only nested governance.
-4. **Authentication:** passwordless six-digit Supabase OTP, Resend SMTP readiness, server verification, secure cookies, refresh, resend, throttling, and logout.
-5. **Owner protection:** owner assigned only after OTP verification of `INITIAL_OWNER_EMAIL`; no client-side comparison or privileged invitation.
-6. **Roles and permissions:** server role records, deterministic precedence, invitation restrictions, business scope, and protected layouts.
-7. **RLS:** nine migrations, static validation, self-scoped client policies, business-scoped staff policies, and owner governance policies.
-8. **Client profile:** identity, language, preferred barber, grooming preferences, communication choices, and consent updates.
-9. **Client history:** own appointments, queue, orders, memberships, notifications, support, referrals, feedback, consent, and privacy requests.
-10. **Client orders:** own Square-linked orders, receipts, refund state, and support requests; no financial editing.
-11. **Client membership:** plan/state/usage/history plus provider-confirmed change requests; no fake activation.
-12. **Client booking:** appointment detail, calendar export, rebook path, and provider-confirmed cancel/reschedule.
-13. **Client queue:** own join/status/estimate/assignment/leave behavior without exposing other clients or internal rules.
-14. **Admin client management:** search, create, detail, profile edits, notes, tags, history, booking/queue support, and audit.
-15. **Admin order management:** provider references, filters, totals, refunds, sync/reconciliation state, and support surfaces.
-16. **Admin membership management:** plan/version creation, publication guards, requests, usage, provider state, and owner completion.
-17. **Admin barber management:** profile, specialty, language, service, visibility, access, and owner-only provider mapping/suspension.
-18. **Admin queue:** deterministic Who's Next, status operations, manual assignment, reasons, rule versions, and audit.
-19. **Admin automation:** owner-created inactive test rules, provider-gated activation, consent/quiet-hour/retry structures, reasons, and audit.
-20. **Integration health:** authorized Supabase, Resend, Square, webhook, automation, sync-failure, and delivery-failure surfaces without credential display.
-21. **AI assistance:** feature-flagged, provider-neutral, deterministic fallback; no authority over roles, booking, queue, refunds, attribution, or settlement.
-22. **Audit:** login/logout, role/invitation, client, queue, attribution, commission, membership, automation, provider, and security mutations use structured audit records.
-23. **Responsive QA:** source architecture covers phone through widescreen; final rendered viewport screenshots remain required in Vercel Preview.
-24. **Accessibility:** semantic layouts, labels, focus, status announcements, touch targets, reduced motion, keyboard actions, and accessible inline reason forms.
-25. **Security:** server secrets, secure cookies, RBAC, RLS, input validation, signed URLs, webhook verification, idempotency, headers, revocation, privacy requests, and secret scanning.
-26. **Lint:** passed with zero errors and zero warnings.
-27. **Type check:** strict TypeScript passed.
-28. **Tests:** 40 unit and 27 integration tests passed; static TypeScript syntax parse passed.
-29. **Production build:** attempted but blocked before source compilation by package-mirror HTTP 404 for `@next/swc-wasm-nodejs@16.2.6` after Linux native packages were unavailable; no passing build is claimed.
-30. **External credentials:** production Supabase, Resend, Square, Twilio, optional AI, and cron scheduler values remain external and are intentionally excluded from the ZIP.
-31. **Business decisions:** final services/prices/durations/deposits/tax/cancellation/no-show terms; eight unverified barber identities; membership terms/provider mapping; commission open items; automation cadence/quiet hours; and legal worker-classification review.
-32. **Documentation:** see `README.md` and all exact setup, architecture, security, RLS, QA, deployment, owner, integration, automation, and launch documents under `docs/`.
-33. **Artifact:** the release ZIP and SHA-256 checksum are produced at the final packaging step.
+1. **Root cause of incorrect barber names:** the approved card photographs were connected to a provisional fictional content roster that was copied into public components, seed data, tests, and launch migration snapshots. The final release centralizes the real identities and preserves legacy row IDs when migrating historical appointment relationships.
+2. **Final barber-name mapping:** Amaya Reyes to Angelica Aquino; Adrian Cole to Hommy Rivera; Mateo Cruz to Barber Lo's; Julian Vega to Jose; Elias Moreno to Elvis; Nico Santos to Alfredo Hernandez (Pollo); Marcus Bennett to Russ Hawkins; Andre Silva to Daniel Penalo. Every mapped portrait remains attached to the same person shown on the original card.
+3. **Portrait-framing corrections:** all active portraits use a normalized source canvas, identical 4:5 derivatives, fixed card geometry, fixed content regions, and typed card/profile/mobile/booking focal positions. Original images remain packaged. See `docs/BARBER_IMAGE_FRAMING.md`, `docs/VISUAL_QA.md`, and `docs/qa/barber-portrait-contact-sheet.webp`.
+4. **Client-intake content migrated:** the final centralized source, migration, seed, public pages, booking catalog, portals, metadata, validation, and tests now use the completed intake values. Unclear handwriting is recorded as pending confirmation rather than guessed.
+5. **Business-hours update:** Monday closed; Tuesday through Saturday 8:00 AM to 9:00 PM; Sunday 9:00 AM to 4:00 PM; timezone `America/New_York`; walk-ins accepted during open hours subject to capacity.
+6. **Services and pricing update:** nine bookable services match the intake exactly, with 50% deposits, kids age limit 10, senior threshold 55, Design starting at $150 with Barber Lo's, and Color unavailable.
+7. **Membership and package update:** two membership plans, Executive Grooming, Father & Son, Wedding/Event, and vouchers starting at $50 are centralized and seeded. Membership versions preserve sold terms; package rows are archived rather than rewritten when terms change.
+8. **Existing booking defects found:** stale provisional content, inconsistent demo/live catalogs, unsupported schedules exposed as availability, old portrait geometry, launch migration data that no longer matched the intake, and service/barber eligibility drift. These were repaired without replacing the approved public design.
+9. **Final booking architecture:** `/book` uses centralized catalog data, server-side availability, atomic Supabase appointment creation, public references, service snapshots, audit history, portal visibility, queue preparation, and provider-independent notification jobs.
+10. **Availability source of truth:** Supabase is the active canonical source until a fully configured Square production connection passes mapping and webhook QA. The Square adapter remains available behind disabled feature flags.
+11. **Double-booking protection:** database overlap constraints, server-side revalidation, advisory locking, idempotency keys, temporary slot holds, duplicate-request protection, timezone-safe timestamps, and conflict responses protect the slot.
+12. **Admin CRM integration:** `/admin/appointments` and appointment detail operations use stored appointment records, status transitions, reassignment, check-in, queue links, delivery state, client history, and audit data.
+13. **Client portal integration:** authenticated clients are scoped to their own appointments, queue status, calendar exports, secure management actions, and history. Guest records can be linked after verified authentication without name-only merging.
+14. **Barber portal integration:** assigned barbers receive their authorized schedule and appointment context without owner-only analytics, unrelated clients, secrets, or private internal notes.
+15. **Business email integration:** FormSubmit administrative notifications are queued only after the appointment is stored, have delivery logging and retry handling, and target `info@theluxurybarberlounge.com`. Live inbox delivery requires recipient activation and a deployed environment.
+16. **Client-confirmation integration:** Resend-compatible transactional jobs cover booking confirmation and reminders with idempotent delivery records. Live delivery requires a production API key and verified sender/domain.
+17. **Queue-system status:** scheduled appointments, walk-ins, check-in, eligibility, preferred barber, first available, manual assignment, statuses, and privacy-safe display paths are implemented. Live realtime behavior requires the production Supabase project and staff setup.
+18. **Who's Next status:** the deterministic assignment engine uses service eligibility, availability, preference, workload, estimated duration, fairness, and audited override reasons. Integration tests pass.
+19. **In-shop display status:** a dedicated privacy-safe television/tablet route is implemented with realtime refresh, reconnection handling, safe client labels, status, assignment, and readable display rules. Contact information and private notes are excluded.
+20. **Automation status:** protected background jobs, idempotency, retries, delivery logs, consent checks, quiet-hour controls, booking reminders, queue notices, and failure states are implemented. Production cron/provider activation remains external.
+21. **Supabase status:** sixteen ordered transactional migrations, final client-content migration `202608060016_final_client_content_release.sql`, RLS definitions, realtime paths, seed, and static validation are complete. A live project migration run was not possible without production credentials.
+22. **Square status:** server-side adapter and webhook architecture are present, but Square remains disabled. Production application ID, access token, location ID, signature key, catalog mappings, team-member mappings, and webhook verification are still required.
+23. **FormSubmit status:** notification adapter, recipient configuration, persistence-before-send behavior, retry, and delivery ledger are implemented. Live delivery is not claimed because recipient activation and deployed-network testing remain external.
+24. **Resend status:** transactional provider support, sender/reply-to configuration, idempotency, and delivery logging are implemented. Live sending is not claimed because credentials and sender verification were not supplied.
+25. **RLS status:** static RLS validation passed across 16 migrations and 14 protected domains. Live database policy tests remain required after deploying migrations to the production Supabase project.
+26. **Accessibility result:** semantic controls, keyboard/touch paths, focus behavior, status announcements, fixed booking/card structure, reduced-motion guards, and privacy-safe status rendering are present. Browser-level WCAG/aXe testing remains required in a dependency-complete preview.
+27. **Responsive QA result:** fixed card geometry, 4:5 media, responsive derivatives, booking/portal responsive source rules, and route/performance checks passed. Rendered viewport testing at every requested width remains required in local or Vercel Preview because dependencies could not be installed in this environment.
+28. **Visual barber-card QA result:** eight active portrait sets were inspected together. Eye-line and face-scale normalization, equal derivative dimensions, correct labels, fixed content areas, and correct photograph mapping are documented in the packaged contact sheet.
+29. **Lint result:** not run. `npm ci --include=optional` was blocked by the execution environment's package mirror returning HTTP 404 for `zod-validation-error-4.0.2.tgz`; no passing lint claim is made.
+30. **Type-check result:** semantic TypeScript checking was not run because dependencies could not be installed. A dependency-independent TypeScript syntax transpile passed for 419 non-declaration `.ts`/`.tsx` files with zero syntax errors.
+31. **Test result:** 42 unit tests passed and 56 integration tests passed. Content, routes, migrations, RLS, repository, Vercel, performance, format, and secret validators also passed.
+32. **Production-build result:** not run because dependency installation failed before Next.js could be installed. The exact package-mirror blocker is recorded above; no production build claim is made.
+33. **Exact external credentials still required:** production Supabase URL, anon key, and service-role key; `BOOKING_MANAGE_SECRET`; FormSubmit recipient activation; Resend API key and verified sending identity; Square application ID, access token, location ID, webhook signature key, catalog/team mappings; `CRON_SECRET` and deployed cron schedules; optional SMS provider credentials.
+34. **Exact owner confirmations still required:** Angelica's complete workweek after Wednesday; Barber Lo's years, working days, and Instagram; exact Instagram punctuation/handles for Alfredo (Pollo), Russ, Elvis, and Jose; final cancellation, no-show, refund, reschedule, and membership legal terms; Square mapping approval.
+35. **Documentation paths:** `README.md`; `docs/FINAL_CLIENT_CONTENT.md`; `docs/BARBER_DATA_MAPPING.md`; `docs/BARBER_IMAGE_FRAMING.md`; `docs/VISUAL_QA.md`; `docs/BUSINESS_HOURS.md`; `docs/SERVICES_AND_PRICING.md`; `docs/MEMBERSHIPS_AND_PACKAGES.md`; `docs/BOOKING_SYSTEM.md`; `docs/AVAILABILITY_ENGINE.md`; `docs/ADMIN_APPOINTMENTS.md`; `docs/CLIENT_APPOINTMENTS.md`; `docs/BARBER_PORTAL.md`; `docs/QUEUE_SYSTEM.md`; `docs/SHOP_QUEUE_DISPLAY.md`; `docs/BOOKING_AUTOMATIONS.md`; `docs/EMAIL_INTEGRATION.md`; `docs/SUPABASE_SETUP.md`; `docs/RESEND_SETUP.md`; `docs/FORMSUBMIT_SETUP.md`; `docs/SQUARE_SETUP.md`; `docs/SECURITY.md`; `docs/RLS_TESTING.md`; `docs/PORTAL_QA.md`; `docs/DEPLOYMENT.md`; `docs/LAUNCH_CHECKLIST.md`; `docs/OWNER_CONFIRMATIONS_REQUIRED.md`; `docs/TROUBLESHOOTING.md`.
+36. **Final ready-to-deploy ZIP:** generated outside the repository as `luxury-barber-lounge-booking-live-final.zip`, with a separate SHA-256 checksum. The source package is deployable after dependency installation, credentials, migrations, provider activation, live RLS tests, browser QA, lint, semantic type checking, and production build are completed in the target environment.

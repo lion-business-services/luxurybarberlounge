@@ -9,13 +9,13 @@ import { features } from "@/lib/config/features";
 
 function answer(input: string) {
   const text = input.toLowerCase();
-  if (text.includes("hour") || text.includes("open")) return "The lounge is open Tuesday through Saturday. Visit the location page for the current daily schedule and holiday notices.";
+  if (text.includes("hour") || text.includes("open")) return "The lounge is closed Monday, open Tuesday through Saturday from 8:00 AM to 9:00 PM, and open Sunday from 9:00 AM to 4:00 PM.";
   if (text.includes("address") || text.includes("where") || text.includes("location")) return `${business.street}, ${business.city}, ${business.state} ${business.postalCode}. Complimentary parking is available directly outside.`;
-  if (text.includes("walk")) return "Walk-ins are welcome when capacity allows. Call the lounge for the most current chair availability, or reserve an appointment for a guaranteed time.";
-  if (text.includes("beard")) return "For a maintained shape, start with Beard Trim. For a full ritual, consider the Hair & Beard package or Hot Towel Shave.";
-  if (text.includes("fade")) return "The Fade Cut supports low, mid, high, taper, and skin-fade finishes after consultation. Starting price and duration are shown in the service catalog.";
-  if (text.includes("price") || text.includes("cost")) return "The service menu shows starting prices. The lounge confirms the final service scope, price, and any deposit before the appointment is finalized.";
-  if (text.includes("book") || text.includes("appointment")) return "Use the Book page to choose a service and preferred barber. The lounge confirms the appointment time before your chair is reserved.";
+  if (text.includes("walk")) return "Walk-ins are accepted during open business hours, subject to real-time capacity. Barber Lo's is not configured for walk-ins.";
+  if (text.includes("beard")) return "The Beard service is 25 minutes and $15. Cut + Beard is 60 minutes and $50. Hot Towel Shave is 40 minutes and $45.";
+  if (text.includes("fade")) return "The Skin Fade service is 40 minutes and $50. Available times are shown only for eligible barbers with confirmed schedules.";
+  if (text.includes("price") || text.includes("cost")) return "The service menu shows client-confirmed prices and durations. A 50% deposit is required for bookings. Design starts at $150.";
+  if (text.includes("book") || text.includes("appointment")) return "Use the Book page to choose a service, an eligible barber, and an available time. A successful reservation returns a booking reference and truthful appointment status.";
   if (text.includes("member")) return "Membership options are shown for comparison. The lounge confirms current benefits, enrollment availability, and terms before activation.";
   const featured = services.filter((service) => service.featured).slice(0, 2).map((service) => service.name.en).join(" or ");
   return `I can help with services, pricing, hours, location, memberships, walk-ins, and booking guidance. A useful place to start is ${featured}.`;

@@ -7,7 +7,7 @@ export const testimonials = [
     id: "review-1",
     name: "Launch Guest",
     rating: 5,
-    service: "Signature Haircut",
+    service: "Haircut",
     quote: {
       en: "An environment built on professional craftsmanship and clear communication from start to finish.",
       es: "Un ambiente basado en el oficio profesional y comunicación clara de principio a fin.",
@@ -18,7 +18,7 @@ export const testimonials = [
     id: "review-2",
     name: "Founding Member",
     rating: 5,
-    service: "Hair & Beard Ritual",
+    service: "Cut + Beard",
     quote: {
       en: "A consistent, detail-oriented grooming experience tailored to individual routines.",
       es: "Una experiencia de grooming consistente y detallada adaptada a rutinas individuales.",
@@ -29,7 +29,7 @@ export const testimonials = [
     id: "review-3",
     name: "First Visit Guest",
     rating: 5,
-    service: "Fade Cut",
+    service: "Skin Fade",
     quote: {
       en: "The service sets a high standard for precision and care.",
       es: "El servicio establece un alto estándar de precisión y cuidado.",
@@ -102,9 +102,9 @@ export const policies: Record<string, { title: string; intro: string; sections: 
   },
   deposits: {
     title: "Deposit Policy",
-    intro: "Selected appointments may require a deposit to secure your booking.",
+    intro: "Bookings require a 50% deposit to secure the selected appointment.",
     sections: [
-      { heading: "Purpose", paragraphs: ["Selected appointments may require a deposit to reserve time, products, or extended service capacity."] },
+      { heading: "Purpose", paragraphs: ["Bookings require a deposit equal to 50% of the selected service total to reserve chair time."] },
       { heading: "Application", paragraphs: ["An accepted deposit is applied to the eligible final service total unless the confirmed cancellation or no-show terms state otherwise."] },
       { heading: "Payment security", paragraphs: ["Payment information is processed by the approved payment provider. Luxury Barber Lounge does not store raw card data in Supabase or the website application."] },
     ],
@@ -187,15 +187,15 @@ export const legalContent = {
 export const portalDemo = {
   client: {
     metrics: [
-      { label: "Next appointment", value: "Sat · 10:30 AM", note: "Signature Haircut · Carlos" },
+      { label: "Next appointment", value: "Sat · 10:30 AM", note: "Haircut · Angelica" },
       { label: "Membership", value: "Not active", note: "Compare launch plans" },
       { label: "Rewards", value: "120 pts", note: "Demo ledger" },
       { label: "Next maintenance", value: "3 weeks", note: "Based on last service" },
     ],
     appointments: [
-      { date: "Aug 8, 2026", service: "Signature Haircut", barber: "Carlos", status: "Confirmed", total: "$45" },
-      { date: "Jul 11, 2026", service: "Fade Cut", barber: "Ruben", status: "Completed", total: "$45" },
-      { date: "Jun 14, 2026", service: "Hair & Beard Ritual", barber: "Ruben", status: "Completed", total: "$85" },
+      { date: "Aug 8, 2026", service: "Haircut", barber: "Angelica", status: "Confirmed", total: "$50" },
+      { date: "Jul 11, 2026", service: "Skin Fade", barber: "Hommy", status: "Completed", total: "$50" },
+      { date: "Jun 14, 2026", service: "Cut + Beard", barber: "Jose", status: "Completed", total: "$50" },
     ],
   },
   barber: {
@@ -206,10 +206,10 @@ export const portalDemo = {
       { label: "Provisional commission", value: "$312", note: "Calculated demo" },
     ],
     schedule: [
-      { time: "9:00 AM", client: "M. Alvarez", service: "Fade Cut", status: "Checked in" },
-      { time: "10:00 AM", client: "J. Rivera", service: "Hair & Beard Ritual", status: "Confirmed" },
-      { time: "11:30 AM", client: "Walk-in #A14", service: "Beard Trim", status: "Waiting" },
-      { time: "1:00 PM", client: "T. Martin", service: "Custom Cut", status: "Confirmed" },
+      { time: "9:00 AM", client: "M. Alvarez", service: "Skin Fade", status: "Checked in" },
+      { time: "10:00 AM", client: "J. Rivera", service: "Cut + Beard", status: "Confirmed" },
+      { time: "11:30 AM", client: "Walk-in #A14", service: "Beard", status: "Waiting" },
+      { time: "1:00 PM", client: "T. Martin", service: "Design", status: "Confirmed" },
     ],
   },
   reception: {
@@ -220,9 +220,9 @@ export const portalDemo = {
       { label: "Late arrivals", value: "1", note: "Needs outreach" },
     ],
     queue: [
-      { token: "A14", service: "Beard Trim", preference: "First available", wait: "12 min", status: "Waiting" },
-      { token: "A15", service: "Fade Cut", preference: "Carlos", wait: "28 min", status: "Confirmed" },
-      { token: "A16", service: "Shape-Up", preference: "First available", wait: "36 min", status: "Waiting" },
+      { token: "A14", service: "Beard", preference: "First available", wait: "12 min", status: "Waiting" },
+      { token: "A15", service: "Skin Fade", preference: "Hommy", wait: "28 min", status: "Confirmed" },
+      { token: "A16", service: "Line-Up", preference: "First available", wait: "36 min", status: "Waiting" },
     ],
   },
   admin: {

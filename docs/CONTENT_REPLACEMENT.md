@@ -1,16 +1,7 @@
-# Content Replacement
+# Final Content Replacement
 
-Owner approval is still required for:
+The provisional public barber identities and catalog have been replaced by the client-confirmed content in `src/lib/content/site.ts`, `supabase/migrations/202608060016_final_client_content_release.sql`, and `supabase/seed/seed.sql`.
 
-- eight temporary Barber identities, biographies, specialties, languages, start dates, and Square team mappings
-- final hours and holiday hours
-- all service durations, starting prices, deposits, eligibility, and add-ons
-- membership/package values and terms
-- social URLs that are not configured
-- founder-specific history beyond the fact-safe published draft
-- cancellation/no-show/deposit terms
-- accessibility/parking details
-- real reviews and review permissions
-- policy proposed/open decisions
+The active roster contains Angelica Aquino, Hommy Rivera, Barber Lo's, Jose, Elvis, Alfredo Hernandez (Pollo), Russ Hawkins, and Daniel Penalo. Ruben Diaz Jr. remains a separate founder profile rather than a booking provider.
 
-Update centralized records rather than hard-coded page copies. Do not invent credentials, ratings, years of experience, awards, or customer claims.
+Exact hours, services, prices, durations, deposits, age rules, memberships, packages, vouchers, walk-in rules, and supported barber details are documented in `docs/FINAL_CLIENT_CONTENT.md` and `docs/OWNER_CONFIRMATIONS_REQUIRED.md`.

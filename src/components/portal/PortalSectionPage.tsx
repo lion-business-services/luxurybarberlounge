@@ -72,7 +72,7 @@ const sampleRows: Record<string, Array<Record<string, string>>> = {
   ],
   barbers: barbers.map((barber) => ({ Barber: barber.name, Title: barber.title.en, Languages: barber.languages, Services: String(barber.serviceSlugs.length), Status: barber.contentStatus === "confirmed" ? "Active" : "Review" })),
   services: services.slice(0, 12).map((service) => ({ Service: service.name.en, Category: service.category, Duration: `${service.minutes} min`, Price: `$${service.from}`, Deposit: `$${service.deposit}`, Status: service.contentStatus === "confirmed" ? "Published" : "Review" })),
-  memberships: tiers.map((tier) => ({ Plan: tier.name.en, Price: `$${tier.price}`, Interval: tier.cadence.en, Benefits: String(tier.perks.length), Status: "Draft" })),
+  memberships: tiers.map((tier) => ({ Plan: tier.name.en, Price: `$${tier.price}`, Interval: tier.cadence.en, Benefits: String(tier.perks.length), Status: "Configured" })),
   automations: [
     { Automation: "Booking confirmation", Trigger: "Booking created", Channel: "Email + SMS", Status: "Ready" },
     { Automation: "24-hour reminder", Trigger: "Appointment approaching", Channel: "SMS", Status: "Ready" },

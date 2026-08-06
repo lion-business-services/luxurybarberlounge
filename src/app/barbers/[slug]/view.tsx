@@ -43,7 +43,7 @@ export function BarberDetailView({ barber }: { barber: Barber }) {
         </div>
 
         <section className="mt-20">
-          <SectionHeading eyebrow={lang === "es" ? "Menú seleccionado" : "Selected menu"} title={lang === "es" ? "Servicios disponibles" : "Services available"} copy={lang === "es" ? "La elegibilidad final y la disponibilidad se sincronizarán con Square." : "Final service eligibility and availability will synchronize from Square."} />
+          <SectionHeading eyebrow={lang === "es" ? "Menú seleccionado" : "Selected menu"} title={lang === "es" ? "Servicios disponibles" : "Services available"} copy={lang === "es" ? "La disponibilidad se basa en horarios confirmados y citas existentes." : "Availability is based on confirmed schedules and existing appointments."} />
           <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {menu.map((service) => <Link key={service.slug} href={`/book?service=${service.slug}&barber=${barber.slug}`} className="group border border-[var(--color-ink-line)] p-6 transition hover:border-[var(--color-brass)]/55"><h3 className="font-display text-xl group-hover:text-[var(--color-brass)]">{service.name[lang]}</h3><p className="mt-3 text-sm text-[var(--color-bone-muted)]">{service.minutes} min · {lang === "es" ? "desde" : "from"} ${service.from}</p></Link>)}
           </div>

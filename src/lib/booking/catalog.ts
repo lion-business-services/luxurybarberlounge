@@ -32,6 +32,17 @@ function isoDate() {
   }).format(new Date());
 }
 
+const LEGACY_BARBER_SLUGS: Record<string, string> = {
+  "amaya-reyes": "angelica-aquino",
+  "adrian-cole": "hommy-rivera",
+  "mateo-cruz": "barber-los",
+  "julian-vega": "jose",
+  "elias-moreno": "elvis",
+  "nico-santos": "alfredo-hernandez-pollo",
+  "marcus-bennett": "russ-hawkins",
+  "andre-silva": "daniel-penalo",
+};
+
 /**
  * Ensures the minimum verified production catalog exists before it is returned.
  * This is deliberately idempotent: a fresh production database becomes usable
@@ -100,7 +111,7 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
     short_description: item.blurb,
     full_description: item.description,
     price_cents: Math.round(item.from * 100),
-    starting_price: true,
+    starting_price: Boolean(item.startingPrice),
     duration_minutes: item.minutes,
     deposit_cents: Math.round(item.deposit * 100),
     benefits: item.benefits,
@@ -114,18 +125,63 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
   })), { onConflict: "business_id,slug" }).select("id,slug,category_id,name,short_description,full_description,price_cents,duration_minutes,deposit_cents,active,bookable,content_status");
   requireResult(serviceError, "SERVICES_UNAVAILABLE");
   const serviceBySlug = new Map((serviceRows ?? []).map((item) => [item.slug, item]));
+  const currentServiceSlugs = services.map((item) => item.slug);
+  const staleServiceResult = await admin.from("services")
+    .update({ active: false, bookable: false, content_status: "archived" })
+    .eq("business_id", business.id)
+    .not("slug", "in", `(${currentServiceSlugs.map((slug) => `"${slug}"`).join(",")})`);
+  requireResult(staleServiceResult.error, "SERVICES_UNAVAILABLE");
 
-  const { data: addonRows, error: addonError } = await admin.from("service_addons").upsert(serviceAddOns.map((item) => ({
-    business_id: business.id,
-    service_id: null,
-    slug: item.slug,
-    name: item.name,
-    description: { en: "Optional enhancement.", es: "Mejora opcional." },
-    price_cents: Math.round(item.price * 100),
-    duration_minutes: item.minutes,
-    active: true,
-  })), { onConflict: "business_id,slug" }).select("id,slug,service_id,name,description,price_cents,duration_minutes");
-  requireResult(addonError, "ADDONS_UNAVAILABLE");
+  let addonRows: Array<{ id: string; slug: string; service_id: string | null; name: unknown; description: unknown; price_cents: number; duration_minutes: number }> = [];
+  if (serviceAddOns.length) {
+    const addonResult = await admin.from("service_addons").upsert(serviceAddOns.map((item) => ({
+      business_id: business.id,
+      service_id: null,
+      slug: item.slug,
+      name: item.name,
+      description: { en: "Optional enhancement.", es: "Mejora opcional." },
+      price_cents: Math.round(item.price * 100),
+      duration_minutes: item.minutes,
+      active: true,
+    })), { onConflict: "business_id,slug" }).select("id,slug,service_id,name,description,price_cents,duration_minutes");
+    requireResult(addonResult.error, "ADDONS_UNAVAILABLE");
+    addonRows = addonResult.data ?? [];
+    const currentAddonSlugs = serviceAddOns.map((item) => item.slug);
+    const staleAddonResult = await admin.from("service_addons")
+      .update({ active: false })
+      .eq("business_id", business.id)
+      .not("slug", "in", `(${currentAddonSlugs.map((slug) => `"${slug}"`).join(",")})`);
+    requireResult(staleAddonResult.error, "ADDONS_UNAVAILABLE");
+  } else {
+    const staleAddonResult = await admin.from("service_addons").update({ active: false }).eq("business_id", business.id);
+    requireResult(staleAddonResult.error, "ADDONS_UNAVAILABLE");
+  }
+
+  for (const [legacySlug, currentSlug] of Object.entries(LEGACY_BARBER_SLUGS)) {
+    const source = barbers.find((item) => item.slug === currentSlug);
+    if (!source) continue;
+    const legacyLookup = await admin.from("barber_profiles")
+      .select("id,slug")
+      .eq("business_id", business.id)
+      .in("slug", [legacySlug, currentSlug]);
+    requireResult(legacyLookup.error, "BARBERS_UNAVAILABLE");
+    const legacy = (legacyLookup.data ?? []).find((item) => item.slug === legacySlug);
+    const current = (legacyLookup.data ?? []).find((item) => item.slug === currentSlug);
+    if (!legacy) continue;
+    const legacyUpdate = current
+      ? await admin.from("barber_profiles").update({
+          slug: `legacy-identity-${String(legacy.id).replaceAll("-", "").slice(0, 16)}`,
+          display_name: source.name,
+          active: false,
+          featured: false,
+          status: "archived",
+        }).eq("id", legacy.id)
+      : await admin.from("barber_profiles").update({
+          slug: source.slug,
+          display_name: source.name,
+        }).eq("id", legacy.id);
+    requireResult(legacyUpdate.error, "BARBERS_UNAVAILABLE");
+  }
 
   const verifiedSourceBarbers = barbers.filter((item) => item.active && item.identityStatus === "verified");
   if (!verifiedSourceBarbers.length) throw new BookingCatalogError("NO_VERIFIED_BARBERS");
@@ -140,7 +196,9 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
     story: item.story,
     specialties: item.specialtyTags,
     languages: item.languages.split("·").map((value) => value.trim().toLowerCase()),
-    social_links: {},
+    social_links: item.socialStatus === "active" && item.socialUrl
+      ? { instagram: item.socialUrl, instagramHandle: item.instagramHandle }
+      : { instagramStatus: item.socialStatus, instagramHandle: item.instagramHandle ?? null },
     featured: Boolean(item.featured),
     active: true,
     demo: false,
@@ -148,6 +206,13 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
     sort_order: item.sortOrder,
   })), { onConflict: "business_id,slug" });
   requireResult(barberUpsert.error, "BARBERS_UNAVAILABLE");
+
+  const currentBarberSlugs = verifiedSourceBarbers.map((item) => item.slug);
+  const staleBarberResult = await admin.from("barber_profiles")
+    .update({ active: false })
+    .eq("business_id", business.id)
+    .not("slug", "in", `(${currentBarberSlugs.map((slug) => `"${slug}"`).join(",")})`);
+  requireResult(staleBarberResult.error, "BARBERS_UNAVAILABLE");
 
   const { data: barberRows, error: liveBarberError } = await admin
     .from("barber_profiles")
@@ -174,34 +239,37 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
   requireResult(eligibilityUpsert.error, "BOOKING_MIGRATIONS_REQUIRED");
 
   const liveBarberIds = (barberRows ?? []).map((item) => item.id);
-  const { data: existingSchedules, error: scheduleReadError } = await admin
-    .from("barber_schedules")
-    .select("id,barber_profile_id,weekday,active,effective_from,effective_to")
-    .in("barber_profile_id", liveBarberIds)
-    .eq("location_id", location.id);
-  requireResult(scheduleReadError, "BOOKING_MIGRATIONS_REQUIRED");
-
   const today = isoDate();
-  const scheduleRows = (barberRows ?? []).flatMap((barber) => businessConfig.hours
-    .filter((item) => !item.closed)
-    .filter((item) => !(existingSchedules ?? []).some((schedule) =>
-      String(schedule.barber_profile_id) === String(barber.id)
-      && Number(schedule.weekday) === item.weekday
-      && Boolean(schedule.active)
-      && (!schedule.effective_to || String(schedule.effective_to) >= today)))
-    .map((item) => ({
-      barber_user_id: null,
-      barber_profile_id: barber.id,
-      location_id: location.id,
-      weekday: item.weekday,
-      starts_at: item.open,
-      ends_at: item.close,
-      active: true,
-      effective_from: today,
-      effective_to: null,
-    })));
+  const existingScheduleResult = await admin
+    .from("barber_schedules")
+    .update({ active: false, effective_to: today })
+    .in("barber_profile_id", liveBarberIds)
+    .eq("location_id", location.id)
+    .eq("active", true);
+  requireResult(existingScheduleResult.error, "BOOKING_MIGRATIONS_REQUIRED");
+
+  const hourByWeekday = new Map(businessConfig.hours.map((item) => [item.weekday, item]));
+  const scheduleRows = verifiedSourceBarbers.flatMap((sourceBarber) => {
+    const row = (barberRows ?? []).find((item) => item.slug === sourceBarber.slug);
+    if (!row) return [];
+    return sourceBarber.bookingWeekdays.flatMap((weekday) => {
+      const businessHour = hourByWeekday.get(weekday);
+      if (!businessHour || businessHour.closed) return [];
+      return [{
+        barber_user_id: null,
+        barber_profile_id: row.id,
+        location_id: location.id,
+        weekday,
+        starts_at: businessHour.open,
+        ends_at: businessHour.close,
+        active: true,
+        effective_from: today,
+        effective_to: null,
+      }];
+    });
+  });
   if (scheduleRows.length) {
-    const scheduleInsert = await admin.from("barber_schedules").insert(scheduleRows);
+    const scheduleInsert = await admin.from("barber_schedules").upsert(scheduleRows, { onConflict: "barber_profile_id,location_id,weekday,effective_from" });
     requireResult(scheduleInsert.error, "BARBER_SCHEDULES_UNAVAILABLE");
   }
 
@@ -224,7 +292,10 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
 
   const categories = (categoryRows ?? []).map((item) => ({ id: item.id, slug: item.slug, name: english(item.name), description: english(item.description) }));
   const categoryById = new Map(categories.map((item) => [item.id, item]));
-  const eligibleServiceIds = new Set((eligibilityRows ?? []).map((item) => String(item.service_id)));
+  const scheduledBarberIds = new Set((scheduleCheck ?? []).map((item) => String(item.barber_profile_id)));
+  const eligibleServiceIds = new Set((eligibilityRows ?? [])
+    .filter((item) => scheduledBarberIds.has(String(item.barber_profile_id)))
+    .map((item) => String(item.service_id)));
   const catalogServices = (serviceRows ?? [])
     .filter((item) => item.active && item.bookable && item.content_status === "published" && eligibleServiceIds.has(String(item.id)))
     .map((item) => ({
@@ -249,6 +320,7 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
       slug: item.slug,
       name: english(item.display_name),
       portrait: source?.image.card ?? null,
+      portraitPosition: source?.image.objectPosition.booking ?? "50% 20%",
       title: english(item.professional_title),
       biography: english(item.short_intro),
       specialties: Array.isArray(item.specialties) ? item.specialties.map(String) : [],
@@ -256,7 +328,7 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
       serviceIds: (eligibilityRows ?? []).filter((entry) => entry.barber_profile_id === item.id).map((entry) => entry.service_id),
       demo: Boolean(item.demo),
     };
-  }).filter((barber) => barber.serviceIds.length > 0);
+  }).filter((barber) => barber.serviceIds.length > 0 && scheduledBarberIds.has(String(barber.id)));
   if (!catalogBarbers.length) throw new BookingCatalogError("NO_BOOKABLE_BARBERS");
 
   return {

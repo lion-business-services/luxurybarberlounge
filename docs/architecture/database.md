@@ -22,7 +22,7 @@
 
 ## Seed data
 
-`supabase/seed/seed.sql` is idempotent and contains the verified business, Northfield location, provisional hours, 31 services, demo barber profiles, draft memberships, templates, and disabled feature flags.
+`supabase/seed/seed.sql` is idempotent and contains the verified business, Northfield location, client-confirmed hours, 9 services, client-confirmed barber profiles, client-confirmed memberships, templates, and disabled feature flags.
 
 ## Recovery
 

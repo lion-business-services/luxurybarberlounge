@@ -1,6 +1,6 @@
 # Launch Checklist
 
-- [ ] Apply migrations through `202608060015`.
+- [ ] Apply migrations through `202608060016`.
 - [ ] Regenerate and commit Supabase types.
 - [ ] Confirm business hours and holiday hours.
 - [ ] Confirm every live barber identity, staff account, services, schedule, breaks, and time off.

@@ -1,20 +1,10 @@
 # Portal QA
 
-## Visual separation
+Validate each role with separate accounts and a clean browser session.
 
-The client and admin portals use separate route layouts, navigation models, CSS modules, dashboard components, data loaders, terminology, empty states, and permissions. Public cinematic code is excluded from authenticated routes.
+- **Client:** can view only their own appointments, queue entries, orders, membership data, and notifications; can use allowed reschedule/cancel actions.
+- **Barber:** can view assigned appointments and authorized service details, but not owner analytics, unrelated clients, private administrative notes, or credentials.
+- **Reception:** can operate appointments, check-in, queue, assignment, and operational client lookup without owner-only settings access.
+- **Owner/Admin:** can manage appointments, clients, barbers, services, queue, integrations, automations, audit history, and settings.
 
-## Viewport matrix
-
-Source layouts are designed for 320, 360, 375, 390, 430, 768, 820, 1024, 1280, 1366, 1440, and 1920 pixels. Before production promotion, capture browser screenshots for login email/OTP, client dashboard and core modules, and admin dashboard/client/order/membership/queue/barber/integration/audit modules.
-
-## Required browser checks
-
-- No page-wide horizontal overflow.
-- Client navigation remains thumb-accessible and concise.
-- Admin tables become controlled horizontal regions or mobile summaries.
-- Focus is visible; dialogs retain focus; actions do not depend on hover.
-- Loading, empty, error, unauthorized, session-expired, offline, and provider-unavailable states render text rather than blank screens.
-- Client never receives other-client records in HTML or RSC payloads.
-
-Automated browser screenshots require a successful dependency installation and production/dev server. If the package registry blocks installation, do not claim visual browser QA passed.
+Test phone, tablet, laptop, desktop, keyboard-only, screen reader, reduced motion, expired sessions, direct URL access, multiple tabs, reconnects, empty states, loading states, permission failures, and record isolation. Hidden navigation is not considered security; API authorization and RLS must enforce the same boundaries.

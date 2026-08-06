@@ -5,7 +5,7 @@
 - Format guard
 - ESLint with zero reported errors
 - TypeScript strict checking
-- Content validation: 31 services, 9 barbers, 3 memberships
+- Content validation: 9 services, 8 barbers, 2 memberships
 - Migration validation: 6 ordered transactional migrations
 - Route validation: 145 page routes and 43 literal internal destinations
 - Repository validation: 239 source files

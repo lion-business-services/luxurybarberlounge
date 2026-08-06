@@ -27,6 +27,7 @@ export type BookingCatalogBarber = {
   slug: string;
   name: string;
   portrait: string | null;
+  portraitPosition: string;
   title: string;
   biography: string;
   specialties: string[];
