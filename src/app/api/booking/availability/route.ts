@@ -1,15 +1,18 @@
-import { NextResponse } from "next/server";
-import { getBookingProvider } from "@/lib/booking";
+import { NextRequest, NextResponse } from "next/server";
+import { availabilityRequestSchema } from "@/lib/booking/schema";
+import { searchSupabaseAvailability } from "@/lib/booking/availability";
+import { rateLimit, requestFingerprint } from "@/lib/security/rateLimit";
 
-export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
-  if (!body) return NextResponse.json({ message: "Invalid request." }, { status: 400 });
-  const locationId = typeof body.locationId === "string" ? body.locationId : "";
-  const serviceId = typeof body.serviceId === "string" ? body.serviceId : "";
-  const startAt = typeof body.startAt === "string" ? body.startAt : "";
-  const endAt = typeof body.endAt === "string" ? body.endAt : "";
-  if (!locationId || !serviceId || !startAt || !endAt) return NextResponse.json({ message: "Location, service, and date range are required." }, { status: 422 });
-  const provider = getBookingProvider();
-  const availability = await provider.searchAvailability({ locationId, serviceId, startAt, endAt, teamMemberIds: Array.isArray(body.teamMemberIds) ? body.teamMemberIds.filter((value): value is string => typeof value === "string") : undefined });
-  return NextResponse.json({ mode: provider.mode, live: provider.mode !== "development", availability, notice: provider.mode === "development" ? "Preview slots are not live availability." : undefined });
+export async function POST(request: NextRequest) {
+  const limited = rateLimit({ key: `availability:${requestFingerprint(request.headers)}`, limit: 30, windowMs: 60_000 });
+  if (!limited.allowed) return NextResponse.json({ ok: false, message: "Please wait a moment before refreshing availability." }, { status: 429 });
+  const parsed = availabilityRequestSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ ok: false, message: "Choose a valid service and date." }, { status: 422 });
+  try {
+    const result = await searchSupabaseAvailability(parsed.data);
+    return NextResponse.json({ ok: true, source: result.source, slots: result.slots }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) {
+    console.error("booking-availability", { code: error instanceof Error ? error.message : "UNKNOWN" });
+    return NextResponse.json({ ok: false, message: "Availability could not be loaded. Please try again." }, { status: 503 });
+  }
 }

@@ -1,0 +1,1 @@
+Luxury Barber Lounge operational final v10. See RELEASE_V10.md and docs/GO_LIVE_V10.md. No credentials included.

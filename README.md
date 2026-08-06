@@ -170,3 +170,32 @@ The commission and reconciliation modules calculate and report amounts. They do 
 ## Vercel deployment
 
 Use [`docs/VERCEL_DEPLOYMENT.md`](docs/VERCEL_DEPLOYMENT.md) for the deployment-safe configuration, required project settings, and the later cron activation procedure.
+
+## Production appointment booking
+
+The stable customer booking route is [`/book`](https://theluxurybarberlounge.com/book). It uses Supabase-backed live services, verified barber eligibility, schedules, breaks, time off, conflict-safe appointment creation, client matching, queue integration, FormSubmit administrative delivery, and Resend transactional notifications.
+
+Key documentation:
+
+- `docs/BOOKING_SYSTEM.md`
+- `docs/BOOKING_FLOW.md`
+- `docs/BOOKING_DATA_MODEL.md`
+- `docs/AVAILABILITY_ENGINE.md`
+- `docs/FORMSUBMIT_SETUP.md`
+- `docs/FORMSUBMIT_ACTIVATION.md`
+- `docs/ADMIN_APPOINTMENTS.md`
+- `docs/CLIENT_APPOINTMENTS.md`
+- `docs/BOOKING_QA.md`
+- `docs/LAUNCH_CHECKLIST.md`
+
+Apply migrations through `202608060014`, regenerate Supabase types, configure the values in `.env.example`, and run `npm run check:source && npm run build` before production promotion.
+
+## Production booking release v11
+
+The complete release and validation boundaries are documented in:
+
+- `docs/BOOKING_RELEASE_REPORT.md`
+- `docs/BOOKING_VALIDATION_REPORT.md`
+- `docs/BOOKING_SYSTEM.md`
+- `docs/FORMSUBMIT_ACTIVATION.md`
+- `docs/LAUNCH_CHECKLIST.md`

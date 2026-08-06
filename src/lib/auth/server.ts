@@ -146,6 +146,30 @@ export async function ensureDefaultRole(user: User) {
       business_id: businessId,
     }, { onConflict: "user_id" });
     if (clientProfileError) throw clientProfileError;
+
+    if (businessId && verifiedEmail && user.email_confirmed_at) {
+      const { data: client } = await admin
+        .from("clients")
+        .select("id,first_name,last_name,phone,auth_user_id")
+        .eq("business_id", businessId)
+        .eq("email", verifiedEmail)
+        .eq("status", "active")
+        .maybeSingle();
+      if (client?.id && (!client.auth_user_id || client.auth_user_id === user.id)) {
+        await admin.from("clients").update({ auth_user_id: user.id }).eq("id", client.id);
+        await admin.from("appointments").update({ auth_user_id: user.id }).eq("client_id", client.id).is("auth_user_id", null);
+        await admin.from("profiles").update({
+          full_name: [client.first_name, client.last_name].filter(Boolean).join(" ") || null,
+          phone: client.phone ?? null,
+        }).eq("id", user.id);
+        await admin.from("auth_audit").insert({
+          user_id: user.id,
+          event_type: "guest_bookings_linked",
+          outcome: "success",
+          metadata: { client_id: client.id, match: "verified_email" },
+        });
+      }
+    }
   }
 
   if (!existing.includes(desired)) {

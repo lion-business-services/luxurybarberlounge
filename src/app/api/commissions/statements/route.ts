@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
+import { features } from "@/lib/config/features";
+import { reconcileCommissions } from "@/lib/commissions/reconcile";
 
 const adminRoles = new Set(["manager", "owner", "super_admin"]);
 
@@ -40,6 +42,17 @@ export async function POST(request: NextRequest) {
   }
 
   if (!session.roles.some((role) => adminRoles.has(role))) return NextResponse.json({ ok: false, message: "Owner or manager access is required." }, { status: 403 });
+
+  if (body.action === "run_reconciliation") {
+    if (!session.roles.some((role) => role === "owner" || role === "super_admin")) return NextResponse.json({ ok: false, message: "Owner access is required to update calculated amounts." }, { status: 403 });
+    if (!features.liveSquare) return NextResponse.json({ ok: false, message: "Connect live Square synchronization before calculating barber amounts." }, { status: 409 });
+    try {
+      const result = await reconcileCommissions();
+      return NextResponse.json({ ok: true, result });
+    } catch (error) {
+      return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : "Calculated amounts could not be updated." }, { status: 500 });
+    }
+  }
 
   if (body.action === "create_adjustment") {
     if (!body.calculationId || !body.barberUserId || !Number.isInteger(body.amountCents) || (body.reason?.trim().length ?? 0) < 8) return NextResponse.json({ ok: false, message: "Calculation, Barber, amount in cents, and reason are required." }, { status: 422 });

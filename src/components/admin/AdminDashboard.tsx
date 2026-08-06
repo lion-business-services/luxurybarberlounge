@@ -1,13 +1,14 @@
 import Link from "next/link";
 import {
   ArrowUpRight,
+  BadgeCheck,
   CalendarDays,
   CircleDollarSign,
   ClipboardList,
   ContactRound,
+  ListChecks,
   Scissors,
-  ShieldAlert,
-  WandSparkles,
+  ShieldCheck,
 } from "lucide-react";
 import { loadAdminPortalData } from "@/lib/portal/admin-data";
 import { dateTime, titleCase } from "@/lib/portal/format";
@@ -20,8 +21,7 @@ export async function AdminDashboard() {
   const appointments = metric("Appointments today");
   const queue = metric("Active queue");
   const revenue = metric("Service revenue today");
-  const automationState = data.failures.length ? "Needs attention" : "Running normally";
-  const connectedSystems = data.systems.filter((system) => ["active", "connected", "configured", "healthy"].includes(system.status.toLowerCase())).length;
+  const issues = data.failures.length;
 
   return (
     <div className={styles.grid}>
@@ -30,7 +30,7 @@ export async function AdminDashboard() {
           <p className="text-[9px] tracking-[.24em] uppercase text-[var(--color-brass)]">Shop operations</p>
           <h1 className="font-display mt-2 text-4xl sm:text-5xl">Today at the lounge</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-bone-muted)]">
-            Appointments, walk-ins, clients, barbers, commissions, and automations. The essentials, without turning a barbershop into mission control.
+            One clear place to run appointments, walk-ins, clients, barbers, services, memberships, and commissions.
           </p>
         </div>
         <Link href="/admin/appointments" className="inline-flex w-fit items-center gap-2 rounded-full bg-[var(--color-brass)] px-5 py-3 text-[9px] tracking-[.16em] uppercase text-[var(--color-ink)]">
@@ -38,25 +38,25 @@ export async function AdminDashboard() {
         </Link>
       </header>
 
-      {data.failures.length ? (
+      {issues ? (
         <div className={styles.alert} role="status">
-          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
-            <strong className="text-xs">{data.failures.length} automation or sync issue{data.failures.length === 1 ? "" : "s"} need attention.</strong>
-            <p className="mt-1 text-[11px] opacity-80">Open Automations or Settings to review the latest failure.</p>
+            <strong className="text-xs">{issues} connection issue{issues === 1 ? "" : "s"} need review.</strong>
+            <p className="mt-1 text-[11px] opacity-80">The dashboard will continue showing confirmed shop records. Failed synchronization is never replaced with invented data.</p>
           </div>
         </div>
       ) : null}
 
       {data.configured ? (
         <section className={styles.metricGrid} aria-label="Today’s shop metrics">
-          <Metric label="Appointments" value={appointments?.value ?? "0"} note="Scheduled today" source={appointments?.source ?? "Square-derived"} />
-          <Metric label="Waiting" value={queue?.value ?? "0"} note="Active walk-in queue" source={queue?.source ?? "Supabase-derived"} />
-          <Metric label="Barbers" value={String(activeBarbers)} note="Active profiles" source="Supabase-derived" />
-          <Metric label="Revenue" value={revenue?.value ?? "$0.00"} note="Synced payments today" source={revenue?.source ?? "Square-derived"} />
+          <Metric label="Appointments" value={appointments?.value ?? "0"} note="Scheduled today" />
+          <Metric label="Waiting" value={queue?.value ?? "0"} note="Active walk-in queue" />
+          <Metric label="Barbers" value={String(activeBarbers)} note="Active profiles" />
+          <Metric label="Revenue" value={revenue?.value ?? "$0.00"} note="Synced payments today" />
         </section>
       ) : (
-        <div className={styles.empty}>The operations dashboard is waiting for an authenticated Supabase session.</div>
+        <div className={styles.empty}>Your secure session is being refreshed. Reload once if this message remains.</div>
       )}
 
       <section className={`${styles.grid} ${styles.gridTwo}`}>
@@ -66,14 +66,17 @@ export async function AdminDashboard() {
               <p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">Live walk-ins</p>
               <h2 className="font-display mt-2 text-2xl">Current queue</h2>
             </div>
-            <Link href="/admin/queue" className="text-[9px] tracking-[.15em] uppercase text-[var(--color-brass)]">Manage queue</Link>
+            <div className="flex flex-wrap gap-3">
+              <Link href="/queue-board" target="_blank" className="text-[9px] tracking-[.15em] uppercase text-[var(--color-bone-muted)]">Open TV display</Link>
+              <Link href="/admin/queue" className="text-[9px] tracking-[.15em] uppercase text-[var(--color-brass)]">Manage queue</Link>
+            </div>
           </div>
           {data.queue.length ? (
             <div>
               {data.queue.slice(0, 5).map((row) => (
                 <div key={String(row.id)} className={styles.queueItem}>
                   <div>
-                    <strong className="text-sm">{String(row.client_name ?? "Walk-in guest")}</strong>
+                    <strong className="text-sm">{String(row.client_name ?? `Guest ${String(row.public_token ?? "").slice(-4)}`)}</strong>
                     <p className="mt-1 text-xs text-[var(--color-bone-muted)]">
                       {String(row.service_slug ?? "Service pending").replaceAll("-", " ")} · {dateTime(String(row.joined_at))}
                     </p>
@@ -91,18 +94,17 @@ export async function AdminDashboard() {
         </article>
 
         <aside className={styles.card}>
-          <p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">Automated operations</p>
-          <h2 className="font-display mt-2 text-2xl">Shop pulse</h2>
+          <p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">Shop readiness</p>
+          <h2 className="font-display mt-2 text-2xl">Operations status</h2>
           <div className={`${styles.pulseGrid} mt-5`}>
-            <Pulse label="Automations" value={automationState} />
-            <Pulse label="Connected systems" value={data.systems.length ? `${connectedSystems}/${data.systems.length}` : "Awaiting setup"} />
+            <Pulse label="Database" value={data.configured ? "Connected" : "Refreshing"} />
+            <Pulse label="Queue" value={data.configured ? "Ready" : "Waiting"} />
             <Pulse label="Active barbers" value={String(activeBarbers)} />
             <Pulse label="Client profiles" value={String(data.clients.length)} />
           </div>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Link href="/admin/automations" className="text-[9px] tracking-[.15em] uppercase text-[var(--color-brass)]">Automations</Link>
-            <Link href="/admin/settings" className="text-[9px] tracking-[.15em] uppercase text-[var(--color-brass)]">Settings</Link>
-          </div>
+          <p className="mt-5 text-xs leading-5 text-[var(--color-bone-muted)]">
+            Confirmed records are synchronized in the background. The owner only needs the daily operating tools shown here.
+          </p>
         </aside>
       </section>
 
@@ -116,23 +118,23 @@ export async function AdminDashboard() {
         <div className={styles.actionGrid}>
           <AdminAction href="/admin/appointments" icon={CalendarDays} title="Appointments" copy="Schedule and status" />
           <AdminAction href="/admin/queue" icon={ClipboardList} title="Queue" copy="Walk-ins and assignments" />
-          <AdminAction href="/admin/clients" icon={ContactRound} title="Clients" copy="Profiles and history" />
+          <AdminAction href="/admin/clients" icon={ContactRound} title="Clients" copy="Profiles and visit history" />
           <AdminAction href="/admin/barbers" icon={Scissors} title="Barbers" copy="Profiles and availability" />
-          <AdminAction href="/admin/commissions" icon={CircleDollarSign} title="Commissions" copy="Calculated amounts" />
-          <AdminAction href="/admin/automations" icon={WandSparkles} title="Automations" copy="Rules and delivery" />
+          <AdminAction href="/admin/services" icon={ListChecks} title="Services" copy="Pricing and duration" />
+          <AdminAction href="/admin/memberships" icon={BadgeCheck} title="Memberships" copy="Plans and active members" />
+          <AdminAction href="/admin/commissions" icon={CircleDollarSign} title="Commissions" copy="Verified weekly amounts" />
         </div>
       </section>
     </div>
   );
 }
 
-function Metric({ label, value, note, source }: { label: string; value: string; note: string; source: string }) {
+function Metric({ label, value, note }: { label: string; value: string; note: string }) {
   return (
     <article className={styles.metric}>
       <p className="text-[8px] tracking-[.16em] uppercase text-[var(--color-bone-muted)]">{label}</p>
       <p className={styles.metricValue}>{value}</p>
       <p className="mt-1 text-[10px] text-[var(--color-bone-muted)]">{note}</p>
-      <span className={styles.source}>{source}</span>
     </article>
   );
 }

@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { PortalAccessGate } from "@/components/portal/PortalAccessGate";
 import { ClientShell } from "@/components/client/ClientShell";
 

@@ -1,29 +1,14 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { BookingFlow } from "@/components/booking/BookingFlow";
-import { PageHero } from "@/components/PageHero";
+import { businessConfig } from "@/lib/config/business";
 
 export const metadata: Metadata = {
   title: "Book an Appointment",
-  description: "Choose a service and preferred barber or submit a reservation request for Luxury Barber Lounge in Northfield, New Jersey.",
+  description: "Choose a real available service, barber, date, and time at Luxury Barber Lounge in Northfield, New Jersey.",
+  alternates: { canonical: businessConfig.bookingPath },
 };
 
 export default function BookPage() {
-  return (
-    <>
-      <PageHero
-        eyebrow={{ en: "Reserve your chair", es: "Reserva tu silla" }}
-        title={{ en: "Book Your Experience", es: "Reserva tu Experiencia" }}
-        lead={{
-          en: "Choose a service and preferred chair. Until live availability is activated, submit a reservation request and the lounge will confirm the time directly.",
-          es: "Elige un servicio y tu silla preferida. Hasta activar la disponibilidad en vivo, envía una solicitud y el lounge confirmará la hora directamente.",
-        }}
-      />
-      <main className="mx-auto max-w-7xl px-6 pb-28 sm:px-10">
-        <Suspense fallback={<div className="h-96 animate-pulse border border-[var(--color-ink-line)] bg-[var(--color-ink-soft)]" />}>
-          <BookingFlow />
-        </Suspense>
-      </main>
-    </>
-  );
+  return <main className="min-h-screen bg-[var(--color-ink)] px-4 pb-24 pt-20 text-[var(--color-bone)] sm:px-8"><header className="mx-auto mb-10 max-w-6xl"><p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">Northfield · Secure online booking</p><h1 className="font-display mt-4 max-w-4xl text-5xl leading-[.95] sm:text-7xl">Reserve your chair.</h1><p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--color-bone-muted)]">Choose a service, eligible barber, and real available time. No account is required to book.</p><p className="mt-3 text-xs text-[var(--color-bone-muted)]">{businessConfig.address.line1}, {businessConfig.address.city}, {businessConfig.address.region} · {businessConfig.phone}</p></header><div className="mx-auto max-w-6xl"><Suspense fallback={<div className="h-[620px] animate-pulse border border-[var(--color-ink-line)] bg-white/5" />}><BookingFlow /></Suspense></div></main>;
 }

@@ -1,34 +1,48 @@
 {
-  "release": "portal-crm-production-ready-v8",
-  "date": "2026-07-30",
+  "release": "production-booking-final-v11",
+  "date": "2026-08-06",
   "project": "Luxury Barber Lounge",
   "framework": "Next.js 16.2.6",
-  "routeCount": 165,
-  "migrationCount": 9,
-  "validatedSourceFileCount": 370,
+  "node": "22.x",
+  "canonicalBookingRoute": "/book",
+  "availabilitySource": "supabase-primary-square-adapter-ready",
+  "routeCount": 167,
+  "migrationCount": 14,
+  "validatedSourceFileCount": 403,
   "serviceCount": 31,
-  "barberCount": 9,
+  "sourceBarberProfileCount": 9,
   "membershipCount": 3,
-  "clientPortal": "separate-mobile-first-application",
-  "adminCrm": "separate-executive-operational-application",
-  "sourceChecks": "passed",
-  "passwordlessOtp": "implemented-provider-dependent",
-  "ownerBootstrap": "verified-email-server-controlled",
-  "rolesAndRls": "implemented-and-statically-validated",
-  "queueAttributionCommission": "implemented-policy-controlled",
-  "automationEngine": "implemented-provider-gated-test-mode-default",
-  "unitTests": {
-    "passed": 40,
-    "failed": 0
+  "booking": {
+    "atomicCreation": true,
+    "atomicReschedule": true,
+    "databaseOverlapConstraint": true,
+    "advisoryLock": true,
+    "idempotency": true,
+    "durableRateLimit": true,
+    "secureGuestManagement": true,
+    "calendarExport": true
   },
-  "integrationTests": {
-    "passed": 27,
-    "failed": 0
+  "formSubmit": {
+    "adapter": "implemented",
+    "deliveryLedger": "implemented",
+    "retryProcessor": "implemented",
+    "activation": "external-inbox-action-required",
+    "liveDelivery": "not-verified-in-isolated-environment"
   },
+  "notifications": "resend-compatible-provider-dependent",
+  "adminAppointments": "implemented",
+  "clientAppointments": "implemented-with-rls",
+  "queue": "appointment-integrated-privacy-safe-display",
+  "square": "adapter-ready-disabled-until-production-mapped",
+  "unitTests": { "passed": 40, "failed": 0 },
+  "integrationTests": { "passed": 52, "failed": 0 },
+  "typescriptSyntax": { "files": 418, "errors": 0 },
+  "lint": "dependency-install-blocked",
+  "semanticTypecheck": "dependency-install-blocked",
   "productionBuild": {
-    "status": "environment-blocked-before-source-compilation",
-    "command": "npm run build",
-    "reason": "Isolated package mirror returned HTTP 404 for @next/swc-wasm-nodejs@16.2.6 after Linux native SWC packages were unavailable."
+    "status": "dependency-install-blocked-before-build",
+    "installCommand": "npm ci --include=optional",
+    "reason": "Isolated package mirror returned HTTP 404 for zod-validation-error-4.0.2.tgz"
   },
   "excludedFromArchive": [
     "node_modules",
@@ -36,8 +50,8 @@
     ".git",
     ".vercel",
     ".env.local",
+    "real environment files",
     "*.tsbuildinfo",
-    "local logs and caches"
-  ],
-  "featureProviders": "credential-dependent features disabled or provider-gated by default"
+    "logs and caches"
+  ]
 }

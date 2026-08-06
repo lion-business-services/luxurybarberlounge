@@ -118,6 +118,24 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
     }
   }
 
+
+  async function runReconciliation() {
+    setMessage("Updating calculated amounts from confirmed Square records...");
+    const response = await fetch("/api/commissions/statements", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "run_reconciliation" }),
+    });
+    const result = await response.json() as { message?: string; result?: { calculated?: number; exceptions?: number; statementsPrepared?: number } };
+    if (!response.ok) {
+      setMessage(result.message ?? "Calculated amounts could not be updated.");
+      return;
+    }
+    const summary = result.result;
+    setMessage(`Updated ${summary?.calculated ?? 0} calculation lines and ${summary?.statementsPrepared ?? 0} barber statements${summary?.exceptions ? `; ${summary.exceptions} item(s) need review` : ""}.`);
+    await refresh();
+  }
+
   async function submitDispute(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!pendingDisputeId || explanation.trim().length < 10) {
@@ -200,20 +218,28 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
       <header className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">
-            {role === "barber"
-              ? "Independent Barber statements"
-              : "Reconciliation & statements"}
+            {role === "barber" ? "Independent barber statements" : "Weekly barber amounts"}
           </p>
           <h1 className="font-display mt-3 text-4xl sm:text-5xl">
-            Calculated amounts
+            {role === "barber" ? "My calculated amounts" : "Barber pay summary"}
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--color-bone-muted)]">
-            Statements calculate and report. They do not move funds, represent
-            payroll, or permit historical edits. Locked lines are corrected only by
-            a separate Adjustment.
+            {role === "barber"
+              ? "Review service amounts, tips, adjustments, and the 24-hour correction window. Statements report amounts only and do not move funds."
+              : "Confirmed Square payments are matched to the barber and policy automatically. Review exceptions, then pay each barber manually by the approved method."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {role === "admin" ? (
+            <button
+              type="button"
+              onClick={() => void runReconciliation()}
+              className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-4 py-2 text-[9px] uppercase text-[var(--color-ink)]"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Update amounts
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={refresh}

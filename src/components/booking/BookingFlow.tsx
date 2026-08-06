@@ -1,211 +1,183 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import Image from "next/image";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, Loader2, ShieldCheck } from "lucide-react";
-import { barbers, business, serviceAddOns, services } from "@/lib/content/site";
-import { features } from "@/lib/config/features";
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, Loader2, MapPin, Phone, Scissors, ShieldCheck, UserRound } from "lucide-react";
+import { businessConfig } from "@/lib/config/business";
+import type { AvailabilitySlot, BookingCatalog, BookingConfirmation } from "@/lib/booking/types";
 
-const steps = ["Service", "Barber", "Your visit", "Contact", "Complete"] as const;
+const steps = ["Service", "Barber", "Date & time", "Your details", "Review"] as const;
+const storageKey = "lbl-booking-draft-v3";
 
-type FormState = {
-  serviceSlug: string;
-  barberSlug: string;
-  addOns: string[];
-  firstVisit: "yes" | "no" | "";
-  preExistingBarberClient: "yes" | "no" | "";
-  source: string;
-  name: string;
+type Draft = {
+  serviceId: string;
+  addonIds: string[];
+  barberId: string | null;
+  firstAvailable: boolean;
+  date: string;
+  startsAt: string;
+  firstName: string;
+  lastName: string;
   email: string;
   phone: string;
+  preferredLanguage: "en" | "es";
+  existingClient: "yes" | "no" | "unsure";
   notes: string;
+  emailConsent: boolean;
   smsConsent: boolean;
-  policyConsent: boolean;
+  policyAccepted: boolean;
+  idempotencyKey: string;
 };
+
+function localToday() {
+  const value = new Date();
+  return new Date(value.getTime() - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
+function newDraft(): Draft {
+  return { serviceId: "", addonIds: [], barberId: null, firstAvailable: true, date: localToday(), startsAt: "", firstName: "", lastName: "", email: "", phone: "", preferredLanguage: "en", existingClient: "unsure", notes: "", emailConsent: true, smsConsent: false, policyAccepted: false, idempotencyKey: globalThis.crypto.randomUUID() };
+}
 
 export function BookingFlow() {
   const searchParams = useSearchParams();
+  const [catalog, setCatalog] = useState<BookingCatalog | null>(null);
+  const [draft, setDraft] = useState<Draft>(newDraft);
   const [step, setStep] = useState(0);
-  const [busy, setBusy] = useState(false);
+  const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(true);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [reference, setReference] = useState("");
-  const [delivered, setDelivered] = useState(false);
-  const [form, setForm] = useState<FormState>({
-    serviceSlug: searchParams.get("service") ?? "",
-    barberSlug: searchParams.get("barber") ?? "best-available",
-    addOns: [],
-    firstVisit: "",
-    preExistingBarberClient: "",
-    source: "",
-    name: "",
-    email: "",
-    phone: "",
-    notes: "",
-    smsConsent: false,
-    policyConsent: false,
-  });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const initialized = useRef(false);
+  const analyticsSession = useRef("");
 
-  const selectedService = services.find((item) => item.slug === form.serviceSlug);
-  const selectedBarber = barbers.find((item) => item.slug === form.barberSlug);
-  const selectedAddOns = serviceAddOns.filter((item) => form.addOns.includes(item.slug));
-  const totalFrom = (selectedService?.from ?? 0) + selectedAddOns.reduce((sum, item) => sum + item.price, 0);
-  const totalMinutes = (selectedService?.minutes ?? 0) + selectedAddOns.reduce((sum, item) => sum + item.minutes, 0);
-
-  const canContinue = useMemo(() => {
-    if (step === 0) return Boolean(form.serviceSlug);
-    if (step === 1) return Boolean(form.barberSlug);
-    if (step === 2) return Boolean(form.firstVisit && form.source);
-    if (step === 3) return Boolean(form.name.trim() && form.email.trim() && form.phone.trim() && form.policyConsent);
-    return true;
-  }, [form, step]);
-
-  function update<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((current) => ({ ...current, [key]: value }));
-    setError("");
+  function track(eventName: string, metadata: Record<string, string | number | boolean | null> = {}, appointmentId?: string) {
+    if (typeof window === "undefined" || navigator.doNotTrack === "1" || localStorage.getItem("analytics-consent") === "denied") return;
+    if (!analyticsSession.current) analyticsSession.current = sessionStorage.getItem("lbl-booking-session") || globalThis.crypto.randomUUID();
+    sessionStorage.setItem("lbl-booking-session", analyticsSession.current);
+    void fetch("/api/booking/events", { method: "POST", headers: { "Content-Type": "application/json" }, keepalive: true, body: JSON.stringify({ eventName, anonymousSessionId: analyticsSession.current, appointmentId, step, source: searchParams.get("utm_source") === "business_card" ? "qr_business_card" : "website", campaignSource: searchParams.get("utm_source"), campaignMedium: searchParams.get("utm_medium"), campaignName: searchParams.get("utm_campaign"), metadata }) }).catch(() => undefined);
   }
 
-  function toggleAddOn(slug: string) {
-    setForm((current) => ({
-      ...current,
-      addOns: current.addOns.includes(slug)
-        ? current.addOns.filter((item) => item !== slug)
-        : [...current.addOns, slug],
-    }));
+  useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+    try {
+      const saved = sessionStorage.getItem(storageKey);
+      if (saved) setDraft({ ...newDraft(), ...JSON.parse(saved) as Partial<Draft>, startsAt: "" });
+    } catch { /* damaged draft is safely ignored */ }
+    track(searchParams.get("utm_medium") === "qr" ? "qr_booking_page_viewed" : "booking_page_viewed");
+    fetch("/api/booking/catalog", { cache: "no-store" }).then(async (response) => {
+      const payload = await response.json() as { ok: boolean; catalog?: BookingCatalog; message?: string };
+      if (!response.ok || !payload.catalog) throw new Error(payload.message || "Booking is temporarily unavailable.");
+      if (!payload.catalog.services.length || !payload.catalog.barbers.length) throw new Error("Online booking is waiting for the live barber schedule. Please call the lounge and we will reserve your chair.");
+      setCatalog(payload.catalog);
+      const serviceSlug = searchParams.get("service");
+      const barberSlug = searchParams.get("barber");
+      setDraft((current) => ({ ...current, serviceId: payload.catalog?.services.find((item) => item.slug === serviceSlug)?.id || current.serviceId, barberId: payload.catalog?.barbers.find((item) => item.slug === barberSlug)?.id || current.barberId, firstAvailable: barberSlug ? false : current.firstAvailable }));
+    }).catch((caught) => setError(caught instanceof Error ? caught.message : "Booking is temporarily unavailable.")).finally(() => setLoadingCatalog(false));
+  }, [searchParams]);
+
+  useEffect(() => { if (initialized.current) sessionStorage.setItem(storageKey, JSON.stringify(draft)); }, [draft]);
+  useEffect(() => { const pop = (event: PopStateEvent) => setStep(Math.max(0, Math.min(4, typeof event.state?.bookingStep === "number" ? event.state.bookingStep : 0))); window.addEventListener("popstate", pop); return () => window.removeEventListener("popstate", pop); }, []);
+
+  const service = catalog?.services.find((item) => item.id === draft.serviceId);
+  const addons = catalog?.addons.filter((item) => draft.addonIds.includes(item.id)) ?? [];
+  const selectedSlot = slots.find((item) => item.startsAt === draft.startsAt);
+  const selectedBarber = catalog?.barbers.find((item) => item.id === (selectedSlot?.barberId ?? draft.barberId));
+  const eligibleBarbers = catalog?.barbers.filter((barber) => barber.serviceIds.includes(draft.serviceId)) ?? [];
+  const estimatedPrice = (service?.priceCents ?? 0) + addons.reduce((sum, item) => sum + item.priceCents, 0);
+  const duration = (service?.durationMinutes ?? 0) + addons.reduce((sum, item) => sum + item.durationMinutes, 0);
+
+  useEffect(() => {
+    if (!catalog || !service || step !== 2) return;
+    const controller = new AbortController();
+    setLoadingSlots(true); setError(""); setSlots([]); setDraft((current) => ({ ...current, startsAt: "" }));
+    fetch("/api/booking/availability", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locationId: catalog.location.id, serviceId: service.id, addonIds: draft.addonIds, barberIds: draft.firstAvailable || !draft.barberId ? undefined : [draft.barberId], startDate: draft.date, days: 1 }), signal: controller.signal }).then(async (response) => {
+      const payload = await response.json() as { ok: boolean; slots?: AvailabilitySlot[]; message?: string };
+      if (!response.ok) throw new Error(payload.message || "Availability could not be loaded.");
+      setSlots(payload.slots ?? []); setAnnouncement(`${payload.slots?.length ?? 0} appointment times available.`);
+    }).catch((caught) => { if ((caught as Error).name !== "AbortError") setError(caught instanceof Error ? caught.message : "Availability could not be loaded."); }).finally(() => setLoadingSlots(false));
+    return () => controller.abort();
+  }, [catalog, service, draft.addonIds, draft.barberId, draft.firstAvailable, draft.date, step]);
+
+  const canContinue = useMemo(() => {
+    if (step === 0) return Boolean(service);
+    if (step === 1) return draft.firstAvailable || Boolean(draft.barberId);
+    if (step === 2) return Boolean(selectedSlot);
+    if (step === 3) return Boolean(draft.firstName.trim() && draft.lastName.trim() && /@/.test(draft.email) && draft.phone.replace(/\D/g, "").length >= 10 && draft.policyAccepted);
+    return true;
+  }, [draft, selectedSlot, service, step]);
+
+  function update<K extends keyof Draft>(key: K, value: Draft[K]) {
+    setDraft((current) => ({ ...current, [key]: value }));
+    setFieldErrors((current) => ({ ...current, [key]: [] })); setError("");
+    if (key === "serviceId" && value) track("service_selected");
+    if (key === "barberId" && value) track("barber_selected");
+    if (key === "firstAvailable" && value === true) track("first_available_selected");
+    if (key === "date" && value) track("date_selected");
+    if (key === "startsAt" && value) track("time_selected");
+  }
+
+  function go(next: number) {
+    if (next > step) track("booking_step_completed", { completedStep: step + 1 });
+    if (step === 0 && next === 1) track("booking_started");
+    setStep(next); window.history.pushState({ bookingStep: next }, "", `${window.location.pathname}${window.location.search}#step-${next + 1}`); window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!canContinue) return;
-    setBusy(true);
-    setError("");
+    if (!catalog || !service || !selectedSlot || !selectedBarber || submitting) return;
+    setSubmitting(true); setError(""); setFieldErrors({}); track("booking_submitted");
     try {
-      const response = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: features.squareLiveBooking ? "booking_handoff" : "booking_request",
-          ...form,
-          estimatedFromCents: totalFrom * 100,
-          estimatedMinutes: totalMinutes,
-          pageUrl: window.location.href,
-          company: "",
-        }),
-      });
-      const payload = (await response.json()) as { reference?: string; message?: string; accepted?: boolean };
-      if (!response.ok) throw new Error(payload.message ?? "Unable to submit your request.");
-      setReference(payload.reference ?? "LBL-REQUEST");
-      setDelivered(payload.accepted !== false);
-      setStep(4);
-    } catch (submissionError) {
-      setError(submissionError instanceof Error ? submissionError.message : "Unable to submit your request.");
-    } finally {
-      setBusy(false);
-    }
+      const response = await fetch("/api/booking/submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceId: service.id, serviceSlug: service.slug, addonIds: draft.addonIds, barberId: selectedBarber.id, barberSlug: selectedBarber.slug, firstAvailable: draft.firstAvailable, locationId: catalog.location.id, startsAt: selectedSlot.startsAt, firstName: draft.firstName, lastName: draft.lastName, email: draft.email, phone: draft.phone, preferredLanguage: draft.preferredLanguage, existingClient: draft.existingClient, notes: draft.notes, emailConsent: draft.emailConsent, smsConsent: draft.smsConsent, policyAccepted: draft.policyAccepted, policyVersion: businessConfig.bookingPolicyVersion, idempotencyKey: draft.idempotencyKey, source: searchParams.get("utm_source") === "business_card" ? "qr_business_card" : "website", campaignSource: searchParams.get("utm_source"), campaignMedium: searchParams.get("utm_medium"), campaignName: searchParams.get("utm_campaign"), referralSource: searchParams.get("ref"), pageUrl: window.location.href, company: "" }) });
+      const result = await response.json() as { ok: boolean; confirmation?: BookingConfirmation; message?: string; fields?: Record<string, string[]>; alternatives?: AvailabilitySlot[] };
+      if (!response.ok || !result.confirmation) {
+        if (result.fields) setFieldErrors(result.fields);
+        if (result.alternatives?.length) { setSlots(result.alternatives); track("availability_conflict"); }
+        throw new Error(result.message || "The appointment could not be reserved.");
+      }
+      if (referenceImage) { const upload = new FormData(); upload.set("reference", result.confirmation.reference); upload.set("token", result.confirmation.manageToken); upload.set("file", referenceImage); await fetch("/api/booking/reference-image", { method: "POST", body: upload }).catch(() => undefined); }
+      track("booking_confirmed", {}, result.confirmation.id); sessionStorage.removeItem(storageKey);
+      window.location.assign(`/booking/confirmation/${encodeURIComponent(result.confirmation.reference)}?token=${encodeURIComponent(result.confirmation.manageToken)}`);
+    } catch (caught) { track("booking_failed"); setError(caught instanceof Error ? caught.message : "The appointment could not be reserved."); }
+    finally { setSubmitting(false); }
   }
 
-  return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
-      <form onSubmit={submit} className="border border-[var(--color-ink-line)] bg-[var(--color-ink-soft)]/75 p-6 sm:p-9">
-        <ol className="mb-9 grid grid-cols-5 gap-2" aria-label="Booking progress">
-          {steps.map((label, index) => (
-            <li key={label} className="min-w-0">
-              <div className={index <= step ? "h-px bg-[var(--color-brass)]" : "h-px bg-[var(--color-ink-line)]"} />
-              <span className={index === step ? "mt-2 block truncate text-[9px] tracking-[.18em] uppercase text-[var(--color-brass)]" : "mt-2 block truncate text-[9px] tracking-[.18em] uppercase text-[var(--color-bone-muted)]"}>
-                {index + 1}. {label}
-              </span>
-            </li>
-          ))}
-        </ol>
+  if (loadingCatalog) return <BookingSkeleton />;
+  if (!catalog) return <BookingUnavailable message={error} />;
 
-        {step === 0 ? <ServiceStep value={form.serviceSlug} onChange={(value) => update("serviceSlug", value)} addOns={form.addOns} toggleAddOn={toggleAddOn} /> : null}
-        {step === 1 ? <BarberStep value={form.barberSlug} onChange={(value) => update("barberSlug", value)} serviceSlug={form.serviceSlug} /> : null}
-        {step === 2 ? <VisitStep form={form} update={update} /> : null}
-        {step === 3 ? <ContactStep form={form} update={update} live={features.squareLiveBooking} /> : null}
-        {step === 4 ? <Completion reference={reference} live={features.squareLiveBooking} delivered={delivered} /> : null}
-
-        {error ? <p role="alert" className="mt-6 border border-red-800/50 bg-red-950/25 p-4 text-sm text-red-200">{error}</p> : null}
-
-        {step < 4 ? (
-          <div className="mt-9 flex items-center justify-between border-t border-[var(--color-ink-line)] pt-6">
-            <button type="button" onClick={() => setStep((current) => Math.max(0, current - 1))} disabled={step === 0 || busy} className="inline-flex items-center gap-2 text-[10px] tracking-[.24em] uppercase text-[var(--color-bone-muted)] disabled:opacity-30">
-              <ArrowLeft className="h-4 w-4" /> Back
-            </button>
-            {step < 3 ? (
-              <button type="button" onClick={() => canContinue && setStep((current) => current + 1)} disabled={!canContinue} className="inline-flex items-center gap-3 rounded-full bg-[var(--color-brass)] px-6 py-3 text-[10px] tracking-[.24em] uppercase text-[var(--color-ink)] disabled:cursor-not-allowed disabled:opacity-35">
-                Continue <ArrowRight className="h-4 w-4" />
-              </button>
-            ) : (
-              <button type="submit" disabled={!canContinue || busy} className="inline-flex items-center gap-3 rounded-full bg-[var(--color-brass)] px-6 py-3 text-[10px] tracking-[.24em] uppercase text-[var(--color-ink)] disabled:cursor-not-allowed disabled:opacity-35">
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                {features.squareLiveBooking ? "Continue to availability" : "Send booking request"}
-              </button>
-            )}
-          </div>
-        ) : null}
-      </form>
-
-      <aside className="h-fit border border-[var(--color-brass)]/25 bg-black/25 p-6 lg:sticky lg:top-28">
-        <p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">Your selection</p>
-        <dl className="mt-6 space-y-5 text-sm">
-          <SummaryRow label="Service" value={selectedService?.name.en ?? "Not selected"} />
-          <SummaryRow label="Barber" value={selectedBarber?.name ?? (form.barberSlug === "best-available" ? "Best available" : "Not selected")} />
-          <SummaryRow label="Add-ons" value={selectedAddOns.length ? selectedAddOns.map((item) => item.name.en).join(", ") : "None"} />
-          <SummaryRow label="Estimated time" value={totalMinutes ? `${totalMinutes} minutes` : "—"} />
-          <SummaryRow label="Starting total" value={totalFrom ? `$${totalFrom}` : "—"} strong />
-        </dl>
-        <div className="mt-7 border-t border-[var(--color-ink-line)] pt-5 text-xs leading-6 text-[var(--color-bone-muted)]">
-          {features.squareLiveBooking
-            ? "Live availability and the final price are confirmed through the secure booking provider before the appointment is created."
-            : "This submits a reservation request. It does not create a confirmed appointment until the lounge responds."}
-        </div>
-        <p className="mt-5 flex gap-2 text-xs leading-5 text-[var(--color-bone-muted)]"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-brass)]" /> Payment card information is never collected by this website request form.</p>
-      </aside>
-    </div>
-  );
+  return <form onSubmit={submit} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_330px]">
+    <section className="min-w-0 border border-[var(--color-ink-line)] bg-[var(--color-ink-soft)]/75 p-5 sm:p-8">
+      <ol className="grid grid-cols-5 gap-2" aria-label="Booking progress">{steps.map((label, index) => <li key={label} aria-current={index === step ? "step" : undefined}><div className={index <= step ? "h-px bg-[var(--color-brass)]" : "h-px bg-[var(--color-ink-line)]"} /><span className={index === step ? "mt-2 block text-[9px] tracking-[.12em] uppercase text-[var(--color-brass)]" : "mt-2 hidden text-[9px] tracking-[.12em] uppercase text-[var(--color-bone-muted)] sm:block"}>{index + 1}. {label}</span></li>)}</ol>
+      <p className="sr-only" aria-live="polite">{announcement}</p>
+      <div className="mt-8">{step === 0 ? <ServiceStep catalog={catalog} draft={draft} update={update} /> : null}{step === 1 ? <BarberStep barbers={eligibleBarbers} draft={draft} update={update} /> : null}{step === 2 ? <TimeStep draft={draft} update={update} slots={slots} loading={loadingSlots} timezone={catalog.location.timezone} /> : null}{step === 3 ? <DetailsStep draft={draft} update={update} fieldErrors={fieldErrors} image={referenceImage} setImage={setReferenceImage} /> : null}{step === 4 ? <ReviewStep draft={draft} service={service} addons={addons} barber={selectedBarber} slot={selectedSlot} location={catalog.location} duration={duration} estimatedPrice={estimatedPrice} /> : null}</div>
+      {error ? <p role="alert" className="mt-6 rounded-lg border border-red-800/50 bg-red-950/25 p-4 text-sm text-red-100">{error}</p> : null}
+      <div className="mt-8 flex items-center justify-between border-t border-[var(--color-ink-line)] pt-6"><button type="button" onClick={() => go(Math.max(0, step - 1))} disabled={step === 0 || submitting} className="inline-flex min-h-11 items-center gap-2 text-[10px] tracking-[.18em] uppercase text-[var(--color-bone-muted)] disabled:opacity-30"><ArrowLeft className="h-4 w-4" />Back</button>{step < 4 ? <button type="button" onClick={() => canContinue && go(step + 1)} disabled={!canContinue} className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[var(--color-brass)] px-6 text-[10px] tracking-[.18em] uppercase text-black disabled:opacity-35">Continue<ArrowRight className="h-4 w-4" /></button> : <button type="submit" disabled={!canContinue || submitting} className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[var(--color-brass)] px-6 text-[10px] tracking-[.18em] uppercase text-black disabled:opacity-35">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}Confirm appointment</button>}</div>
+    </section>
+    <BookingSummary service={service} barber={selectedBarber} slot={selectedSlot} location={catalog.location} duration={duration} estimatedPrice={estimatedPrice} />
+  </form>;
 }
 
-function ServiceStep({ value, onChange, addOns, toggleAddOn }: { value: string; onChange: (value: string) => void; addOns: string[]; toggleAddOn: (slug: string) => void }) {
-  return <section><StepHeading number="01" title="Choose a service" copy="Select the closest service. Your barber can refine the plan during consultation." />
-    <div className="mt-7 grid gap-3 sm:grid-cols-2">{services.filter((item)=>item.featured).concat(services.filter((item)=>!item.featured).slice(0,8)).map((item)=><button key={item.slug} type="button" onClick={()=>onChange(item.slug)} className={value===item.slug?"choice-card choice-card-active":"choice-card"}><span><strong>{item.name.en}</strong><small>{item.minutes} min · from ${item.from}</small></span>{value===item.slug?<Check className="h-4 w-4"/>:null}</button>)}</div>
-    <h3 className="mt-9 text-[10px] tracking-[.28em] uppercase text-[var(--color-brass)]">Optional add-ons</h3>
-    <div className="mt-4 grid gap-3 sm:grid-cols-2">{serviceAddOns.map((item)=><button key={item.slug} type="button" onClick={()=>toggleAddOn(item.slug)} className={addOns.includes(item.slug)?"choice-card choice-card-active":"choice-card"}><span><strong>{item.name.en}</strong><small>+{item.minutes} min · +${item.price}</small></span>{addOns.includes(item.slug)?<Check className="h-4 w-4"/>:null}</button>)}</div>
-  </section>;
+function StepTitle({ number, title, copy }: { number: string; title: string; copy: string }) { return <header><p className="text-[10px] tracking-[.28em] uppercase text-[var(--color-brass)]">Step {number}</p><h2 className="font-display mt-3 text-3xl sm:text-5xl">{title}</h2><p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--color-bone-muted)]">{copy}</p></header>; }
+function ServiceStep({ catalog, draft, update }: { catalog: BookingCatalog; draft: Draft; update: <K extends keyof Draft>(key: K, value: Draft[K]) => void }) { return <div><StepTitle number="1" title="Choose your service" copy="Prices shown are starting estimates. Your barber confirms any change before the service begins." /><div className="mt-7 grid gap-3 sm:grid-cols-2">{catalog.services.map((item) => <label key={item.id} className={draft.serviceId === item.id ? "cursor-pointer rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5 p-4" : "cursor-pointer rounded-xl border border-[var(--color-ink-line)] p-4 hover:border-[var(--color-brass)]/50"}><input type="radio" name="service" value={item.id} checked={draft.serviceId === item.id} onChange={() => update("serviceId", item.id)} className="sr-only" /><span className="font-display text-xl">{item.name}</span><span className="mt-2 block text-xs leading-5 text-[var(--color-bone-muted)]">{item.description}</span><span className="mt-4 flex justify-between text-[10px] tracking-[.12em] uppercase"><span>{item.durationMinutes} min</span><span className="text-[var(--color-brass)]">From ${(item.priceCents / 100).toFixed(0)}</span></span></label>)}</div><fieldset className="mt-8"><legend className="text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Optional enhancements</legend><div className="mt-3 grid gap-3 sm:grid-cols-2">{catalog.addons.map((item) => <label key={item.id} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-[var(--color-ink-line)] px-4"><input type="checkbox" checked={draft.addonIds.includes(item.id)} onChange={(event) => update("addonIds", event.target.checked ? [...draft.addonIds, item.id] : draft.addonIds.filter((id) => id !== item.id))} className="h-5 w-5 accent-[var(--color-brass)]" /><span className="flex-1 text-sm">{item.name}</span><span className="text-xs text-[var(--color-brass)]">+${(item.priceCents / 100).toFixed(0)}</span></label>)}</div></fieldset></div>; }
+function BarberStep({ barbers, draft, update }: { barbers: BookingCatalog["barbers"]; draft: Draft; update: <K extends keyof Draft>(key: K, value: Draft[K]) => void }) { return <div><StepTitle number="2" title="Choose your barber" copy="Select a specific professional or let the system find the first eligible opening." /><label className={draft.firstAvailable ? "mt-7 flex cursor-pointer items-center gap-4 rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5 p-5" : "mt-7 flex cursor-pointer items-center gap-4 rounded-xl border border-[var(--color-ink-line)] p-5"}><input type="radio" name="barber" checked={draft.firstAvailable} onChange={() => { update("firstAvailable", true); update("barberId", null); }} className="h-5 w-5 accent-[var(--color-brass)]" /><div><span className="font-display text-2xl">First available</span><span className="mt-1 block text-sm text-[var(--color-bone-muted)]">The earliest eligible barber for your selected service.</span></div></label><div className="mt-4 grid gap-3 sm:grid-cols-2">{barbers.map((barber) => <label key={barber.id} className={!draft.firstAvailable && draft.barberId === barber.id ? "cursor-pointer overflow-hidden rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5" : "cursor-pointer overflow-hidden rounded-xl border border-[var(--color-ink-line)] hover:border-[var(--color-brass)]/50"}><input type="radio" name="barber" checked={!draft.firstAvailable && draft.barberId === barber.id} onChange={() => { update("firstAvailable", false); update("barberId", barber.id); }} className="sr-only" />{barber.portrait ? <div className="relative aspect-[16/10] overflow-hidden bg-black"><Image src={barber.portrait} alt={barber.name} fill sizes="(max-width: 640px) 100vw, 50vw" className="object-cover" /></div> : null}<div className="p-4"><span className="font-display text-2xl">{barber.name}</span><span className="mt-1 block text-xs text-[var(--color-brass)]">{barber.title}</span><span className="mt-3 block text-xs leading-5 text-[var(--color-bone-muted)]">{barber.biography}</span><span className="mt-3 block text-[9px] tracking-[.12em] uppercase text-[var(--color-bone-muted)]">{barber.languages.join(" · ")}</span></div></label>)}</div></div>; }
+function TimeStep({ draft, update, slots, loading, timezone }: { draft: Draft; update: <K extends keyof Draft>(key: K, value: Draft[K]) => void; slots: AvailabilitySlot[]; loading: boolean; timezone: string }) { return <div><StepTitle number="3" title="Choose a real available time" copy={`Availability is shown in ${timezone.replaceAll("_", " ")} and rechecked when you confirm.`} /><label className="mt-7 block max-w-xs text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Date<input type="date" value={draft.date} min={localToday()} onChange={(event) => update("date", event.target.value)} className="form-control mt-2 min-h-14 w-full text-base normal-case tracking-normal" /></label>{loading ? <div className="mt-7 grid gap-3 sm:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <div key={index} className="h-14 animate-pulse rounded-xl bg-white/5" />)}</div> : slots.length ? <fieldset className="mt-7"><legend className="text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Available times</legend><div className="mt-3 grid gap-3 sm:grid-cols-3">{slots.map((slot) => <label key={slot.id} className={draft.startsAt === slot.startsAt ? "cursor-pointer rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5 p-4 text-center" : "cursor-pointer rounded-xl border border-[var(--color-ink-line)] p-4 text-center hover:border-[var(--color-brass)]/50"}><input type="radio" name="time" checked={draft.startsAt === slot.startsAt} onChange={() => update("startsAt", slot.startsAt)} className="sr-only" /><span className="block text-base">{new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(new Date(slot.startsAt))}</span><span className="mt-1 block text-[9px] tracking-[.12em] uppercase text-[var(--color-bone-muted)]">{slot.barberName}</span></label>)}</div></fieldset> : <div className="mt-7 rounded-xl border border-dashed border-[var(--color-ink-line)] p-7 text-center"><CalendarDays className="mx-auto h-6 w-6 text-[var(--color-brass)]" /><p className="font-display mt-3 text-2xl">No openings on this date</p><p className="mt-2 text-sm text-[var(--color-bone-muted)]">Choose another day or call the lounge for assistance.</p></div>}</div>; }
+function DetailsStep({ draft, update, fieldErrors, image, setImage }: { draft: Draft; update: <K extends keyof Draft>(key: K, value: Draft[K]) => void; fieldErrors: Record<string, string[]>; image: File | null; setImage: (file: File | null) => void }) { return <div><StepTitle number="4" title="Tell us who is coming" copy="We use these details only to manage your appointment and requested communication preferences." /><div className="mt-7 grid gap-5 sm:grid-cols-2"><Field label="First name" value={draft.firstName} onChange={(value) => update("firstName", value)} error={fieldErrors.firstName?.[0]} autoComplete="given-name" /><Field label="Last name" value={draft.lastName} onChange={(value) => update("lastName", value)} error={fieldErrors.lastName?.[0]} autoComplete="family-name" /><Field label="Email" type="email" value={draft.email} onChange={(value) => update("email", value)} error={fieldErrors.email?.[0]} autoComplete="email" inputMode="email" /><Field label="Phone" type="tel" value={draft.phone} onChange={(value) => update("phone", value)} error={fieldErrors.phone?.[0]} autoComplete="tel" inputMode="tel" /></div><fieldset className="mt-6"><legend className="text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Have you visited us before?</legend><div className="mt-3 flex flex-wrap gap-3">{(["yes", "no", "unsure"] as const).map((value) => <label key={value} className="flex min-h-12 cursor-pointer items-center gap-2 rounded-full border border-[var(--color-ink-line)] px-4"><input type="radio" name="existing-client" checked={draft.existingClient === value} onChange={() => update("existingClient", value)} className="accent-[var(--color-brass)]" /><span className="text-sm capitalize">{value}</span></label>)}</div></fieldset><label className="mt-6 block text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Optional notes<textarea value={draft.notes} onChange={(event) => update("notes", event.target.value)} maxLength={1000} rows={4} className="form-control mt-2 w-full resize-y text-base normal-case tracking-normal" placeholder="Hair goals, accessibility needs, or anything the barber should know." /></label><label className="mt-6 block rounded-xl border border-dashed border-[var(--color-ink-line)] p-4"><span className="text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Optional inspiration image</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file=event.target.files?.[0]??null; if(file&&file.size>10*1024*1024){event.target.value="";setImage(null);}else setImage(file); }} className="mt-3 block w-full text-sm text-[var(--color-bone-muted)] file:mr-4 file:rounded-full file:border-0 file:bg-[var(--color-brass)] file:px-4 file:py-2 file:text-xs file:uppercase file:tracking-wider file:text-black" />{image ? <small className="mt-2 block text-[var(--color-bone-muted)]">{image.name}</small> : null}</label><div className="mt-6 space-y-3"><Consent checked={draft.emailConsent} onChange={(value) => update("emailConsent", value)}>Email me appointment confirmations and updates.</Consent><Consent checked={draft.smsConsent} onChange={(value) => update("smsConsent", value)}>Text me appointment and queue updates. Message and data rates may apply.</Consent><Consent checked={draft.policyAccepted} onChange={(value) => update("policyAccepted", value)} required>I acknowledge the booking, cancellation, and no-show policy.</Consent></div></div>; }
+function ReviewStep({ draft, service, addons, barber, slot, location, duration, estimatedPrice }: { draft: Draft; service: BookingCatalog["services"][number] | undefined; addons: BookingCatalog["addons"]; barber: BookingCatalog["barbers"][number] | undefined; slot: AvailabilitySlot | undefined; location: BookingCatalog["location"]; duration: number; estimatedPrice: number }) { return <div><StepTitle number="5" title="Review your appointment" copy="The selected time is revalidated and reserved atomically when you confirm. A success message appears only after the booking is saved." /><dl className="mt-7 grid gap-4 sm:grid-cols-2"><Review label="Service" value={service?.name ?? "—"} /><Review label="Add-ons" value={addons.length ? addons.map((item) => item.name).join(", ") : "None"} /><Review label="Barber" value={barber?.name ?? "—"} /><Review label="Date and time" value={slot ? new Intl.DateTimeFormat("en-US", { timeZone: location.timezone, dateStyle: "full", timeStyle: "short" }).format(new Date(slot.startsAt)) : "—"} /><Review label="Duration" value={`${duration} minutes`} /><Review label="Estimated price" value={`$${(estimatedPrice / 100).toFixed(2)}`} /><Review label="Client" value={`${draft.firstName} ${draft.lastName}`} /><Review label="Contact" value={`${draft.email} · ${draft.phone}`} /><Review label="Location" value={location.address} /><Review label="Policy" value="Acknowledged" /></dl><div className="mt-7 flex gap-3 rounded-xl border border-[var(--color-brass)]/25 bg-[var(--color-brass)]/5 p-4 text-xs leading-6 text-[var(--color-bone-muted)]"><ShieldCheck className="mt-1 h-4 w-4 shrink-0 text-[var(--color-brass)]" />Your booking is stored before email notifications are attempted. An email-provider interruption will not erase a successfully reserved appointment.</div></div>; }
+function BookingSummary({ service, barber, slot, location, duration, estimatedPrice }: { service: BookingCatalog["services"][number] | undefined; barber: BookingCatalog["barbers"][number] | undefined; slot: AvailabilitySlot | undefined; location: BookingCatalog["location"]; duration: number; estimatedPrice: number }) { return <aside className="h-fit border border-[var(--color-brass)]/25 bg-black/25 p-6 lg:sticky lg:top-24"><p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">Your appointment</p><dl className="mt-6 space-y-5"><Summary icon={<Scissors className="h-4 w-4" />} label="Service" value={service?.name ?? "Choose a service"} /><Summary icon={<UserRound className="h-4 w-4" />} label="Barber" value={barber?.name ?? "Choose a barber"} /><Summary icon={<CalendarDays className="h-4 w-4" />} label="Time" value={slot ? new Intl.DateTimeFormat("en-US", { timeZone: location.timezone, dateStyle: "medium", timeStyle: "short" }).format(new Date(slot.startsAt)) : "Choose a time"} /><Summary icon={<Clock3 className="h-4 w-4" />} label="Duration" value={duration ? `${duration} minutes` : "—"} /><Summary icon={<MapPin className="h-4 w-4" />} label="Location" value={location.address} /></dl><div className="mt-7 border-t border-[var(--color-ink-line)] pt-5"><p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-bone-muted)]">Estimated total</p><p className="font-display mt-2 text-3xl text-[var(--color-brass)]">{estimatedPrice ? `$${(estimatedPrice / 100).toFixed(2)}` : "—"}</p></div><a href={businessConfig.phoneHref} onClick={() => trackClick("call_action")} className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-[var(--color-ink-line)] text-[10px] tracking-[.18em] uppercase"><Phone className="h-4 w-4" />Need help? Call</a></aside>; }
+function trackClick(eventName: string) {
+  if (typeof window === "undefined" || navigator.doNotTrack === "1" || localStorage.getItem("analytics-consent") === "denied") return;
+  const anonymousSessionId = sessionStorage.getItem("lbl-booking-session") || globalThis.crypto.randomUUID();
+  sessionStorage.setItem("lbl-booking-session", anonymousSessionId);
+  void fetch("/api/booking/events", { method: "POST", headers: { "Content-Type": "application/json" }, keepalive: true, body: JSON.stringify({ eventName, anonymousSessionId, metadata: {} }) }).catch(() => undefined);
 }
-
-function BarberStep({ value, onChange, serviceSlug }: { value: string; onChange: (value: string) => void; serviceSlug: string }) {
-  const eligible = barbers.filter((barber) => barber.serviceSlugs.includes(serviceSlug));
-  return <section><StepHeading number="02" title="Choose a chair" copy="Choose a preferred barber or let the lounge match the service to the best available chair." />
-    <div className="mt-7 grid gap-3"><button type="button" onClick={()=>onChange("best-available")} className={value==="best-available"?"choice-card choice-card-active":"choice-card"}><span><strong>Best available</strong><small>Recommended for the earliest suitable opening</small></span>{value==="best-available"?<Check className="h-4 w-4"/>:null}</button>{(eligible.length?eligible:barbers).map((barber)=><button type="button" key={barber.slug} onClick={()=>onChange(barber.slug)} className={value===barber.slug?"choice-card choice-card-active":"choice-card"}><span><strong>{barber.name}</strong><small>{barber.specialties.en}</small></span>{value===barber.slug?<Check className="h-4 w-4"/>:null}</button>)}</div>
-  </section>;
-}
-
-function VisitStep({ form, update }: { form: FormState; update: <K extends keyof FormState>(key: K, value: FormState[K]) => void }) {
-  return <section><StepHeading number="03" title="Tell us about the visit" copy="These brief answers support service preparation and fair client attribution." />
-    <div className="mt-7 grid gap-6 sm:grid-cols-2"><Fieldset legend="Have you visited the lounge before?" value={form.firstVisit} onChange={(value)=>update("firstVisit",value as FormState["firstVisit"])} options={[{value:"no",label:"This is my first visit"},{value:"yes",label:"I have visited before"}]}/><Fieldset legend="Have you received services from this barber before?" value={form.preExistingBarberClient} onChange={(value)=>update("preExistingBarberClient",value as FormState["preExistingBarberClient"])} options={[{value:"yes",label:"Yes, before the lounge"},{value:"no",label:"No"}]}/></div>
-    <label className="mt-7 block"><span className="form-label">How did you first hear about the lounge?</span><select value={form.source} onChange={(event)=>update("source",event.target.value)} className="form-control"><option value="">Select one</option><option value="google">Google Search or Maps</option><option value="social">Social media</option><option value="walk_in">Walk-in or local signage</option><option value="shop_referral">Referred by a lounge client</option><option value="barber_referral">Referred by a barber</option><option value="event">Event or promotion</option><option value="other">Other</option></select></label>
-    <label className="mt-6 block"><span className="form-label">Reference, accessibility, or preparation notes</span><textarea value={form.notes} onChange={(event)=>update("notes",event.target.value)} className="form-control min-h-28" placeholder="Optional" /></label>
-  </section>;
-}
-
-function ContactStep({ form, update, live }: { form: FormState; update: <K extends keyof FormState>(key: K, value: FormState[K]) => void; live: boolean }) {
-  return <section><StepHeading number="04" title="Contact details" copy={live?"The secure booking provider will confirm availability, deposit, and policies before the appointment is created.":"The lounge will use these details to confirm a time. This is a request, not an appointment yet."}/>
-    <div className="mt-7 grid gap-5 sm:grid-cols-2"><TextField label="Full name" value={form.name} onChange={(value)=>update("name",value)} autoComplete="name"/><TextField label="Phone" value={form.phone} onChange={(value)=>update("phone",value)} autoComplete="tel"/><div className="sm:col-span-2"><TextField label="Email" value={form.email} onChange={(value)=>update("email",value)} type="email" autoComplete="email"/></div></div>
-    <div className="mt-7 space-y-4"><CheckField checked={form.smsConsent} onChange={(value)=>update("smsConsent",value)} label="I agree to receive transactional appointment and queue text messages. Marketing messages require separate consent."/><CheckField checked={form.policyConsent} onChange={(value)=>update("policyConsent",value)} required label="I have reviewed and accept the booking, deposit, cancellation, and no-show policies."/></div>
-  </section>;
-}
-
-function Completion({ reference, live, delivered }: { reference: string; live: boolean; delivered: boolean }) {
-  const title = live ? "Continue to secure availability" : delivered ? "Your request is with the lounge" : "Complete your request directly";
-  const copy = live
-    ? "The next secure step confirms the real appointment time, deposit, and final total."
-    : delivered
-      ? `This request does not reserve a time until the lounge confirms it. For immediate help, call ${business.phone}.`
-      : `Online delivery is not active yet. Your selections are not reserved. Please call ${business.phone} or email ${business.email}.`;
-  return <section className="py-8 text-center"><span className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-[var(--color-brass)]/40 text-[var(--color-brass)]"><Check className="h-7 w-7"/></span><p className="mt-6 text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">Reference {reference}</p><h2 className="font-display mt-4 text-4xl">{title}</h2><p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-[var(--color-bone-muted)]">{copy}</p><a href={business.phoneHref} className="mt-7 inline-flex rounded-full border border-[var(--color-brass)]/45 px-7 py-3 text-[10px] tracking-[.24em] uppercase text-[var(--color-brass)]">Call the lounge</a></section>;
-}
-
-function StepHeading({ number, title, copy }: { number: string; title: string; copy: string }) { return <div><p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">Step {number}</p><h2 className="font-display mt-3 text-3xl">{title}</h2><p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-bone-muted)]">{copy}</p></div>; }
-function SummaryRow({ label, value, strong=false }: { label: string; value: string; strong?: boolean }) { return <div className="border-b border-[var(--color-ink-line)] pb-4"><dt className="text-[9px] tracking-[.24em] uppercase text-[var(--color-bone-muted)]">{label}</dt><dd className={strong?"font-display mt-2 text-2xl text-[var(--color-brass)]":"mt-2 text-sm text-[var(--color-bone)]"}>{value}</dd></div>; }
-function Fieldset({ legend, value, onChange, options }: { legend: string; value: string; onChange: (value: string)=>void; options: Array<{value:string;label:string}> }) { return <fieldset><legend className="form-label">{legend}</legend><div className="mt-3 grid gap-2">{options.map((option)=><label key={option.value} className="choice-card cursor-pointer"><span>{option.label}</span><input type="radio" name={legend} value={option.value} checked={value===option.value} onChange={()=>onChange(option.value)} className="accent-[var(--color-brass)]"/></label>)}</div></fieldset>; }
-function TextField({ label, value, onChange, type="text", autoComplete }: { label:string;value:string;onChange:(value:string)=>void;type?:string;autoComplete?:string }) { return <label className="block"><span className="form-label">{label}</span><input required value={value} onChange={(event)=>onChange(event.target.value)} type={type} autoComplete={autoComplete} className="form-control"/></label>; }
-function CheckField({ checked, onChange, label, required=false }: { checked:boolean;onChange:(value:boolean)=>void;label:string;required?:boolean }) { return <label className="flex cursor-pointer gap-3 text-sm leading-6 text-[var(--color-bone-muted)]"><input type="checkbox" required={required} checked={checked} onChange={(event)=>onChange(event.target.checked)} className="mt-1 accent-[var(--color-brass)]"/><span>{label}</span></label>; }
+function Field({ label, value, onChange, error, type = "text", autoComplete, inputMode }: { label: string; value: string; onChange: (value: string) => void; error?: string; type?: string; autoComplete?: string; inputMode?: HTMLAttributes<HTMLInputElement>["inputMode"] }) { return <label className="block text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">{label}<input type={type} value={value} onChange={(event) => onChange(event.target.value)} autoComplete={autoComplete} inputMode={inputMode} aria-invalid={Boolean(error)} className="form-control mt-2 min-h-14 w-full text-base normal-case tracking-normal" />{error ? <span className="mt-2 block text-xs normal-case tracking-normal text-red-200">{error}</span> : null}</label>; }
+function Consent({ checked, onChange, children, required = false }: { checked: boolean; onChange: (value: boolean) => void; children: ReactNode; required?: boolean }) { return <label className="flex cursor-pointer gap-3 text-sm leading-6 text-[var(--color-bone-muted)]"><input type="checkbox" checked={checked} required={required} onChange={(event) => onChange(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-[var(--color-brass)]" /><span>{children}{required ? <span className="text-[var(--color-brass)]"> *</span> : null}</span></label>; }
+function Review({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-[var(--color-ink-line)] p-4"><dt className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">{label}</dt><dd className="mt-2 text-sm leading-6 text-[var(--color-bone)]">{value}</dd></div>; }
+function Summary({ icon, label, value }: { icon: ReactNode; label: string; value: string }) { return <div className="flex gap-3"><span className="mt-1 text-[var(--color-brass)]">{icon}</span><div><dt className="text-[9px] tracking-[.18em] uppercase text-[var(--color-bone-muted)]">{label}</dt><dd className="mt-1 text-sm leading-6">{value}</dd></div></div>; }
+function BookingSkeleton() { return <div className="grid gap-6 lg:grid-cols-[1fr_330px]"><div className="h-[620px] animate-pulse border border-[var(--color-ink-line)] bg-white/5" /><div className="h-80 animate-pulse border border-[var(--color-ink-line)] bg-white/5" /></div>; }
+function BookingUnavailable({ message }: { message: string }) { return <div className="border border-[var(--color-ink-line)] bg-[var(--color-ink-soft)] p-8 text-center"><h2 className="font-display text-3xl">Online booking is temporarily unavailable</h2><p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-[var(--color-bone-muted)]">{message || "Please call the lounge and we will reserve your chair directly."}</p><a href={businessConfig.phoneHref} className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-full bg-[var(--color-brass)] px-6 text-[10px] tracking-[.2em] uppercase text-black"><Phone className="h-4 w-4" />Call {businessConfig.phone}</a></div>; }

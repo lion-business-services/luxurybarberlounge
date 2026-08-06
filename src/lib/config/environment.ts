@@ -11,7 +11,10 @@ export const environment = {
   squareWebhookConfigured: Boolean(
     process.env.SQUARE_WEBHOOK_SIGNATURE_KEY && process.env.SQUARE_WEBHOOK_NOTIFICATION_URL,
   ),
-  emailConfigured: Boolean(process.env.EMAIL_PROVIDER_API_KEY && process.env.EMAIL_FROM),
+  emailConfigured: Boolean(
+    (process.env.RESEND_API_KEY || process.env.EMAIL_PROVIDER_API_KEY) &&
+      (process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM),
+  ),
   smsConfigured: Boolean(
     process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM,
   ),

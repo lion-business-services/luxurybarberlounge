@@ -1,2 +1,4 @@
-import type { Metadata } from "next"; import { AdminModulePage } from "@/components/admin/AdminPages";
-export const metadata: Metadata={title:"Appointments",robots:{index:false,follow:false}}; export default function Page(){return <AdminModulePage slug="appointments"/>}
+import type { Metadata } from "next";
+import { AdminAppointmentsWorkspace } from "@/components/admin/AdminAppointmentsWorkspace";
+export const metadata: Metadata = { title: "Appointments", robots: { index: false, follow: false } };
+export default function Page() { return <AdminAppointmentsWorkspace />; }

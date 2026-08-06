@@ -1,5 +1,5 @@
 import "server-only";
-import { createUserServerSupabase, getServerAuthSession } from "@/lib/auth/server";
+import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
 import { localizedName } from "./format";
 
 export type AdminMetric = { label: string; value: string; source: "Supabase-derived" | "Square-derived" | "Calculated" | "Estimated"; note: string };
@@ -10,7 +10,7 @@ export type AdminPortalData = {
   queue: Array<Record<string, unknown>>;
   clients: Array<{ id: string; name: string; phone: string | null; language: string; marketing: string; createdAt: string }>;
   orders: Array<{ id: string; squareId: string; state: string; totalCents: number | null; syncedAt: string }>;
-  memberships: Array<{ id: string; status: string; renewsAt: string | null; plan: string; clientId: string }>;
+  memberships: Array<{ id: string; status: string; renewsAt: string | null; plan: string; clientId: string; clientName: string }>;
   barbers: Array<{ id: string; slug: string; name: string; title: string; active: boolean; status: string }>;
   systems: Array<{ provider: string; status: string; detail: string }>;
   failures: Array<{ id: string; provider: string; resource: string; message: string; createdAt: string }>;
@@ -18,13 +18,22 @@ export type AdminPortalData = {
 
 function countValue(result: { count?: number | null }) { return result.count ?? 0; }
 function s(value: unknown) { return typeof value === "string" ? value : null; }
+function canOperate(roles: readonly string[]) {
+  return roles.some((role) => ["manager", "owner", "super_admin"].includes(role));
+}
+
+async function adminDataClient() {
+  const session = await getServerAuthSession();
+  if (!session.user || !canOperate(session.roles)) return null;
+  const supabase = createUntypedAdminSupabase();
+  return supabase ? { session, supabase } : null;
+}
 
 export async function loadAdminPortalData(): Promise<AdminPortalData> {
-  const session = await getServerAuthSession();
   const empty: AdminPortalData = { configured: false, businessId: null, metrics: [], queue: [], clients: [], orders: [], memberships: [], barbers: [], systems: [], failures: [] };
-  if (!session.user || !session.accessToken) return empty;
-  const supabase = createUserServerSupabase(session.accessToken);
-  if (!supabase) return empty;
+  const context = await adminDataClient();
+  if (!context) return empty;
+  const { supabase } = context;
   const { data: business } = await supabase.from("businesses").select("id").eq("slug", "luxury-barber-lounge").maybeSingle();
   const businessId = s((business as Record<string, unknown> | null)?.id);
   if (!businessId) return empty;
@@ -32,9 +41,9 @@ export async function loadAdminPortalData(): Promise<AdminPortalData> {
   const start = new Date(); start.setHours(0, 0, 0, 0);
   const end = new Date(start); end.setDate(end.getDate() + 1);
   const [bookings, queueCount, clientCount, membershipCount, failedWebhooks, failedNotifications, queueRows, clientRows, orderRows, membershipRows, barberRows, integrations, syncFailures, payments] = await Promise.all([
-    supabase.from("square_bookings").select("id", { count: "exact", head: true }).eq("business_id", businessId).gte("starts_at", start.toISOString()).lt("starts_at", end.toISOString()),
+    supabase.from("appointments").select("id", { count: "exact", head: true }).eq("business_id", businessId).gte("starts_at", start.toISOString()).lt("starts_at", end.toISOString()),
     supabase.from("queue_entries").select("id", { count: "exact", head: true }).eq("business_id", businessId).in("status", ["waiting", "confirmed", "checked_in", "assigned", "called", "ready", "in_service"]),
-    supabase.from("client_profiles").select("user_id", { count: "exact", head: true }).eq("business_id", businessId),
+    supabase.from("clients").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("status", "active"),
     supabase.from("memberships").select("id", { count: "exact", head: true }).eq("business_id", businessId).in("status", ["trial", "active", "past_due", "paused"]),
     supabase.from("webhook_events").select("id", { count: "exact", head: true }).eq("business_id", businessId).in("processing_status", ["failed", "dead_letter"]),
     supabase.from("notification_jobs").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("status", "failed"),
@@ -42,7 +51,7 @@ export async function loadAdminPortalData(): Promise<AdminPortalData> {
     supabase.from("client_profiles").select("user_id,marketing_status,created_at,profiles(full_name,display_name,phone,preferred_language,status)").eq("business_id", businessId).order("created_at", { ascending: false }).limit(30),
     supabase.from("square_orders").select("id,square_id,state,total_cents,synced_at").eq("business_id", businessId).order("synced_at", { ascending: false }).limit(30),
     supabase.from("memberships").select("id,status,renews_at,client_user_id,membership_plans(name)").eq("business_id", businessId).order("created_at", { ascending: false }).limit(30),
-    supabase.from("barber_profiles").select("id,slug,display_name,title,active,status").eq("business_id", businessId).order("sort_order", { ascending: true }).limit(50),
+    supabase.from("barber_profiles").select("id,slug,display_name,professional_title,active,status").eq("business_id", businessId).order("sort_order", { ascending: true }).limit(50),
     supabase.from("integrations").select("provider,status,environment,last_success_at,last_error_at").eq("business_id", businessId).order("provider"),
     supabase.from("sync_failures").select("id,provider,resource_type,error_message,created_at").eq("business_id", businessId).order("created_at", { ascending: false }).limit(10),
     supabase.from("square_payments").select("amount_cents,tip_cents,created_at_square").eq("business_id", businessId).gte("created_at_square", start.toISOString()).lt("created_at_square", end.toISOString()),
@@ -52,14 +61,20 @@ export async function loadAdminPortalData(): Promise<AdminPortalData> {
   const revenue = paymentRows.reduce((sum, row) => sum + (typeof row.amount_cents === "number" ? row.amount_cents : 0), 0);
   const tips = paymentRows.reduce((sum, row) => sum + (typeof row.tip_cents === "number" ? row.tip_cents : 0), 0);
   const orderData = (orderRows.data ?? []) as Array<Record<string, unknown>>;
+  const membershipData = (membershipRows.data ?? []) as Array<Record<string, unknown>>;
+  const membershipClientIds = [...new Set(membershipData.map((row) => s(row.client_user_id)).filter((value): value is string => Boolean(value)))];
+  const { data: membershipProfiles } = membershipClientIds.length
+    ? await supabase.from("profiles").select("id,full_name,display_name").in("id", membershipClientIds)
+    : { data: [] };
+  const membershipClientNames = new Map(((membershipProfiles ?? []) as Array<Record<string, unknown>>).map((profile) => [String(profile.id), s(profile.display_name) ?? s(profile.full_name) ?? "Unnamed client"]));
 
   return {
     configured: true,
     businessId,
     metrics: [
-      { label: "Appointments today", value: String(countValue(bookings)), source: "Square-derived", note: "Synced booking records scheduled today" },
+      { label: "Appointments today", value: String(countValue(bookings)), source: "Supabase-derived", note: "Confirmed booking records scheduled today" },
       { label: "Active queue", value: String(countValue(queueCount)), source: "Supabase-derived", note: "Waiting through in-service queue records" },
-      { label: "Clients", value: String(countValue(clientCount)), source: "Supabase-derived", note: "Linked client profiles" },
+      { label: "Clients", value: String(countValue(clientCount)), source: "Supabase-derived", note: "Active client records" },
       { label: "Active memberships", value: String(countValue(membershipCount)), source: "Supabase-derived", note: "Trial, active, paused, or past due" },
       { label: "Service revenue today", value: new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(revenue / 100), source: "Square-derived", note: "Synced payments only" },
       { label: "Tips today", value: new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(tips / 100), source: "Square-derived", note: "Outside Commission Basis" },
@@ -80,12 +95,13 @@ export async function loadAdminPortalData(): Promise<AdminPortalData> {
       };
     }),
     orders: orderData.map((row) => ({ id: String(row.id), squareId: String(row.square_id), state: s(row.state) ?? "unknown", totalCents: typeof row.total_cents === "number" ? row.total_cents : null, syncedAt: String(row.synced_at) })),
-    memberships: ((membershipRows.data ?? []) as Array<Record<string, unknown>>).map((row) => {
+    memberships: membershipData.map((row) => {
       const joined = row.membership_plans;
       const plan = Array.isArray(joined) ? joined[0] as Record<string, unknown> | undefined : joined as Record<string, unknown> | undefined;
-      return { id: String(row.id), status: s(row.status) ?? "pending", renewsAt: s(row.renews_at), plan: localizedName(plan?.name, "Membership"), clientId: String(row.client_user_id) };
+      const clientId = String(row.client_user_id);
+      return { id: String(row.id), status: s(row.status) ?? "pending", renewsAt: s(row.renews_at), plan: localizedName(plan?.name, "Membership"), clientId, clientName: membershipClientNames.get(clientId) ?? "Unnamed client" };
     }),
-    barbers: ((barberRows.data ?? []) as Array<Record<string, unknown>>).map((row) => ({ id: String(row.id), slug: String(row.slug), name: localizedName(row.display_name, "Barber"), title: localizedName(row.title, "Independent Barber"), active: Boolean(row.active), status: s(row.status) ?? "draft" })),
+    barbers: ((barberRows.data ?? []) as Array<Record<string, unknown>>).map((row) => ({ id: String(row.id), slug: String(row.slug), name: localizedName(row.display_name, "Barber"), title: localizedName(row.professional_title, "Independent Barber"), active: Boolean(row.active), status: s(row.status) ?? "draft" })),
     systems: ((integrations.data ?? []) as Array<Record<string, unknown>>).map((row) => ({ provider: s(row.provider) ?? "unknown", status: s(row.status) ?? "not_configured", detail: s(row.last_success_at) ? `Last success ${new Date(String(row.last_success_at)).toLocaleString()}` : s(row.last_error_at) ? "Recent error recorded" : `Environment: ${s(row.environment) ?? "unknown"}` })),
     failures: ((syncFailures.data ?? []) as Array<Record<string, unknown>>).map((row) => ({ id: String(row.id), provider: s(row.provider) ?? "unknown", resource: s(row.resource_type) ?? "resource", message: s(row.error_message) ?? "Sync failed", createdAt: String(row.created_at) })),
   };
@@ -116,10 +132,9 @@ function record(id: unknown, primary: unknown, secondary: unknown, status: unkno
 }
 
 export async function loadAdminModuleSnapshot(slug: string): Promise<AdminModuleSnapshot> {
-  const session = await getServerAuthSession();
-  if (!session.user || !session.accessToken) return { configured: false, records: [], totals: [] };
-  const supabase = createUserServerSupabase(session.accessToken);
-  if (!supabase) return { configured: false, records: [], totals: [] };
+  const context = await adminDataClient();
+  if (!context) return { configured: false, records: [], totals: [] };
+  const { supabase } = context;
   const { data: business } = await supabase.from("businesses").select("id").eq("slug", "luxury-barber-lounge").maybeSingle();
   const businessId = s((business as Record<string, unknown> | null)?.id);
   if (!businessId) return { configured: false, records: [], totals: [] };
@@ -215,10 +230,9 @@ export type AdminClientDetailData = {
 };
 
 export async function loadAdminClientDetail(id: string): Promise<AdminClientDetailData | null> {
-  const session = await getServerAuthSession();
-  if (!session.user || !session.accessToken) return null;
-  const supabase = createUserServerSupabase(session.accessToken);
-  if (!supabase) return null;
+  const context = await adminDataClient();
+  if (!context) return null;
+  const { supabase } = context;
   const { data: business } = await supabase.from("businesses").select("id").eq("slug", "luxury-barber-lounge").maybeSingle();
   const businessId = s((business as Record<string, unknown> | null)?.id);
   if (!businessId) return null;
@@ -228,6 +242,7 @@ export async function loadAdminClientDetail(id: string): Promise<AdminClientDeta
   const joined = row.profiles;
   const profile = (Array.isArray(joined) ? joined[0] : joined) as Record<string, unknown> | undefined;
   const customerId = s(row.square_customer_id);
+  const { data: authUserResult } = await supabase.auth.admin.getUserById(id);
   const [appointments, queueVisits, orders, memberships, consents, supportCases, tags, notes] = await Promise.all([
     supabase.from("booking_metadata").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("client_user_id", id),
     supabase.from("queue_entries").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("client_id", id),
@@ -242,7 +257,7 @@ export async function loadAdminClientDetail(id: string): Promise<AdminClientDeta
     configured: true,
     id,
     name: s(profile?.display_name) ?? s(profile?.full_name) ?? "Unnamed client",
-    email: null,
+    email: authUserResult.user?.email ?? null,
     phone: s(profile?.phone),
     language: s(profile?.preferred_language) ?? "en",
     status: s(profile?.status) ?? "active",
@@ -256,25 +271,32 @@ export async function loadAdminClientDetail(id: string): Promise<AdminClientDeta
 }
 
 export async function loadAdminBarberDetail(id: string) {
-  const session = await getServerAuthSession();
-  if (!session.user || !session.accessToken) return null;
-  const supabase = createUserServerSupabase(session.accessToken);
-  if (!supabase) return null;
+  const context = await adminDataClient();
+  if (!context) return null;
+  const { supabase } = context;
   const { data: business } = await supabase.from("businesses").select("id").eq("slug", "luxury-barber-lounge").maybeSingle();
   const businessId = s((business as Record<string, unknown> | null)?.id);
   if (!businessId) return null;
-  const { data } = await supabase.from("barber_profiles").select("id,staff_user_id,slug,display_name,professional_title,short_intro,biography,specialties,languages,square_team_member_id,active,status,featured").eq("business_id", businessId).eq("id", id).maybeSingle();
+  const { data } = await supabase.from("barber_profiles").select("id,staff_user_id,slug,display_name,professional_title,short_intro,biography,specialties,languages,square_team_member_id,active,status,featured,accepting_walk_ins,availability_status").eq("business_id", businessId).eq("id", id).maybeSingle();
   if (!data) return null;
   const row = data as Record<string, unknown>;
   const staffUserId = s(row.staff_user_id);
-  const [appointments, queueAssignments, statements, disputes] = await Promise.all([
+  const [appointments, queueAssignments, statements, disputes, serviceRows, staffServiceRows] = await Promise.all([
     staffUserId ? supabase.from("booking_metadata").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("barber_user_id", staffUserId) : Promise.resolve({ count: 0 }),
     staffUserId ? supabase.from("queue_assignments").select("id", { count: "exact", head: true }).eq("barber_user_id", staffUserId) : Promise.resolve({ count: 0 }),
     staffUserId ? supabase.from("settlement_statements").select("id", { count: "exact", head: true }).eq("barber_user_id", staffUserId) : Promise.resolve({ count: 0 }),
     staffUserId ? supabase.from("commission_disputes").select("id", { count: "exact", head: true }).eq("barber_user_id", staffUserId) : Promise.resolve({ count: 0 }),
+    supabase.from("services").select("id,slug,name,active").eq("business_id", businessId).eq("active", true).order("sort_order", { ascending: true }),
+    staffUserId ? supabase.from("staff_services").select("service_id,active").eq("staff_user_id", staffUserId).eq("active", true) : Promise.resolve({ data: [] }),
   ]);
+  const availableServices = ((serviceRows.data ?? []) as Array<Record<string, unknown>>).map((service) => ({
+    id: String(service.id),
+    slug: String(service.slug),
+    name: localizedName(service.name, String(service.slug)),
+  }));
+  const serviceIds = ((staffServiceRows.data ?? []) as Array<Record<string, unknown>>).map((service) => String(service.service_id));
   return {
-    id: String(row.id), staffUserId, slug: String(row.slug), name: localizedName(row.display_name, "Barber"), title: localizedName(row.professional_title, "Independent Barber"), intro: localizedName(row.short_intro, ""), biography: localizedName(row.biography, ""), specialties: Array.isArray(row.specialties) ? row.specialties.map(String) : [], languages: Array.isArray(row.languages) ? row.languages.map(String) : [], squareTeamMemberId: s(row.square_team_member_id), active: Boolean(row.active), status: s(row.status) ?? "draft", featured: Boolean(row.featured), totals: { appointments: appointments.count ?? 0, queueAssignments: queueAssignments.count ?? 0, statements: statements.count ?? 0, disputes: disputes.count ?? 0 },
+    id: String(row.id), staffUserId, slug: String(row.slug), name: localizedName(row.display_name, "Barber"), title: localizedName(row.professional_title, "Independent Barber"), intro: localizedName(row.short_intro, ""), biography: localizedName(row.biography, ""), specialties: Array.isArray(row.specialties) ? row.specialties.map(String) : [], languages: Array.isArray(row.languages) ? row.languages.map(String) : [], squareTeamMemberId: s(row.square_team_member_id), active: Boolean(row.active), status: s(row.status) ?? "draft", featured: Boolean(row.featured), acceptingWalkIns: row.accepting_walk_ins !== false, availabilityStatus: s(row.availability_status) ?? "available", serviceIds, availableServices, totals: { appointments: appointments.count ?? 0, queueAssignments: queueAssignments.count ?? 0, statements: statements.count ?? 0, disputes: disputes.count ?? 0 },
   };
 }
 
@@ -291,10 +313,9 @@ export type AdminAutomationRule = {
 };
 
 export async function loadAdminAutomationRules(): Promise<AdminAutomationRule[]> {
-  const session = await getServerAuthSession();
-  if (!session.user || !session.accessToken) return [];
-  const supabase = createUserServerSupabase(session.accessToken);
-  if (!supabase) return [];
+  const context = await adminDataClient();
+  if (!context) return [];
+  const { supabase } = context;
   const { data: business } = await supabase.from("businesses").select("id").eq("slug", "luxury-barber-lounge").maybeSingle();
   const businessId = s((business as Record<string, unknown> | null)?.id);
   if (!businessId) return [];

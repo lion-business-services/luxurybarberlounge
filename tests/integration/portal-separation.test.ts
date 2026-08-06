@@ -69,12 +69,12 @@ test("session metadata stores hashes and never raw access tokens", async () => {
   assert.doesNotMatch(source, /access_token\s*:/);
 });
 
-test("client appointment mutations use provider confirmation and immutable history columns", async () => {
+test("client appointment mutations use atomic Supabase booking operations and immutable history columns", async () => {
   const source = await readFile("src/app/api/client/appointments/route.ts", "utf8");
-  assert.match(source, /provider\.updateBooking/);
-  assert.match(source, /provider\.cancelBooking/);
-  assert.match(source, /to_status:\s*"rescheduled"/);
-  assert.match(source, /to_status:\s*"cancelled"/);
+  assert.match(source, /reschedule_appointment_atomic/);
+  assert.match(source, /searchSupabaseAvailability/);
+  assert.match(source, /cancelled_by_client/);
+  assert.match(source, /to_status:\s*"cancelled_by_client"/);
   assert.doesNotMatch(source, /appointment_status_history"\)\.insert\([^\n]*\bstatus:/);
 });
 
@@ -108,12 +108,61 @@ test("client portal exposes only four primary destinations and a direct sign-out
   assert.match(shell, /\/api\/auth\/logout/);
 });
 
-test("admin navigation is an operations dashboard rather than a full CRM menu", async () => {
+test("admin navigation stays focused on daily barbershop operations", async () => {
   const shell = await readFile("src/components/admin/AdminShell.tsx", "utf8");
-  for (const label of ["Dashboard", "Appointments", "Queue", "Clients", "Barbers", "Commissions", "Automations", "Settings"]) {
+  for (const label of ["Dashboard", "Appointments", "Queue", "Clients", "Barbers", "Services", "Memberships", "Commissions"]) {
     assert.match(shell, new RegExp(`label: "${label}"`));
   }
-  assert.doesNotMatch(shell, /Owner CRM|Executive dashboard|Marketing & CRM/);
+  assert.doesNotMatch(shell, /label: "Automations"|label: "Settings"|Owner CRM|Executive dashboard|Marketing & CRM/);
+});
+
+test("public queue display exposes only privacy-safe operational fields", async () => {
+  const route = await readFile("src/app/api/queue/display/route.ts", "utf8");
+  const board = await readFile("src/app/queue-board/QueueBoard.tsx", "utf8");
+  assert.match(route, /privacySafeQueueLabel/);
+  assert.match(route, /publicDisplayConsent/);
+  assert.match(route, /assignedBarberName/);
+  assert.doesNotMatch(route, /client_phone|client_email|phone:|email:/);
+  assert.match(board, /Names appear only when the guest has chosen to share/);
+  assert.match(board, /requestFullscreen/);
+});
+
+test("admin hides workflow configuration while protected background processors remain", async () => {
+  const automationPage = await readFile("src/app/admin/automations/page.tsx", "utf8");
+  const settingsPage = await readFile("src/app/admin/settings/page.tsx", "utf8");
+  const vercel = await readFile("vercel.json", "utf8");
+  assert.match(automationPage, /redirect\("\/admin"\)/);
+  assert.match(settingsPage, /redirect\("\/admin"\)/);
+  for (const path of ["/api/cron/webhooks", "/api/cron/notifications", "/api/cron/appointments", "/api/cron/queue", "/api/cron/commissions"]) {
+    assert.match(vercel, new RegExp(path.replaceAll("/", "\\/")));
+  }
+});
+
+test("client portal does not surface internal provider identifiers", async () => {
+  const clientData = await readFile("src/lib/portal/client-data.ts", "utf8");
+  const clientPages = await readFile("src/components/client/ClientPages.tsx", "utf8");
+  assert.doesNotMatch(clientData, /squareCustomerId:/);
+  assert.doesNotMatch(clientPages, /Square customer link|Square matching/);
+});
+
+test("barber service eligibility drives explainable automatic queue assignment", async () => {
+  const editor = await readFile("src/components/admin/AdminBarberEditor.tsx", "utf8");
+  const barberApi = await readFile("src/app/api/admin/barbers/[id]/route.ts", "utf8");
+  const queueEngine = await readFile("src/lib/queue/engine.ts", "utf8");
+  assert.match(editor, /Services this barber can perform/);
+  assert.match(barberApi, /staff_services/);
+  assert.match(barberApi, /serviceIds/);
+  assert.match(queueEngine, /eligibleServiceIds/);
+  assert.match(queueEngine, /lowest eligible projected workload/);
+});
+
+test("commission processor prepares provisional barber statements without moving money", async () => {
+  const processor = await readFile("src/lib/commissions/reconcile.ts", "utf8");
+  const workspace = await readFile("src/components/commissions/CommissionWorkspace.tsx", "utf8");
+  assert.match(processor, /settlement_statements/);
+  assert.match(processor, /manual_zelle_or_cash/);
+  assert.match(processor, /status: "provisional"/);
+  assert.match(workspace, /Statements report amounts only and do not move funds/);
 });
 
 test("public navigation silently renews sessions and keeps dashboard and sign-out available", async () => {
@@ -124,4 +173,34 @@ test("public navigation silently renews sessions and keeps dashboard and sign-ou
   assert.match(header, /portalUrl/);
   assert.match(header, /Dashboard/);
   assert.match(header, /\/api\/auth\/logout/);
+});
+
+test("queue updates create consent-aware transactional notifications", async () => {
+  const helper = await readFile("src/lib/queue/notifications.ts", "utf8");
+  const operations = await readFile("src/app/api/operations/queue/route.ts", "utf8");
+  const processor = await readFile("src/app/api/cron/notifications/route.ts", "utf8");
+  assert.match(helper, /auth\.admin\.getUserById/);
+  assert.match(helper, /features\.sms && input\.smsConsent/);
+  assert.match(helper, /queue:\$\{input\.entryId\}:\$\{input\.status\}/);
+  assert.match(operations, /enqueueQueueStatusNotification/);
+  assert.match(processor, /payload\.smsConsent === true/);
+});
+
+test("queue television route never returns private contact fields", async () => {
+  const display = await readFile("src/app/api/queue/display/route.ts", "utf8");
+  assert.doesNotMatch(display, /clientId|clientPhone|smsConsent|client_name|client_phone|service:/);
+  assert.match(display, /Cache-Control/);
+  assert.match(display, /private, no-store/);
+});
+
+
+test("booking confirmations and 24-hour reminders are generated in protected background jobs", async () => {
+  const webhook = await readFile("src/lib/integrations/processSquareWebhook.ts", "utf8");
+  const reminders = await readFile("src/lib/appointments/reminders.ts", "utf8");
+  const cron = await readFile("src/app/api/cron/appointments/route.ts", "utf8");
+  assert.match(webhook, /Your Luxury Barber Lounge appointment/);
+  assert.match(webhook, /transactional: true/);
+  assert.match(reminders, /booking_reminder_24h/);
+  assert.match(reminders, /businessConfig\.timezone/);
+  assert.match(cron, /CRON_SECRET/);
 });

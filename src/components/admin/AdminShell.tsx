@@ -12,8 +12,8 @@ import {
   LogOut,
   Menu,
   Scissors,
-  Settings,
-  WandSparkles,
+  BadgeCheck,
+  ListChecks,
   X,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -39,43 +39,24 @@ const groups: Group[] = [
     ],
   },
   {
-    label: "People",
+    label: "People & offerings",
     items: [
       { label: "Clients", href: "/admin/clients", icon: ContactRound },
       { label: "Barbers", href: "/admin/barbers", icon: Scissors },
+      { label: "Services", href: "/admin/services", icon: ListChecks },
+      { label: "Memberships", href: "/admin/memberships", icon: BadgeCheck },
     ],
   },
   {
-    label: "Automation & pay",
+    label: "Pay",
     items: [
       { label: "Commissions", href: "/admin/commissions", icon: CircleDollarSign, ownerOnly: true },
-      { label: "Automations", href: "/admin/automations", icon: WandSparkles },
-    ],
-  },
-  {
-    label: "Manage",
-    items: [
-      { label: "Settings", href: "/admin/settings", icon: Settings, ownerOnly: true },
     ],
   },
 ];
 
 function active(pathname: string, href: string) {
   if (href === "/admin") return pathname === href || pathname === "/admin/today";
-  if (href === "/admin/settings") {
-    return [
-      "/admin/settings",
-      "/admin/integrations",
-      "/admin/users",
-      "/admin/roles",
-      "/admin/security",
-      "/admin/audit",
-      "/admin/webhooks",
-      "/admin/services",
-      "/admin/memberships",
-      "/admin/orders",
-    ].some((path) => pathname === path || pathname.startsWith(`${path}/`));
-  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

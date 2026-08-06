@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       const { data: record } = await admin.from("message_templates").select("subject,body,transactional").eq("business_id", job.business_id).eq("key", job.template_key).eq("channel", job.channel).eq("locale", job.locale).eq("status", "published").maybeSingle();
       if (record) template = record;
     }
-    let preferences = { email: true, sms: false };
+    let preferences = { email: true, sms: payload.smsConsent === true };
     let quietHours: { startHour: number; endHour: number } | undefined;
     if (job.user_id) {
       const { data: pref } = await admin.from("notification_preferences").select("transactional_email,transactional_sms,marketing_email,marketing_sms,quiet_hours_start,quiet_hours_end").eq("user_id", job.user_id).maybeSingle();
@@ -40,6 +40,9 @@ export async function GET(request: NextRequest) {
     const decision = canDeliver({ transactional: Boolean(template.transactional), channel: job.channel === "sms" ? "sms" : job.channel === "email" ? "email" : "in_app", consent: preferences, suppressed: !job.recipient, now: new Date(), quietHours });
     if (!decision.allowed) {
       await admin.from("notification_jobs").update({ status: "suppressed", last_error: decision.reason }).eq("id", job.id);
+      if (typeof payload.appointmentId === "string" && typeof payload.appointmentField === "string" && ["client_confirmation_status", "barber_notification_status"].includes(payload.appointmentField)) {
+        await admin.from("appointments").update({ [payload.appointmentField]: "suppressed" }).eq("id", payload.appointmentId);
+      }
       suppressed += 1; continue;
     }
     try {
@@ -47,6 +50,9 @@ export async function GET(request: NextRequest) {
       const result = job.channel === "sms" ? await getSmsProvider().send(requestData) : await getEmailProvider().send(requestData);
       await admin.from("notification_deliveries").insert({ job_id: job.id, provider: result.provider, provider_message_id: result.providerMessageId, attempt: Number(job.attempt_count ?? 0) + 1, status: result.status, sanitized_response: { live: result.live } });
       await admin.from("notification_jobs").update({ status: "delivered", last_error: null }).eq("id", job.id);
+      if (typeof payload.appointmentId === "string" && typeof payload.appointmentField === "string" && ["client_confirmation_status", "barber_notification_status"].includes(payload.appointmentField)) {
+        await admin.from("appointments").update({ [payload.appointmentField]: "sent" }).eq("id", payload.appointmentId);
+      }
       delivered += 1;
     } catch (caught) {
       const attempt = Number(job.attempt_count ?? 0) + 1;
@@ -54,6 +60,9 @@ export async function GET(request: NextRequest) {
       const message = caught instanceof Error ? caught.message.slice(0, 1000) : "Delivery failed";
       await admin.from("notification_deliveries").insert({ job_id: job.id, provider: job.channel === "sms" ? "twilio" : "resend", attempt, status: "failed", sanitized_response: {}, error_message: message });
       await admin.from("notification_jobs").update({ status: terminal ? "failed" : "queued", last_error: message, scheduled_for: terminal ? new Date().toISOString() : new Date(Date.now() + Math.min(60, 2 ** attempt) * 60_000).toISOString() }).eq("id", job.id);
+      if (terminal && typeof payload.appointmentId === "string" && typeof payload.appointmentField === "string" && ["client_confirmation_status", "barber_notification_status"].includes(payload.appointmentField)) {
+        await admin.from("appointments").update({ [payload.appointmentField]: "failed" }).eq("id", payload.appointmentId);
+      }
       failed += 1;
     }
   }

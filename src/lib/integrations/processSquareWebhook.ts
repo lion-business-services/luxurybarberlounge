@@ -9,6 +9,21 @@ function record(value: unknown): AnyRecord { return value && typeof value === "o
 function text(value: unknown) { return typeof value === "string" ? value : null; }
 function integer(value: unknown) { return typeof value === "number" && Number.isFinite(value) ? Math.round(value) : 0; }
 function money(value: unknown) { return integer(record(value).amount); }
+
+function bookingDisplayTime(value: unknown) {
+  if (typeof value !== "string") return "the scheduled time";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "the scheduled time";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function nestedObject(payload: unknown) {
   const data = record(record(payload).data);
   const object = record(data.object);
@@ -54,7 +69,30 @@ async function syncBooking(event: WebhookEventRow, raw: AnyRecord) {
       }
     }
     if (recipient) {
-      await admin.from("notification_jobs").upsert({ business_id: business, user_id: null, channel: "email", template_key: event.event_type === "booking.created" ? "booking_confirmation" : "booking_update", recipient, payload: { square_booking_id: id, event_type: event.event_type }, scheduled_for: new Date().toISOString(), status: "queued", idempotency_key: `square:${event.id}:booking-notification` }, { onConflict: "channel,idempotency_key" });
+      const created = event.event_type === "booking.created";
+      const when = bookingDisplayTime(booking.start_at);
+      const status = text(booking.status)?.replaceAll("_", " ").toLowerCase() || "scheduled";
+      await admin.from("notification_jobs").upsert({
+        business_id: business,
+        user_id: null,
+        channel: "email",
+        template_key: created ? "booking_confirmation" : "booking_update",
+        recipient,
+        payload: {
+          subject: created ? "Your Luxury Barber Lounge appointment" : "Your appointment was updated",
+          body: created
+            ? `Your Luxury Barber Lounge appointment is scheduled for ${when}. We look forward to welcoming you. Call 609-384-5171 if you need assistance.`
+            : `Your Luxury Barber Lounge appointment for ${when} is now ${status}. Call 609-384-5171 if you need assistance.`,
+          transactional: true,
+          squareBookingId: id,
+          eventType: event.event_type,
+          startsAt: booking.start_at ?? null,
+          status: booking.status ?? null,
+        },
+        scheduled_for: new Date().toISOString(),
+        status: "queued",
+        idempotency_key: `square:${event.id}:booking-notification`,
+      }, { onConflict: "channel,idempotency_key", ignoreDuplicates: true });
     }
   }
   return { resource: "booking", squareId: id };

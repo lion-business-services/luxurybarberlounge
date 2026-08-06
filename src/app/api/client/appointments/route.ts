@@ -1,71 +1,82 @@
-import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getBookingProvider } from "@/lib/booking";
-import { createUserServerSupabase, createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
+import { createUntypedAdminSupabase, createUserServerSupabase, getServerAuthSession } from "@/lib/auth/server";
+import { searchSupabaseAvailability } from "@/lib/booking/availability";
+import { businessConfig } from "@/lib/config/business";
 
 const mutationSchema = z.object({ appointmentId: z.string().uuid(), startsAt: z.string().datetime().optional() });
-const immutableStatuses = new Set(["COMPLETED", "CANCELLED", "CANCELLED_BY_CUSTOMER", "CANCELLED_BY_SELLER", "NO_SHOW"]);
+const immutableStatuses = new Set(["completed", "cancelled_by_client", "cancelled_by_business", "no_show", "declined", "expired", "failed"]);
+
+type ClientAppointmentRecord = {
+  id: string;
+  business_id: string;
+  auth_user_id: string | null;
+  public_reference: string;
+  client_email_snapshot: string | null;
+  email_consent: boolean;
+  starts_at: string;
+  updated_at?: string | null;
+};
 
 async function context() {
   const session = await getServerAuthSession();
-  if (!session.user || !session.accessToken || !session.roles.includes("client")) return null;
+  if (!session.user || !session.accessToken || !session.roles.some((role) => ["client", "owner", "super_admin"].includes(role))) return null;
   const supabase = createUserServerSupabase(session.accessToken);
   return supabase ? { session, supabase } : null;
 }
 
-async function ownedBooking(value: Awaited<ReturnType<typeof context>>, appointmentId: string) {
+async function ownedAppointment(value: Awaited<ReturnType<typeof context>>, appointmentId: string) {
   if (!value) return null;
-  const { data } = await value.supabase.from("booking_metadata").select("id,business_id,square_booking_id,metadata").eq("id", appointmentId).eq("client_user_id", value.session.user.id).maybeSingle();
-  if (!data?.id || !data.square_booking_id) return null;
-  const { data: square } = await value.supabase.from("square_bookings").select("id,status,starts_at").eq("business_id", data.business_id).eq("square_id", data.square_booking_id).maybeSingle();
-  return { booking: data, square };
+  const { data } = await value.supabase.from("appointments").select("*").eq("id", appointmentId).maybeSingle();
+  return data?.id ? data : null;
 }
 
 export async function PATCH(request: NextRequest) {
   const value = await context();
   if (!value) return NextResponse.json({ ok: false, message: "Client access is required." }, { status: 403 });
   const parsed = mutationSchema.required({ startsAt: true }).safeParse(await request.json().catch(() => null));
-  if (!parsed.success || new Date(parsed.data.startsAt).getTime() <= Date.now()) return NextResponse.json({ ok: false, message: "Choose a valid future appointment time." }, { status: 400 });
-  const record = await ownedBooking(value, parsed.data.appointmentId);
-  if (!record) return NextResponse.json({ ok: false, message: "The appointment is not available to this account." }, { status: 404 });
-  if (immutableStatuses.has(String(record.square?.status ?? "").toUpperCase())) return NextResponse.json({ ok: false, message: "Historical appointments cannot be changed." }, { status: 409 });
-  const provider = getBookingProvider();
-  if (provider.mode === "development") return NextResponse.json({ ok: false, message: "Live Square rescheduling is not active yet. Contact the lounge to change this appointment." }, { status: 409 });
-  try {
-    const updated = await provider.updateBooking(String(record.booking.square_booking_id), { startsAt: parsed.data.startsAt }, randomUUID());
-    const admin = createUntypedAdminSupabase();
-    if (admin) {
-      await admin.from("square_bookings").update({ starts_at: updated.startsAt, status: updated.status, synced_at: new Date().toISOString() }).eq("business_id", record.booking.business_id).eq("square_id", record.booking.square_booking_id);
-      await admin.from("appointment_status_history").insert({ booking_metadata_id: record.booking.id, from_status: String(record.square?.status ?? "confirmed").toLowerCase(), to_status: "rescheduled", changed_by: value.session.user.id, reason: "Client rescheduled through the portal", metadata: { source: "client_portal", previous_starts_at: record.square?.starts_at, starts_at: updated.startsAt } });
-      await admin.from("audit_logs").insert({ business_id: record.booking.business_id, actor_user_id: value.session.user.id, actor_role: "client", action: "appointment_rescheduled", resource_type: "booking_metadata", resource_id: record.booking.id, metadata: { starts_at: updated.startsAt } });
-    }
-    return NextResponse.json({ ok: true, startsAt: updated.startsAt });
-  } catch {
-    return NextResponse.json({ ok: false, message: "Square could not confirm the new time. Contact the lounge before making travel plans." }, { status: 502 });
-  }
+  if (!parsed.success) return NextResponse.json({ ok: false, message: "Choose a valid future appointment time." }, { status: 422 });
+  const appointment = await ownedAppointment(value, parsed.data.appointmentId);
+  if (!appointment) return NextResponse.json({ ok: false, message: "The appointment is not available to this account." }, { status: 404 });
+  if (immutableStatuses.has(String(appointment.status))) return NextResponse.json({ ok: false, message: "This appointment can no longer be changed online." }, { status: 409 });
+  const startsAt = new Date(parsed.data.startsAt);
+  if (!Number.isFinite(startsAt.getTime()) || startsAt.getTime() <= Date.now()) return NextResponse.json({ ok: false, message: "Choose a future appointment time." }, { status: 422 });
+  const durationMinutes = Number(appointment.service_duration_snapshot_minutes || 30);
+  const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
+  const date = new Intl.DateTimeFormat("en-CA", { timeZone: appointment.timezone || businessConfig.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(startsAt);
+  const availability = await searchSupabaseAvailability({ locationId: appointment.location_id, serviceId: appointment.service_id, barberIds: [appointment.barber_profile_id], startDate: date, days: 1 });
+  if (!availability.slots.some((slot) => slot.startsAt === startsAt.toISOString() && slot.barberId === appointment.barber_profile_id)) return NextResponse.json({ ok: false, code: "SLOT_TAKEN", message: "That time is no longer available. Choose another open time." }, { status: 409 });
+  const admin = createUntypedAdminSupabase();
+  if (!admin) return NextResponse.json({ ok: false, message: "Booking service is unavailable." }, { status: 503 });
+  const { data, error } = await admin.rpc("reschedule_appointment_atomic", { p_appointment_id: appointment.id, p_starts_at: startsAt.toISOString(), p_ends_at: endsAt.toISOString(), p_actor: value.session.user.id, p_actor_role: "client", p_reason: "Client rescheduled through the portal" });
+  if (error || !data) return NextResponse.json({ ok: false, message: /SLOT_CONFLICT/.test(error?.message ?? "") ? "That time is no longer available." : "The appointment could not be rescheduled." }, { status: /SLOT_CONFLICT/.test(error?.message ?? "") ? 409 : 503 });
+  await queueClientUpdate(admin, appointment, "booking_rescheduled", `Your appointment ${appointment.public_reference} was rescheduled to ${new Intl.DateTimeFormat("en-US", { timeZone: appointment.timezone, dateStyle: "full", timeStyle: "short" }).format(startsAt)}.`);
+  return NextResponse.json({ ok: true, startsAt: startsAt.toISOString() });
 }
 
 export async function DELETE(request: NextRequest) {
   const value = await context();
   if (!value) return NextResponse.json({ ok: false, message: "Client access is required." }, { status: 403 });
   const parsed = mutationSchema.pick({ appointmentId: true }).safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ ok: false, message: "A valid appointment is required." }, { status: 400 });
-  const record = await ownedBooking(value, parsed.data.appointmentId);
-  if (!record) return NextResponse.json({ ok: false, message: "The appointment is not available to this account." }, { status: 404 });
-  if (immutableStatuses.has(String(record.square?.status ?? "").toUpperCase())) return NextResponse.json({ ok: false, message: "This appointment can no longer be cancelled online." }, { status: 409 });
-  const provider = getBookingProvider();
-  if (provider.mode === "development") return NextResponse.json({ ok: false, message: "Live Square cancellation is not active yet. Contact the lounge to cancel this appointment." }, { status: 409 });
-  try {
-    const cancelled = await provider.cancelBooking(String(record.booking.square_booking_id), randomUUID());
-    const admin = createUntypedAdminSupabase();
-    if (admin) {
-      await admin.from("square_bookings").update({ status: cancelled.status, synced_at: new Date().toISOString() }).eq("business_id", record.booking.business_id).eq("square_id", record.booking.square_booking_id);
-      await admin.from("appointment_status_history").insert({ booking_metadata_id: record.booking.id, from_status: String(record.square?.status ?? "confirmed").toLowerCase(), to_status: "cancelled", changed_by: value.session.user.id, reason: "Client cancelled through the portal", metadata: { source: "client_portal" } });
-      await admin.from("audit_logs").insert({ business_id: record.booking.business_id, actor_user_id: value.session.user.id, actor_role: "client", action: "appointment_cancelled", resource_type: "booking_metadata", resource_id: record.booking.id, metadata: {} });
-    }
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false, message: "Square could not confirm the cancellation. Contact the lounge for assistance." }, { status: 502 });
-  }
+  if (!parsed.success) return NextResponse.json({ ok: false, message: "A valid appointment is required." }, { status: 422 });
+  const appointment = await ownedAppointment(value, parsed.data.appointmentId);
+  if (!appointment) return NextResponse.json({ ok: false, message: "The appointment is not available to this account." }, { status: 404 });
+  if (immutableStatuses.has(String(appointment.status))) return NextResponse.json({ ok: false, message: "This appointment can no longer be cancelled online." }, { status: 409 });
+  const cutoff = new Date(appointment.starts_at).getTime() - businessConfig.cancellationCutoffHours * 60 * 60_000;
+  if (Date.now() >= cutoff) return NextResponse.json({ ok: false, message: `Online cancellation closes ${businessConfig.cancellationCutoffHours} hours before the appointment. Call ${businessConfig.phone}.` }, { status: 409 });
+  const admin = createUntypedAdminSupabase();
+  if (!admin) return NextResponse.json({ ok: false, message: "Booking service is unavailable." }, { status: 503 });
+  const { error } = await admin.from("appointments").update({ status: "cancelled_by_client" }).eq("id", appointment.id);
+  if (error) return NextResponse.json({ ok: false, message: "The appointment could not be cancelled." }, { status: 409 });
+  await Promise.all([
+    admin.from("appointment_status_history").insert({ appointment_id: appointment.id, booking_metadata_id: null, from_status: appointment.status, to_status: "cancelled_by_client", changed_by: value.session.user.id, reason: "Client cancelled through the portal", metadata: { source: "client_portal" } }),
+    admin.from("audit_logs").insert({ business_id: appointment.business_id, actor_user_id: value.session.user.id, actor_role: "client", action: "booking.cancelled_by_client", resource_type: "appointment", resource_id: appointment.id, reason: "Client cancelled through the portal", before_data: { status: appointment.status }, after_data: { status: "cancelled_by_client" }, metadata: { reference: appointment.public_reference } }),
+    queueClientUpdate(admin, appointment, "booking_cancelled", `Your appointment ${appointment.public_reference} was cancelled.`),
+  ]);
+  return NextResponse.json({ ok: true });
+}
+
+async function queueClientUpdate(admin: NonNullable<ReturnType<typeof createUntypedAdminSupabase>>, appointment: ClientAppointmentRecord, template: string, body: string) {
+  if (!appointment.client_email_snapshot || !appointment.email_consent) return;
+  await admin.from("notification_jobs").upsert({ business_id: appointment.business_id, user_id: appointment.auth_user_id, channel: "email", template_key: template, locale: "en", recipient: appointment.client_email_snapshot, payload: { subject: `Luxury Barber Lounge appointment update`, body, transactional: true, appointmentId: appointment.id, appointmentField: "client_confirmation_status" }, idempotency_key: `${template}:${appointment.id}:${appointment.updated_at ?? appointment.starts_at}`, scheduled_for: new Date().toISOString(), status: "queued" }, { onConflict: "channel,idempotency_key", ignoreDuplicates: true });
 }

@@ -59,7 +59,6 @@ export type ClientPortalData = {
   };
   clientProfile: {
     favoriteBarberId: string | null;
-    squareCustomerId: string | null;
     marketingStatus: string;
     groomingPreferences: Record<string, unknown>;
   } | null;
@@ -91,13 +90,14 @@ export async function loadClientPortalData(): Promise<ClientPortalData> {
   const supabase = createUserServerSupabase(session.accessToken);
   if (!supabase) return empty;
 
-  const [profileResult, clientResult, bookingResult, queueResult, membershipResult, notificationResult] = await Promise.all([
+  const [profileResult, clientResult, bookingResult, queueResult, membershipResult, notificationResult, appointmentResult] = await Promise.all([
     supabase.from("profiles").select("id,full_name,display_name,phone,preferred_language,status").eq("id", session.user.id).maybeSingle(),
     supabase.from("client_profiles").select("user_id,favorite_barber_id,square_customer_id,marketing_status,grooming_preferences").eq("user_id", session.user.id).maybeSingle(),
     supabase.from("booking_metadata").select("id,square_booking_id,barber_user_id,location_id,service_snapshot,deposit_status,reference_code,metadata,created_at").eq("client_user_id", session.user.id).order("created_at", { ascending: false }).limit(20),
     supabase.from("queue_entries").select("id,status,estimated_wait_minutes,service_slug,barber_preference,joined_at,public_token").eq("client_id", session.user.id).in("status", ["waiting", "confirmed", "checked_in", "assigned", "called", "ready", "in_service"]).order("joined_at", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("memberships").select("id,status,renews_at,plan_id,membership_plans(name,benefits)").eq("client_user_id", session.user.id).in("status", ["pending", "trial", "active", "paused", "past_due", "cancel_requested"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("notification_jobs").select("id,status,channel,template_key,created_at").eq("user_id", session.user.id).order("created_at", { ascending: false }).limit(10),
+    supabase.from("appointments").select("id,square_booking_id,starts_at,ends_at,status,service_name_snapshot,barber_name_snapshot,service_duration_snapshot_minutes,deposit_status,public_reference,service_price_snapshot_cents,location_id,locations(name)").order("starts_at", { ascending: false }).limit(50),
   ]);
 
   const clientRow = clientResult.data as Record<string, unknown> | null;
@@ -120,7 +120,7 @@ export async function loadClientPortalData(): Promise<ClientPortalData> {
     : [];
   const squareMap = new Map(squareRows.map((row) => [String(row.square_id), row]));
 
-  const appointments: ClientAppointment[] = bookingRows.map((row) => {
+  const legacyAppointments: ClientAppointment[] = bookingRows.map((row) => {
     const squareId = stringValue(row.square_booking_id);
     const square = squareId ? squareMap.get(squareId) : undefined;
     const snapshot = jsonRecord(row.service_snapshot);
@@ -139,7 +139,26 @@ export async function loadClientPortalData(): Promise<ClientPortalData> {
       referenceCode: stringValue(row.reference_code),
       priceCents: typeof snapshot.price_cents === "number" ? snapshot.price_cents : typeof metadata.price_cents === "number" ? metadata.price_cents : null,
     };
-  }).sort((a, b) => {
+  });
+  const newAppointments: ClientAppointment[] = ((appointmentResult.data ?? []) as Array<Record<string, unknown>>).map((row) => {
+    const joinedLocation = row.locations;
+    const location = (Array.isArray(joinedLocation) ? joinedLocation[0] : joinedLocation) as Record<string, unknown> | undefined;
+    return {
+      id: String(row.id),
+      squareBookingId: stringValue(row.square_booking_id),
+      startsAt: stringValue(row.starts_at),
+      status: stringValue(row.status) ?? "confirmed",
+      service: stringValue(row.service_name_snapshot) ?? "Service",
+      barber: stringValue(row.barber_name_snapshot) ?? "Barber",
+      durationMinutes: typeof row.service_duration_snapshot_minutes === "number" ? row.service_duration_snapshot_minutes : null,
+      depositStatus: stringValue(row.deposit_status),
+      location: localizedName(location?.name, "Luxury Barber Lounge"),
+      referenceCode: stringValue(row.public_reference),
+      priceCents: typeof row.service_price_snapshot_cents === "number" ? row.service_price_snapshot_cents : null,
+    };
+  });
+  const appointmentIds = new Set(newAppointments.map((item) => item.squareBookingId).filter(Boolean));
+  const appointments = [...newAppointments, ...legacyAppointments.filter((item) => !item.squareBookingId || !appointmentIds.has(item.squareBookingId))].sort((a, b) => {
     const left = a.startsAt ? new Date(a.startsAt).getTime() : 0;
     const right = b.startsAt ? new Date(b.startsAt).getTime() : 0;
     return right - left;
@@ -166,7 +185,6 @@ export async function loadClientPortalData(): Promise<ClientPortalData> {
     },
     clientProfile: clientRow ? {
       favoriteBarberId: stringValue(clientRow.favorite_barber_id),
-      squareCustomerId,
       marketingStatus: stringValue(clientRow.marketing_status) ?? "unknown",
       groomingPreferences: jsonRecord(clientRow.grooming_preferences),
     } : null,

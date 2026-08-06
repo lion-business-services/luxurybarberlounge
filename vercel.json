@@ -2,5 +2,31 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "npm ci --include=optional",
-  "buildCommand": "npm run build"
+  "buildCommand": "npm run build",
+  "crons": [
+    {
+      "path": "/api/cron/webhooks",
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/cron/notifications",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/appointments",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/queue",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/commissions",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/formsubmit",
+      "schedule": "*/10 * * * *"
+    }
+  ]
 }

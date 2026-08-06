@@ -1,47 +1,13 @@
-# Luxury Barber Lounge Portal and CRM Release
+# Luxury Barber Lounge Production Booking Release v11
 
-Release: `portal-crm-production-ready-v8`
-Date: 2026-07-30
+The repository now includes a Supabase-primary production booking engine, atomic conflict protection, secure client management links, FormSubmit administrative delivery tracking and retry, Resend-compatible transactional notifications, admin appointment operations, client-owned appointment history, queue integration, calendar export, abuse protection, documentation, and automated validation.
 
-This source package preserves the approved public website and delivers separate authenticated applications for clients and business operations.
+Read first:
 
-## Included
+- `docs/BOOKING_RELEASE_REPORT.md`
+- `docs/BOOKING_VALIDATION_REPORT.md`
+- `docs/DEPLOYMENT.md`
+- `docs/LAUNCH_CHECKLIST.md`
+- `docs/FORMSUBMIT_ACTIVATION.md`
 
-- Separate mobile-first client portal under `/client/**`
-- Separate executive admin CRM under `/admin/**`
-- Independent barber and reception route boundaries
-- Six-digit Supabase OTP architecture through Resend
-- Secure owner bootstrap, role precedence, staff invitations, and server authorization
-- Nine ordered Supabase migrations with RLS, privacy, history, and operational extensions
-- Client appointments, queue, orders, membership, profile, grooming, notifications, support, and privacy workflows
-- Admin clients, barbers, orders, memberships, queue, attribution, commissions, statements, disputes, automations, integrations, users, audit, and security modules
-- Deterministic queue assignment with reason, rule version, override, and audit
-- Provider-gated Square, Resend, Twilio, and AI integrations
-- Documentation, tests, validators, and release controls
-
-## Validation
-
-`npm run check:source` passes all source gates. The final measured counts are recorded in `docs/VALIDATION_REPORT.md`. A production build was attempted but could not begin source compilation because the isolated package mirror returned HTTP 404 for the required Linux Next.js SWC package. Vercel must perform a clean Linux install and build.
-
-## Deployment
-
-1. Preserve the existing `.git` folder and Vercel linkage.
-2. Replace repository contents with this release.
-3. Do not copy `node_modules`, `.next`, or a real `.env` file.
-4. Run `npm ci --include=optional` and `npm run check` in clean Linux/Vercel Preview.
-5. Apply migrations 001 through 009 and regenerate types.
-6. Test client, barber, reception, manager, and owner identities separately.
-7. Complete the Preview viewport, RLS, OTP, provider, security, and launch checklists.
-8. Activate Square, SMS, automation schedules, membership billing, and AI only after their provider-specific tests pass.
-
-Start with `README.md`, `docs/FINAL_RELEASE_REPORT.md`, `docs/DEPLOYMENT.md`, and `docs/LAUNCH_CHECKLIST.md`.
-
-## v9 portal simplification and session continuity
-
-- Reduced the client portal to Home, Visits, Queue, and Account.
-- Replaced the admin CRM-style navigation with a concise shop-operations dashboard.
-- Added silent Supabase session renewal across public-site navigation.
-- Added authenticated Dashboard and Sign out controls to the public header.
-- Grouped advanced admin configuration under Settings.
-- Added integration tests for concise navigation and session continuity.
-
+External provider activation and the final clean Vercel build remain required before production traffic is accepted.
