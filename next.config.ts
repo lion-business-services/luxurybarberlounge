@@ -13,7 +13,7 @@ const contentSecurityPolicy = [
   "font-src 'self' data: https://fonts.gstatic.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   isProduction ? "script-src 'self' 'unsafe-inline'" : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-  "connect-src 'self' https://*.supabase.co https://connect.squareup.com https://connect.squareupsandbox.com",
+  "connect-src 'self' https://*.supabase.co wss://xdggtawvapftqgwifwqx.supabase.co https://connect.squareup.com https://connect.squareupsandbox.com",
   ...(isProduction ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
