@@ -1,6 +1,9 @@
+import "server-only";
+
 import { squareBaseUrl, squareConfig } from "./config";
 
 export class SquareConfigurationError extends Error {}
+
 export class SquareApiError extends Error {
   constructor(
     message: string,
@@ -8,6 +11,7 @@ export class SquareApiError extends Error {
     public details?: unknown,
   ) {
     super(message);
+    this.name = "SquareApiError";
   }
 }
 
@@ -17,9 +21,14 @@ type SquareRequestOptions = {
   idempotencyKey?: string;
 };
 
-export async function squareRequest<T>(path: string, options: SquareRequestOptions = {}): Promise<T> {
+export async function squareRequest<T = unknown>(
+  path: string,
+  options: SquareRequestOptions = {},
+): Promise<T> {
   if (!squareConfig.accessToken) {
-    throw new SquareConfigurationError("Square access token is not configured.");
+    throw new SquareConfigurationError(
+      "Square access token is not configured.",
+    );
   }
 
   const response = await fetch(`${squareBaseUrl}${path}`, {
@@ -28,16 +37,32 @@ export async function squareRequest<T>(path: string, options: SquareRequestOptio
       Authorization: `Bearer ${squareConfig.accessToken}`,
       "Square-Version": squareConfig.apiVersion,
       "Content-Type": "application/json",
-      ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}),
+      ...(options.idempotencyKey
+        ? { "Idempotency-Key": options.idempotencyKey }
+        : {}),
     },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body:
+      options.body === undefined
+        ? undefined
+        : JSON.stringify(options.body),
     cache: "no-store",
   });
 
-  const payload = (await response.json().catch(() => null)) as T | { errors?: unknown } | null;
+  const payload = (await response
+    .json()
+    .catch(() => null)) as
+    | T
+    | { errors?: unknown }
+    | null;
+
   if (!response.ok) {
-    throw new SquareApiError("Square request failed.", response.status, payload);
+    throw new SquareApiError(
+      "Square request failed.",
+      response.status,
+      payload,
+    );
   }
+
   return payload as T;
 }
 
@@ -59,29 +84,38 @@ export async function searchAvailability(input: {
   teamMemberIds?: string[];
 }) {
   if (!squareConfig.locationId) {
-    throw new SquareConfigurationError("Square location ID is not configured.");
+    throw new SquareConfigurationError(
+      "Square location ID is not configured.",
+    );
   }
 
-  return squareRequest<{ availabilities?: SquareAvailability[] }>(
-    "/v2/bookings/availability/search",
-    {
-      method: "POST",
-      body: {
-        query: {
-          filter: {
-            start_at_range: { start_at: input.startAt, end_at: input.endAt },
-            location_id: squareConfig.locationId,
-            segment_filters: [
-              {
-                service_variation_id: input.serviceVariationId,
-                ...(input.teamMemberIds?.length
-                  ? { team_member_id_filter: { any: input.teamMemberIds } }
-                  : {}),
-              },
-            ],
+  return squareRequest<{
+    availabilities?: SquareAvailability[];
+  }>("/v2/bookings/availability/search", {
+    method: "POST",
+    body: {
+      query: {
+        filter: {
+          start_at_range: {
+            start_at: input.startAt,
+            end_at: input.endAt,
           },
+          location_id: squareConfig.locationId,
+          segment_filters: [
+            {
+              service_variation_id:
+                input.serviceVariationId,
+              ...(input.teamMemberIds?.length
+                ? {
+                    team_member_id_filter: {
+                      any: input.teamMemberIds,
+                    },
+                  }
+                : {}),
+            },
+          ],
         },
       },
     },
-  );
+  });
 }
