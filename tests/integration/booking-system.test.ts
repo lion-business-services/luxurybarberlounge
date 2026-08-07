@@ -40,7 +40,10 @@ test("public booking catalog no longer depends on the service-role key during no
   assert.match(migration, /join public\.barber_schedules bs/);
   assert.match(migration, /bs\.effective_from/);
   assert.match(migration, /grant execute on function public\.get_public_booking_catalog\(\) to anon, authenticated, service_role/);
-  assert.doesNotMatch(migration, /staff_user_id'.*jsonb_build_object/s);
+  assert.doesNotMatch(
+  migration,
+  /staff_user_id'[\s\S]*jsonb_build_object/,
+);
 });
 
 test("atomic booking creation prevents overlaps and duplicate retries", async () => {
@@ -124,7 +127,10 @@ test("admin appointment workspace provides operational filters and status action
 test("client appointment changes are ownership-protected and conflict-safe", async () => {
   const route = await source("src/app/api/client/appointments/route.ts");
   assert.match(route, /createUserServerSupabase/);
-  assert.match(route, /from\("appointments"\).*eq\("id", appointmentId\)/s);
+  assert.match(
+  route,
+  /from\("appointments"\)[\s\S]*eq\("id", appointmentId\)/,
+);
   assert.match(route, /reschedule_appointment_atomic/);
   assert.match(route, /cancellationCutoffHours/);
   assert.match(route, /cancelled_by_client/);
@@ -220,7 +226,10 @@ test("catalog bootstrap preserves owner-managed schedules instead of disabling t
   const catalog = await source("src/lib/booking/catalog.ts");
   assert.match(catalog, /barbersWithSchedules/);
   assert.match(catalog, /if \(!row \|\| barbersWithSchedules\.has/);
-  assert.doesNotMatch(catalog, /barber_schedules"\)\s*\.update\(\{ active: false/s);
+  assert.doesNotMatch(
+  catalog,
+  /barber_schedules"\)\s*\.update\(\{ active: false/,
+);
 });
 
 test("booking catalog refuses silent partial setup and never caches an empty catalog", async () => {

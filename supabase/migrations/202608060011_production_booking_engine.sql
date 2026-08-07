@@ -2,6 +2,43 @@
 -- Supabase is the immediate operational source of truth until Square Bookings mappings are enabled.
 
 begin;
+-- Replace the empty legacy portal tables created by migration 009 with
+-- the production booking-engine versions defined later in this migration.
+do $$
+begin
+  if to_regclass('public.appointment_assignments') is not null
+     and not exists (
+       select 1
+       from information_schema.columns
+       where table_schema = 'public'
+         and table_name = 'appointment_assignments'
+         and column_name = 'appointment_id'
+     ) then
+    if exists (select 1 from public.appointment_assignments) then
+      raise exception
+        'Legacy appointment_assignments contains data; migrate it before continuing';
+    end if;
+
+    execute 'drop table public.appointment_assignments';
+  end if;
+
+  if to_regclass('public.barber_time_off') is not null
+     and not exists (
+       select 1
+       from information_schema.columns
+       where table_schema = 'public'
+         and table_name = 'barber_time_off'
+         and column_name = 'barber_profile_id'
+     ) then
+    if exists (select 1 from public.barber_time_off) then
+      raise exception
+        'Legacy barber_time_off contains data; migrate it before continuing';
+    end if;
+
+    execute 'drop table public.barber_time_off';
+  end if;
+end
+$$;
 
 create extension if not exists btree_gist;
 
