@@ -116,7 +116,6 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
     deposit_cents: Math.round(item.deposit * 100),
     benefits: item.benefits,
     preparation: item.preparation,
-    square_catalog_id: item.squareCatalogId ?? null,
     featured: Boolean(item.featured),
     bookable: true,
     content_status: "published",
