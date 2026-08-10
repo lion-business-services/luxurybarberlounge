@@ -31,22 +31,42 @@ export async function squareRequest<T = unknown>(
     );
   }
 
-  const response = await fetch(`${squareBaseUrl}${path}`, {
-    method: options.method ?? "GET",
-    headers: {
-      Authorization: `Bearer ${squareConfig.accessToken}`,
-      "Square-Version": squareConfig.apiVersion,
-      "Content-Type": "application/json",
-      ...(options.idempotencyKey
-        ? { "Idempotency-Key": options.idempotencyKey }
-        : {}),
+  /*
+   * Square write endpoints expect idempotency_key in the JSON body.
+   *
+   * Keeping idempotencyKey as an internal camelCase option lets the
+   * booking provider use one consistent interface while this client
+   * converts it to Square's expected request shape.
+   */
+  const requestBody =
+    options.body === undefined
+      ? undefined
+      : options.idempotencyKey &&
+          typeof options.body === "object" &&
+          options.body !== null &&
+          !Array.isArray(options.body)
+        ? {
+            ...(options.body as Record<string, unknown>),
+            idempotency_key: options.idempotencyKey,
+          }
+        : options.body;
+
+  const response = await fetch(
+    `${squareBaseUrl}${path}`,
+    {
+      method: options.method ?? "GET",
+      headers: {
+        Authorization: `Bearer ${squareConfig.accessToken}`,
+        "Square-Version": squareConfig.apiVersion,
+        "Content-Type": "application/json",
+      },
+      body:
+        requestBody === undefined
+          ? undefined
+          : JSON.stringify(requestBody),
+      cache: "no-store",
     },
-    body:
-      options.body === undefined
-        ? undefined
-        : JSON.stringify(options.body),
-    cache: "no-store",
-  });
+  );
 
   const payload = (await response
     .json()
