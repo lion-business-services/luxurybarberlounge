@@ -32,7 +32,7 @@ export const dict = {
       es: "Cortes de precisión, diseño de barba, rituales de toalla caliente y una experiencia tranquila diseñada para cómo deseas verte y sentirte.",
     },
     cta: { en: "Reserve · Book Now", es: "Reservar · Agendar" },
-    comingSoon: { en: "Grand Opening · August 4 · 5 PM", es: "Gran Apertura · 4 de agosto · 5 PM" },
+    comingSoon: { en: "NOW OPEN · NORTHFIELD · RESERVATIONS & WALK-INS", es: "YA ABIERTO · NORTHFIELD · RESERVAS Y CLIENTES SIN RESERVA" },
   },
   stub: {
     badge: { en: "In Preparation", es: "En Preparación" },
