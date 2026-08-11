@@ -53,7 +53,7 @@ export const business = {
   grandOpening: {
     date: "2026-08-04",
     time: "5:00 PM",
-    label: { en: "Grand Opening · August 4 · 5:00 PM", es: "Gran Apertura · 4 de agosto · 5:00 PM" },
+    label: { en: "NOW OPEN · NORTHFIELD · RESERVATIONS & WALK-INS", es: "YA ABIERTO · NORTHFIELD · RESERVAS Y CLIENTES SIN RESERVA" },
   },
   ownerConfirmation: [
     "Rubén Diaz, Jr. recurring booking schedule, languages, walk-in setting, and public social link",
