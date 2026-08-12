@@ -22,6 +22,7 @@ const requiredRoutes = [
   "src/app/api/admin/invitations/route.ts",
   "src/app/api/admin/webhooks/route.ts",
   "src/app/api/cron/webhooks/route.ts",
+  "src/app/api/cron/square-sync/route.ts",
   "src/app/api/account/requests/route.ts",
   "src/app/api/policy/acknowledgements/route.ts",
 ];

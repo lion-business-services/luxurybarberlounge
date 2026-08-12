@@ -6,7 +6,7 @@ export async function GET() {
   return NextResponse.json({
     status: "ok",
     timestamp: new Date().toISOString(),
-    release: "1.0.0",
+    release: "12.0.0",
     features: {
       publicWebsite: true,
       bookingMode: features.squareBookings && environment.squareConfigured ? "square" : "development",

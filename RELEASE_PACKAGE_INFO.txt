@@ -1,5 +1,9 @@
-Luxury Barber Lounge final client-content and booking release v11.3
-Date: 2026-08-06
-Current release report: docs/FINAL_RELEASE_REPORT.md
-Current manifest: release-manifest.json
-No production credentials or real environment files are included.
+Luxury Barber Lounge Square + Supabase integration release v12.0
+Date: 2026-08-12
+Supabase project: luxury-barber-lounge (xdggtawvapftqgwifwqx)
+Square environment: Sandbox
+Deployment environment: .env.production.local (private, gitignored)
+Public Square booking: intentionally disabled until production Square credentials are supplied
+Square webhook + background synchronization: configured
+Automatic Square foundation sync: every 10 minutes
+See: INTEGRATION_STATUS.md and release-manifest.json

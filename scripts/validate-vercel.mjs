@@ -8,6 +8,7 @@ if (config.installCommand !== "npm ci --include=optional") throw new Error("Verc
 if (config.buildCommand !== "npm run build") throw new Error("Vercel build command must run the production Next.js build.");
 
 const expected = new Map([
+  ["/api/cron/square-sync", "*/10 * * * *"],
   ["/api/cron/webhooks", "*/2 * * * *"],
   ["/api/cron/notifications", "*/5 * * * *"],
   ["/api/cron/appointments", "*/15 * * * *"],

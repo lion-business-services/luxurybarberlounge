@@ -1,36 +1,36 @@
 {
-  "release": "ruben-live-booking-v11.4",
-  "date": "2026-08-06",
+  "release": "square-supabase-sandbox-integration-v12.0",
+  "date": "2026-08-12",
   "project": "Luxury Barber Lounge",
   "framework": "Next.js 16.2.6",
   "node": "22.x",
   "canonicalBookingRoute": "/book",
-  "availabilitySource": "supabase-primary-square-adapter-disabled-until-verified",
+  "availabilitySource": "supabase-primary-with-square-sandbox-sync; public-square-booking-disabled-until-production-cutover",
   "normalCatalogAccess": "privacy-safe-public-rpc",
   "routeCount": 167,
-  "migrationCount": 17,
-  "validatedSourceFileCount": 404,
-  "typescriptSyntaxFileCount": 420,
+  "migrationCount": 19,
+  "validatedSourceFileCount": 413,
   "serviceCount": 9,
   "activeBarberProfileCount": 9,
-  "founderProfileCount": 1,
   "membershipCount": 2,
   "packageCount": 3,
-  "giftCardStartingAmount": 50,
   "depositPercent": 50,
-  "ruben": {
-    "slug": "ruben-diaz-jr",
-    "publicProfile": "implemented",
-    "ownerRole": "server-assigned-after-confirmed-owner-otp",
-    "barberRole": "separate-server-assignment",
-    "schedule": "owner-confirmation-required-before-bookable"
+  "supabase": {
+    "projectRef": "xdggtawvapftqgwifwqx",
+    "migration019Applied": true,
+    "barberPortalInvitations": 7,
+    "serviceRoleConfiguredServerSide": true
   },
-  "images": {
-    "barberCount": 9,
-    "formats": ["avif", "webp", "jpg"],
-    "contexts": ["cards", "booking", "mobile", "tablet", "profiles", "desktop"],
-    "originalsPreserved": true,
-    "contactSheet": "docs/qa/barber-portrait-contact-sheet-ruben.webp"
+  "square": {
+    "environment": "sandbox",
+    "apiVersion": "2026-07-15",
+    "locationConfigured": true,
+    "webhookConfigured": true,
+    "paymentLinksImplemented": true,
+    "automaticFoundationSync": true,
+    "foundationSyncCron": "*/10 * * * *",
+    "publicSquareBookingsEnabled": false,
+    "sandboxCheckoutRestrictedToAuthorizedTestEmail": true
   },
   "booking": {
     "publicCatalogRpc": true,
@@ -43,54 +43,35 @@
     "secureGuestManagement": true,
     "calendarExport": true
   },
-  "formSubmit": {
-    "adapter": "implemented",
-    "deliveryLedger": "implemented",
-    "retryProcessor": "implemented",
-    "activation": "external-recipient-activation-required",
-    "liveDelivery": "not-verified"
-  },
-  "resend": {
-    "adapter": "implemented",
-    "deliveryLedger": "implemented",
-    "idempotency": "implemented",
-    "activation": "external-api-key-and-verified-sender-required",
-    "liveDelivery": "not-verified"
-  },
-  "adminAppointments": "implemented",
-  "clientAppointments": "implemented-with-rls",
-  "barberAppointments": "implemented-with-role-scope",
   "queue": "implemented-with-privacy-safe-display",
-  "whosNext": "deterministic-and-audited",
-  "square": "adapter-ready-disabled-until-production-mapped",
+  "commissions": "implemented-with-square-sandbox-reconciliation-enabled",
   "validation": {
     "format": "passed",
     "content": "passed-9-services-9-barbers-2-memberships-3-packages",
-    "migrations": "passed-17",
-    "rlsStatic": "passed-17-migrations-14-domains",
-    "routes": "passed-167-pages-66-destinations",
-    "repository": "passed-404-source-files",
-    "vercel": "passed",
+    "migrations": "passed-19",
+    "rlsStatic": "passed-19-migrations-14-domains",
+    "routes": "passed-167-pages-68-destinations",
+    "repository": "passed-413-source-files",
+    "vercel": "passed-with-square-sync-cron",
     "performance": "passed",
-    "secretScan": "passed",
+    "secretScan": "passed-before private deployment environment injection",
     "unitTests": { "passed": 42, "failed": 0 },
-    "integrationTests": { "passed": 59, "failed": 0 },
-    "typescriptSyntax": { "files": 420, "errors": 0 },
-    "lint": "not-run-dependency-install-blocked",
-    "semanticTypecheck": "not-run-dependency-install-blocked",
-    "productionBuild": "not-run-dependency-install-blocked"
+    "integrationTests": { "passed": 61, "failed": 0 },
+    "semanticTypecheck": "passed",
+    "lint": "passed",
+    "productionBuild": "blocked-only-by-sandbox-runtime missing Linux Next.js SWC binary and no npm network access"
   },
-  "dependencyInstallBlocker": {
-    "commands": ["npm ci --include=optional", "npm ci --omit=dev --include=optional"],
-    "status": "failed",
-    "reason": "Execution-environment package mirror returned HTTP 404 for zod-validation-error-4.0.2.tgz and zod-4.4.3.tgz"
+  "deploymentEnvironment": {
+    "privateEnvIncluded": ".env.production.local",
+    "gitIgnored": true,
+    "containsSuppliedServerSecrets": true,
+    "productionSquareCredentialsRequiredForRealMoneyGoLive": true
   },
   "excludedFromArchive": [
     "node_modules",
     ".next",
     ".git",
     ".vercel",
-    "real .env files",
     "*.tsbuildinfo",
     "logs",
     "caches",

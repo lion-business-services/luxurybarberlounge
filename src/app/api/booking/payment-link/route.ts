@@ -22,6 +22,22 @@ export async function POST(request: NextRequest) {
   if (appointment.deposit_status === "paid") return NextResponse.json({ ok: true, paid: true, message: "The deposit is already paid." });
   if (!squareConfig.locationId || !squareConfig.accessToken) return NextResponse.json({ ok: false, message: "Square checkout is not configured yet." }, { status: 503 });
 
+  if (squareConfig.environment === "sandbox") {
+    const allowed = new Set(
+      (process.env.SQUARE_SANDBOX_TEST_EMAILS ?? "")
+        .split(",")
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean),
+    );
+    const bookingEmail = String(appointment.client_email_snapshot ?? "").trim().toLowerCase();
+    if (!bookingEmail || !allowed.has(bookingEmail)) {
+      return NextResponse.json(
+        { ok: false, message: "Square Sandbox checkout is restricted to authorized test bookings." },
+        { status: 409 },
+      );
+    }
+  }
+
   const { data: existing } = await admin.from("appointment_payment_links").select("checkout_url,status").eq("appointment_id", appointment.id).eq("purpose", "deposit").in("status", ["created", "paid"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (existing?.status === "paid") return NextResponse.json({ ok: true, paid: true, message: "The deposit is already paid." });
   if (typeof existing?.checkout_url === "string" && existing.checkout_url) return NextResponse.json({ ok: true, paid: false, url: existing.checkout_url });

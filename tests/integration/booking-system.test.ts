@@ -279,3 +279,20 @@ test("rescheduling preserves the booked duration without requiring add-on identi
     assert.match(route, /durationMinutesOverride:/);
   }
 });
+
+test("Square sandbox auto-syncs foundation mappings without exposing public checkout", async () => {
+  const paymentLink = await readFile("src/app/api/booking/payment-link/route.ts", "utf8");
+  const sync = await readFile("src/lib/integrations/syncSquareFoundation.ts", "utf8");
+  const cron = await readFile("src/app/api/cron/square-sync/route.ts", "utf8");
+  const vercel = await readFile("vercel.json", "utf8");
+
+  assert.match(paymentLink, /squareConfig\.environment === "sandbox"/);
+  assert.match(paymentLink, /SQUARE_SANDBOX_TEST_EMAILS/);
+  assert.match(sync, /portal_email/);
+  assert.match(sync, /square_team_member_id/);
+  assert.match(sync, /search-catalog-items/);
+  assert.match(sync, /square_locations/);
+  assert.match(sync, /square_team_members/);
+  assert.match(cron, /CRON_SECRET/);
+  assert.match(vercel, /\/api\/cron\/square-sync/);
+});

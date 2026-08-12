@@ -154,7 +154,7 @@ test("admin exposes owner automation controls while protected background process
   assert.match(adminShell, /href: "\/admin\/automations"/);
   assert.match(adminShell, /href: "\/admin\/integrations"/);
   assert.match(settingsPage, /redirect\("\/admin"\)/);
-  for (const path of ["/api/cron/webhooks", "/api/cron/notifications", "/api/cron/appointments", "/api/cron/queue", "/api/cron/commissions"]) {
+  for (const path of ["/api/cron/webhooks", "/api/cron/square-sync", "/api/cron/notifications", "/api/cron/appointments", "/api/cron/queue", "/api/cron/commissions"]) {
     assert.match(vercel, new RegExp(path.replaceAll("/", "\\/")));
   }
 });
