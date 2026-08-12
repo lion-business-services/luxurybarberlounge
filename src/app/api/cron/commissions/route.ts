@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { reconcileCommissions } from "@/lib/commissions/reconcile";
 import { queueMondayBarberStatements } from "@/lib/commissions/statements";
+import { backfillMissingSquareOrders } from "@/lib/integrations/backfillSquareOrders";
 import { squareIsConfigured } from "@/lib/square/config";
 
 export async function GET(request: NextRequest) {
@@ -12,10 +13,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  // Commission reconciliation depends on synchronized Square financial data,
-  // not on Square being the public scheduling source of truth. Production uses
-  // Supabase for scheduling and Square for payments/orders/webhooks, so this
-  // job must continue running in the hybrid launch architecture.
   if (!squareIsConfigured) {
     return NextResponse.json({
       ok: true,
@@ -25,9 +22,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const orderBackfill = await backfillMissingSquareOrders(100);
     const reconciliation = await reconcileCommissions(100);
     const statementDelivery = await queueMondayBarberStatements();
-    return NextResponse.json({ ok: true, ...reconciliation, statementDelivery });
+    return NextResponse.json({
+      ok: true,
+      orderBackfill,
+      ...reconciliation,
+      statementDelivery,
+    });
   } catch (error) {
     return NextResponse.json(
       {
