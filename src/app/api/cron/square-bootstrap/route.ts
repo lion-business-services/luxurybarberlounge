@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { bootstrapSquareCatalog } from "@/lib/integrations/bootstrapSquareCatalog";
+import { bootstrapSquareTeam } from "@/lib/integrations/bootstrapSquareTeam";
 import { syncSquareFoundation } from "@/lib/integrations/syncSquareFoundation";
 
 export async function GET(request: NextRequest) {
@@ -13,9 +14,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const bootstrap = await bootstrapSquareCatalog();
+    const team = await bootstrapSquareTeam();
+    const catalog = await bootstrapSquareCatalog();
     const sync = await syncSquareFoundation();
-    return NextResponse.json({ ok: true, bootstrap, sync });
+    return NextResponse.json({ ok: true, team, catalog, sync });
   } catch (error) {
     return NextResponse.json(
       {
