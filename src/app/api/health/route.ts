@@ -3,13 +3,19 @@ import { environment } from "@/lib/config/environment";
 import { features } from "@/lib/config/features";
 
 export async function GET() {
+  const bookingMode = features.squareLiveBooking
+    ? "square"
+    : environment.squareConfigured
+      ? "supabase+square-payments"
+      : "supabase";
+
   return NextResponse.json({
     status: "ok",
     timestamp: new Date().toISOString(),
     release: "12.0.0",
     features: {
       publicWebsite: true,
-      bookingMode: features.squareBookings && environment.squareConfigured ? "square" : "development",
+      bookingMode,
       queue: features.walkInQueue,
       memberships: features.memberships,
       portalDemo: features.portalDemoMode,
