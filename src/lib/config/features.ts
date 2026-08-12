@@ -7,6 +7,11 @@ function enabled(value: string | undefined, fallback = false) {
  * Public flags default to the safest honest state. The marketing site remains
  * complete, while credential-dependent actions stay hidden or become an
  * inquiry/call flow until their providers are activated.
+ *
+ * Production scheduling is intentionally Supabase-authoritative. Square stays
+ * live for checkout, payments, orders, customers, refunds, catalog sync and
+ * webhooks. This keeps every configured website barber/service bookable even
+ * while the seller's Square Appointments roster is still being completed.
  */
 export const features = {
   liveSquare: enabled(process.env.NEXT_PUBLIC_FEATURE_LIVE_SQUARE),
@@ -31,9 +36,12 @@ export const features = {
   portalDemoMode: enabled(process.env.NEXT_PUBLIC_PORTAL_DEMO_MODE, process.env.NODE_ENV !== "production"),
   advancedCommission: enabled(process.env.NEXT_PUBLIC_FEATURE_ADVANCED_COMMISSION, true),
   experimental3DHero: enabled(process.env.NEXT_PUBLIC_FEATURE_EXPERIMENTAL_3D_HERO, true),
-  squareLiveBooking: enabled(
-    process.env.NEXT_PUBLIC_FEATURE_SQUARE_LIVE_BOOKING ?? process.env.NEXT_PUBLIC_FEATURE_SQUARE_BOOKINGS,
-  ),
+
+  // Do not let the broader Square feature flag silently make Square
+  // Appointments the scheduling source of truth. That requires an explicitly
+  // complete Square team/service roster and is intentionally disabled for the
+  // production launch architecture.
+  squareLiveBooking: false,
 } as const;
 
 export type FeatureKey = keyof typeof features;
