@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/security/rate-limit";
-import { getQueueContext, loadOperationalQueue, privacySafeQueueLabel } from "@/lib/queue/operations";
+import { getQueueContext, loadUnifiedQueueDisplay } from "@/lib/queue/operations";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,16 +13,8 @@ export async function GET(request: NextRequest) {
   const context = await getQueueContext();
   if (!context) return NextResponse.json({ ok: false, location: "Northfield", entries: [] }, { status: 503 });
   try {
-    const { entries } = await loadOperationalQueue(context);
-    const safeEntries = entries.map((entry, index) => ({
-      position: index + 1,
-      label: privacySafeQueueLabel({ token: entry.publicToken, consent: entry.publicDisplayConsent, label: entry.publicDisplayLabel }),
-      token: entry.publicToken.slice(-4).toUpperCase(),
-      barber: entry.assignedBarberName ?? (entry.barberPreference && entry.barberPreference !== "first-available" ? entry.barberPreference : "First available"),
-      status: entry.status,
-      estimatedWaitMinutes: entry.estimatedWaitMinutes,
-    }));
-    const response = NextResponse.json({ ok: true, location: context.locationName, generatedAt: new Date().toISOString(), entries: safeEntries });
+    const entries = await loadUnifiedQueueDisplay(context);
+    const response = NextResponse.json({ ok: true, location: context.locationName, generatedAt: new Date().toISOString(), entries });
     response.headers.set("Cache-Control", "private, no-store, max-age=0");
     return response;
   } catch {

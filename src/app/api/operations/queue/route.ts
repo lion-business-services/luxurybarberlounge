@@ -6,7 +6,6 @@ import {
   activeQueueStatuses,
   assignNextQueueEntry,
   getQueueContext,
-  loadOperationalQueue,
   recalculateQueueWaits,
   terminalQueueStatuses,
 } from "@/lib/queue/operations";

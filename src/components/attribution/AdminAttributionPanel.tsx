@@ -13,13 +13,25 @@ type Claim = {
   requested_at: string;
 };
 
+type IntegrityFlag = {
+  barberUserId: string;
+  barberName: string;
+  preExistingClaims: number;
+  newClients: number;
+  ratio: number;
+  threshold: number;
+  settlementWeekStart: string;
+};
+
 type ClaimsResponse = {
   claims?: Claim[];
+  integrityFlags?: IntegrityFlag[];
   message?: string;
 };
 
 export function AdminAttributionPanel() {
   const [claims, setClaims] = useState<Claim[]>([]);
+  const [integrityFlags, setIntegrityFlags] = useState<IntegrityFlag[]>([]);
   const [message, setMessage] = useState("");
   const [pendingDecision, setPendingDecision] = useState<{ claimId: string; decision: string } | null>(null);
   const [reason, setReason] = useState("");
@@ -36,6 +48,7 @@ export function AdminAttributionPanel() {
     }
 
     setClaims(result.claims ?? []);
+    setIntegrityFlags(result.integrityFlags ?? []);
   }, []);
 
   useEffect(() => {
@@ -50,9 +63,12 @@ export function AdminAttributionPanel() {
         if (!response.ok) {
           throw new Error(result.message ?? "Claims could not be loaded.");
         }
-        return result.claims ?? [];
+        return result;
       })
-      .then(setClaims)
+      .then((result) => {
+        setClaims(result.claims ?? []);
+        setIntegrityFlags(result.integrityFlags ?? []);
+      })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setMessage(error instanceof Error ? error.message : "Claims could not be loaded.");
@@ -118,6 +134,17 @@ export function AdminAttributionPanel() {
         >
           {message}
         </p>
+      ) : null}
+
+      {integrityFlags.length ? (
+        <div className="mb-6 grid gap-3">
+          {integrityFlags.map((flag) => (
+            <article key={flag.barberUserId} className="rounded-xl border border-amber-700/35 bg-amber-950/15 p-4 text-xs leading-6 text-amber-100">
+              <strong>{flag.barberName}: anti-gaming review required.</strong>{" "}
+              {flag.preExistingClaims} pre-existing claim{flag.preExistingClaims === 1 ? "" : "s"} against {flag.newClients} new client{flag.newClients === 1 ? "" : "s"} this settlement week ({Math.round(flag.ratio * 100)}%). The confirmed review threshold is more than 40%.
+            </article>
+          ))}
+        </div>
       ) : null}
 
       <div className="space-y-4">

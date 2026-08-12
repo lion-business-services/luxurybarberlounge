@@ -1,29 +1,27 @@
 # Troubleshooting
 
-## Booking route unavailable
+Use this checklist when a production feature is unavailable after deployment. It is intended for operators and developers and does not change public-site behavior.
 
-Check Supabase environment values, migrations, at least one live non-demo barber, service eligibility, and active schedules.
+## Authentication and portals
 
-## No time slots
+Confirm the Supabase URL, public key, and service-role key are configured in the deployment environment. Apply every migration in timestamp order. Barber access is passwordless and depends on the verified login email matching a pending invitation or a linked barber profile. Never place the service-role key in browser code.
 
-Check business/holiday hours, barber schedule, breaks, time off, service duration, buffer, lead time, existing appointments, and holds.
+## Appointments and availability
 
-## Slot taken
+Verify the Northfield location, active services, barber schedules, service eligibility, and business hours exist in Supabase. If availability is empty, check that the selected barber is active, bookable for the service, and not blocked by time off or an overlapping appointment.
 
-This is expected race protection. Refresh availability and choose an alternative.
+## Queue and shop TV
 
-## Appointment saved but no email
+The television display reads the protected operational queue plus today's live appointments through the public privacy-safe display route. If the board is empty, verify the latest queue migration is applied and that appointments or queue entries have an active status. Client phone and email must never be returned by the display route.
 
-Open `/admin/appointments`. Inspect FormSubmit and notification state. The appointment remains valid; use retry and inspect cron logs.
+## Square
 
-## Client cannot see guest booking
+Confirm the Square access token, location ID, webhook signature key, and application environment are set only in server-side deployment variables. Use the admin service synchronization action to match active bookable services to Square appointment-service variations. Ambiguous or unmatched services require owner review instead of guessing an identifier.
 
-Verify OTP email exactly matches the booking email and inspect `clients.auth_user_id` and `appointments.auth_user_id`. Never merge by name.
+## Commissions
 
-## Vercel Node warning
+Run the protected commission cron after Square synchronization. Commission calculations require a completed non-deposit Square payment, a resolvable appointment or verified legacy booking, and an assigned barber. Monday statement delivery is idempotent and uses the prior Monday-through-Sunday settlement period.
 
-Use Node 22.x in both Vercel and `package.json`, keep the root directory correct, install optional dependencies, and redeploy without cache.
+## Deployment checks
 
-## Square not active
-
-Keep Square flags false. Supabase booking remains operational. Configure Square only after production permissions and mappings are verified.
+Run `npm run check:source` and `npm run build` before release. Do not package `.env.local`, `.next`, `node_modules`, coverage output, Supabase temporary files, or TypeScript build-info files.

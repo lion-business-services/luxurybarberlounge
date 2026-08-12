@@ -14,6 +14,8 @@ import {
   Scissors,
   BadgeCheck,
   ListChecks,
+  PlugZap,
+  WandSparkles,
   X,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -51,6 +53,13 @@ const groups: Group[] = [
     label: "Pay",
     items: [
       { label: "Commissions", href: "/admin/commissions", icon: CircleDollarSign, ownerOnly: true },
+    ],
+  },
+  {
+    label: "Systems",
+    items: [
+      { label: "Automations", href: "/admin/automations", icon: WandSparkles, ownerOnly: true },
+      { label: "Integrations", href: "/admin/integrations", icon: PlugZap, ownerOnly: true },
     ],
   },
 ];

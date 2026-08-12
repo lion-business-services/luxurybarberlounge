@@ -5,6 +5,8 @@ import { useState } from "react";
 
 type ServiceOption = { id: string; slug: string; name: string };
 
+type BarberScheduleValue = { id: string; weekday: number; start: string; end: string; effectiveFrom: string; effectiveTo: string | null };
+
 type BarberEditorValue = {
   id: string;
   staffUserId: string | null;
@@ -15,6 +17,7 @@ type BarberEditorValue = {
   specialties: string[];
   languages: string[];
   squareTeamMemberId: string | null;
+  portalEmail: string | null;
   active: boolean;
   featured: boolean;
   status: string;
@@ -22,7 +25,19 @@ type BarberEditorValue = {
   availabilityStatus: string;
   serviceIds: string[];
   availableServices: ServiceOption[];
+  schedules: BarberScheduleValue[];
 };
+
+const weekdayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function initialSchedule(rows: BarberScheduleValue[]) {
+  const latest = new Map<number, BarberScheduleValue>();
+  for (const row of rows) if (!latest.has(row.weekday)) latest.set(row.weekday, row);
+  return weekdayLabels.map((_, weekday) => {
+    const row = latest.get(weekday);
+    return { weekday, active: Boolean(row), start: row?.start?.slice(0, 5) ?? "09:00", end: row?.end?.slice(0, 5) ?? "17:00" };
+  });
+}
 
 export function AdminBarberEditor({ barber, owner }: { barber: BarberEditorValue; owner: boolean }) {
   const router = useRouter();
@@ -33,17 +48,23 @@ export function AdminBarberEditor({ barber, owner }: { barber: BarberEditorValue
   const [specialties, setSpecialties] = useState(barber.specialties.join("\n"));
   const [languages, setLanguages] = useState(barber.languages.join(", "));
   const [squareId, setSquareId] = useState(barber.squareTeamMemberId ?? "");
+  const [portalEmail, setPortalEmail] = useState(barber.portalEmail ?? "");
   const [active, setActive] = useState(barber.active);
   const [featured, setFeatured] = useState(barber.featured);
   const [profileStatus, setProfileStatus] = useState(barber.status);
   const [acceptingWalkIns, setAcceptingWalkIns] = useState(barber.acceptingWalkIns);
   const [availabilityStatus, setAvailabilityStatus] = useState(barber.availabilityStatus);
   const [serviceIds, setServiceIds] = useState<string[]>(barber.serviceIds);
+  const [schedules, setSchedules] = useState(() => initialSchedule(barber.schedules));
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
 
   function toggleService(id: string) {
     setServiceIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function updateSchedule(weekday: number, patch: Partial<{ active: boolean; start: string; end: string }>) {
+    setSchedules((current) => current.map((row) => row.weekday === weekday ? { ...row, ...patch } : row));
   }
 
   async function save() {
@@ -65,7 +86,8 @@ export function AdminBarberEditor({ barber, owner }: { barber: BarberEditorValue
         acceptingWalkIns,
         availabilityStatus,
         ...(barber.staffUserId ? { serviceIds } : {}),
-        ...(owner ? { squareTeamMemberId: squareId || null } : {}),
+        schedules,
+        ...(owner ? { squareTeamMemberId: squareId || null, portalEmail: portalEmail || null } : {}),
       }),
     });
     const body = await response.json().catch(() => null) as { ok?: boolean; message?: string } | null;
@@ -128,10 +150,16 @@ export function AdminBarberEditor({ barber, owner }: { barber: BarberEditorValue
           Accepting walk-ins
         </label>
         {owner ? (
-          <label>
-            <span className="form-label">Square team member ID</span>
-            <input className="form-control" value={squareId} onChange={(event) => setSquareId(event.target.value)} />
-          </label>
+          <>
+            <label>
+              <span className="form-label">Square team member ID</span>
+              <input className="form-control" value={squareId} onChange={(event) => setSquareId(event.target.value)} />
+            </label>
+            <label>
+              <span className="form-label">Private portal email</span>
+              <input type="email" className="form-control" value={portalEmail} onChange={(event) => setPortalEmail(event.target.value)} />
+            </label>
+          </>
         ) : null}
         <label className="flex items-center gap-3 text-sm">
           <input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} disabled={!owner && !active} />
@@ -141,6 +169,19 @@ export function AdminBarberEditor({ barber, owner }: { barber: BarberEditorValue
           <input type="checkbox" checked={featured} onChange={(event) => setFeatured(event.target.checked)} />
           Featured publicly
         </label>
+
+        <fieldset className="md:col-span-2 rounded-xl border border-white/[.07] p-4">
+          <legend className="px-2 text-[9px] uppercase tracking-[.18em] text-[var(--color-brass)]">Weekly working schedule</legend>
+          <div className="mt-2 grid gap-2">
+            {schedules.map((row) => (
+              <div key={row.weekday} className="grid gap-3 rounded-lg border border-white/[.05] p-3 sm:grid-cols-[9rem_1fr_1fr] sm:items-center">
+                <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={row.active} onChange={(event) => updateSchedule(row.weekday, { active: event.target.checked })} /><span>{weekdayLabels[row.weekday]}</span></label>
+                <label><span className="form-label">Start</span><input type="time" className="form-control" value={row.start} disabled={!row.active} onChange={(event) => updateSchedule(row.weekday, { start: event.target.value })} /></label>
+                <label><span className="form-label">End</span><input type="time" className="form-control" value={row.end} disabled={!row.active} onChange={(event) => updateSchedule(row.weekday, { end: event.target.value })} /></label>
+              </div>
+            ))}
+          </div>
+        </fieldset>
 
         <fieldset className="md:col-span-2 rounded-xl border border-white/[.07] p-4" disabled={!barber.staffUserId}>
           <legend className="px-2 text-[9px] uppercase tracking-[.18em] text-[var(--color-brass)]">Services this barber can perform</legend>

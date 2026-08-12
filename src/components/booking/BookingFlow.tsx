@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, Loader2, MapPin, Phone, Scissors, ShieldCheck, UserRound } from "lucide-react";
 import { businessConfig } from "@/lib/config/business";
@@ -60,19 +60,23 @@ export function BookingFlow() {
   const initialized = useRef(false);
   const analyticsSession = useRef("");
 
-  function track(eventName: string, metadata: Record<string, string | number | boolean | null> = {}, appointmentId?: string) {
+  const track = useCallback((eventName: string, metadata: Record<string, string | number | boolean | null> = {}, appointmentId?: string) => {
     if (typeof window === "undefined" || navigator.doNotTrack === "1" || localStorage.getItem("analytics-consent") === "denied") return;
     if (!analyticsSession.current) analyticsSession.current = sessionStorage.getItem("lbl-booking-session") || globalThis.crypto.randomUUID();
     sessionStorage.setItem("lbl-booking-session", analyticsSession.current);
     void fetch("/api/booking/events", { method: "POST", headers: { "Content-Type": "application/json" }, keepalive: true, body: JSON.stringify({ eventName, anonymousSessionId: analyticsSession.current, appointmentId, step, source: searchParams.get("utm_source") === "business_card" ? "qr_business_card" : "website", campaignSource: searchParams.get("utm_source"), campaignMedium: searchParams.get("utm_medium"), campaignName: searchParams.get("utm_campaign"), metadata }) }).catch(() => undefined);
-  }
+  }, [searchParams, step]);
 
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
+    let restoreTimer: number | null = null;
     try {
       const saved = sessionStorage.getItem(storageKey);
-      if (saved) setDraft({ ...newDraft(), ...JSON.parse(saved) as Partial<Draft>, startsAt: "" });
+      if (saved) {
+        const restored = { ...newDraft(), ...JSON.parse(saved) as Partial<Draft>, startsAt: "" };
+        restoreTimer = window.setTimeout(() => setDraft(restored), 0);
+      }
     } catch { /* damaged draft is safely ignored */ }
     track(searchParams.get("utm_medium") === "qr" ? "qr_booking_page_viewed" : "booking_page_viewed");
     const loadCatalog = async () => {
@@ -100,7 +104,8 @@ export function BookingFlow() {
         firstAvailable: useFirstAvailable,
       }));
     }).catch((caught) => setError(caught instanceof Error ? caught.message : "Booking is temporarily unavailable.")).finally(() => setLoadingCatalog(false));
-  }, [searchParams]);
+    return () => { if (restoreTimer !== null) window.clearTimeout(restoreTimer); };
+  }, [searchParams, track]);
 
   useEffect(() => { if (initialized.current) sessionStorage.setItem(storageKey, JSON.stringify(draft)); }, [draft]);
   useEffect(() => { const pop = (event: PopStateEvent) => setStep(Math.max(0, Math.min(4, typeof event.state?.bookingStep === "number" ? event.state.bookingStep : 0))); window.addEventListener("popstate", pop); return () => window.removeEventListener("popstate", pop); }, []);
@@ -116,16 +121,18 @@ export function BookingFlow() {
   useEffect(() => {
     if (!catalog || !service || step !== 2) return;
     const controller = new AbortController();
-    setLoadingSlots(true); setError(""); setSlots([]); setDraft((current) => ({ ...current, startsAt: "" }));
-    fetch("/api/booking/availability", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locationId: catalog.location.id, serviceId: service.id, addonIds: draft.addonIds, barberIds: draft.firstAvailable || !draft.barberId ? undefined : [draft.barberId], startDate: draft.date, days: 1 }), signal: controller.signal }).then(async (response) => {
-      const payload = await response.json() as { ok: boolean; slots?: AvailabilitySlot[]; message?: string };
-      if (!response.ok) throw new Error(payload.message || "Availability could not be loaded.");
-      setSlots(payload.slots ?? []); setAnnouncement(`${payload.slots?.length ?? 0} appointment times available.`);
-    }).catch((caught) => { if ((caught as Error).name !== "AbortError") setError(caught instanceof Error ? caught.message : "Availability could not be loaded."); }).finally(() => setLoadingSlots(false));
-    return () => controller.abort();
+    const timer = window.setTimeout(() => {
+      setLoadingSlots(true); setError(""); setSlots([]); setDraft((current) => ({ ...current, startsAt: "" }));
+      fetch("/api/booking/availability", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locationId: catalog.location.id, serviceId: service.id, addonIds: draft.addonIds, barberIds: draft.firstAvailable || !draft.barberId ? undefined : [draft.barberId], startDate: draft.date, days: 1 }), signal: controller.signal }).then(async (response) => {
+        const payload = await response.json() as { ok: boolean; slots?: AvailabilitySlot[]; message?: string };
+        if (!response.ok) throw new Error(payload.message || "Availability could not be loaded.");
+        setSlots(payload.slots ?? []); setAnnouncement(`${payload.slots?.length ?? 0} appointment times available.`);
+      }).catch((caught) => { if ((caught as Error).name !== "AbortError") setError(caught instanceof Error ? caught.message : "Availability could not be loaded."); }).finally(() => setLoadingSlots(false));
+    }, 0);
+    return () => { controller.abort(); window.clearTimeout(timer); };
   }, [catalog, service, draft.addonIds, draft.barberId, draft.firstAvailable, draft.date, step]);
 
-  const canContinue = useMemo(() => {
+  const canContinue = (() => {
     if (step === 0) return Boolean(service);
     if (step === 1) {
       if (draft.firstAvailable) return eligibleBarbers.some((barber) => barber.bookable);
@@ -134,7 +141,7 @@ export function BookingFlow() {
     if (step === 2) return Boolean(selectedSlot);
     if (step === 3) return Boolean(draft.firstName.trim() && draft.lastName.trim() && /@/.test(draft.email) && draft.phone.replace(/\D/g, "").length >= 10 && draft.policyAccepted);
     return true;
-  }, [draft, selectedSlot, service, step]);
+  })();
 
   function update<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));

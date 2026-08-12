@@ -1,11 +1,12 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Printer, RefreshCw } from "lucide-react";
 
 type Statement = {
   id: string;
   barber_user_id: string;
+  barber_name?: string;
   gross_basis_cents: number;
   tips_cents: number;
   adjustments_cents: number;
@@ -18,6 +19,7 @@ type Statement = {
 type Calculation = {
   id: string;
   barber_user_id: string;
+  barber_name?: string;
   attribution_type: string;
   attribution_source: string;
   gross_service_cents: number;
@@ -33,6 +35,7 @@ type Calculation = {
 type Dispute = {
   id: string;
   calculation_id: string;
+  barber_name?: string;
   reason_code: string;
   explanation: string;
   status: string;
@@ -57,9 +60,6 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
   const [calculations, setCalculations] = useState<Calculation[]>([]);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [message, setMessage] = useState("");
-  const [pendingDisputeId, setPendingDisputeId] = useState<string | null>(null);
-  const [reasonCode, setReasonCode] = useState("attribution");
-  const [explanation, setExplanation] = useState("");
 
   const applyResponse = useCallback((result: StatementsResponse) => {
     setStatements(result.statements ?? []);
@@ -109,6 +109,14 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
     [statements],
   );
 
+  const latestStatementsByBarber = useMemo(() => {
+    const latest = new Map<string, Statement>();
+    for (const statement of statements) {
+      if (!latest.has(statement.barber_user_id)) latest.set(statement.barber_user_id, statement);
+    }
+    return [...latest.values()];
+  }, [statements]);
+
   async function refresh() {
     setMessage("");
     try {
@@ -136,42 +144,10 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
     await refresh();
   }
 
-  async function submitDispute(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!pendingDisputeId || explanation.trim().length < 10) {
-      setMessage("Provide at least 10 characters explaining the requested correction.");
-      return;
-    }
-
-    const response = await fetch("/api/commissions/statements", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        action: "create_dispute",
-        calculationId: pendingDisputeId,
-        reasonCode,
-        explanation: explanation.trim(),
-      }),
-    });
-    const result = (await response.json()) as { message?: string };
-
-    setMessage(
-      response.ok
-        ? "Dispute submitted within the policy workflow."
-        : (result.message ?? "Dispute failed."),
-    );
-
-    if (response.ok) {
-      setPendingDisputeId(null);
-      setReasonCode("attribution");
-      setExplanation("");
-      await refresh();
-    }
-  }
-
   function exportCsv() {
     const rows = [
       [
+        ...(role === "admin" ? ["Barber"] : []),
         "Date",
         "Attribution",
         "Source",
@@ -182,6 +158,7 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
         "Status",
       ],
       ...calculations.map((item) => [
+        ...(role === "admin" ? [item.barber_name ?? "Unlinked barber"] : []),
         item.calculated_at,
         item.attribution_type,
         item.attribution_source,
@@ -225,7 +202,7 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--color-bone-muted)]">
             {role === "barber"
-              ? "Review service amounts, tips, adjustments, and the 24-hour correction window. Statements report amounts only and do not move funds."
+              ? "Review service amounts, tips, and adjustments here. Under the confirmed rule, disputes must be sent to the owner by SMS within 24 hours. Statements report amounts only and do not move funds."
               : "Confirmed Square payments are matched to the barber and policy automatically. Review exceptions, then pay each barber manually by the approved method."}
           </p>
         </div>
@@ -306,12 +283,28 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
         </article>
       </div>
 
+      {role === "admin" ? (
+        <section className="mt-8">
+          <h2 className="font-display mb-4 text-2xl">Latest statement by barber</h2>
+          <div className="portal-table-wrap">
+            <table className="portal-table">
+              <thead><tr><th>Barber</th><th>Commission basis</th><th>Tips</th><th>Adjustments</th><th>Final amount</th><th>Status</th></tr></thead>
+              <tbody>
+                {latestStatementsByBarber.map((statement) => <tr key={statement.id}><td>{statement.barber_name ?? "Unlinked barber"}</td><td>{money(statement.gross_basis_cents)}</td><td>{money(statement.tips_cents)}</td><td>{money(statement.adjustments_cents)}</td><td><strong>{money(statement.final_amount_cents)}</strong></td><td>{statement.status}</td></tr>)}
+                {!latestStatementsByBarber.length ? <tr><td colSpan={6}>No generated barber statements yet. Update amounts after Square synchronization is connected.</td></tr> : null}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
       <section className="mt-8">
         <h2 className="font-display mb-4 text-2xl">Statement lines</h2>
         <div className="portal-table-wrap">
           <table className="portal-table">
             <thead>
               <tr>
+                {role === "admin" ? <th>Barber</th> : null}
                 <th>Date</th>
                 <th>Attribution</th>
                 <th>Basis</th>
@@ -324,78 +317,25 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
             </thead>
             <tbody>
               {calculations.map((item) => (
-                <Fragment key={item.id}>
-                  <tr>
-                    <td>{new Date(item.calculated_at).toLocaleDateString()}</td>
-                    <td>{item.attribution_type}</td>
-                    <td>{money(item.eligible_basis_cents)}</td>
-                    <td>{money(item.tip_cents)}</td>
-                    <td>{Math.round(Number(item.barber_rate) * 100)}%</td>
-                    <td>{money(item.barber_amount_cents)}</td>
-                    <td>{item.status}</td>
-                    <td>
-                      {role === "barber" &&
-                      !["locked", "paid", "voided"].includes(item.status) ? (
-                        <button
-                          type="button"
-                          aria-expanded={pendingDisputeId === item.id}
-                          aria-controls={`dispute-${item.id}`}
-                          onClick={() => {
-                            setPendingDisputeId((current) => current === item.id ? null : item.id);
-                            setReasonCode("attribution");
-                            setExplanation("");
-                            setMessage("");
-                          }}
-                          className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]"
-                        >
-                          Dispute
-                        </button>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                  </tr>
-                  {pendingDisputeId === item.id ? (
-                    <tr id={`dispute-${item.id}`}>
-                      <td colSpan={8}>
-                        <form onSubmit={submitDispute} className="grid gap-4 rounded-xl border border-[var(--color-brass)]/25 bg-black/20 p-4 md:grid-cols-[14rem_1fr_auto] md:items-end">
-                          <label className="grid gap-2 text-xs">
-                            <span className="uppercase tracking-[.16em] text-[var(--color-brass)]">Issue type</span>
-                            <select
-                              value={reasonCode}
-                              onChange={(event) => setReasonCode(event.target.value)}
-                              className="rounded-lg border border-[var(--color-ink-line)] bg-[var(--color-ink)] px-3 py-3"
-                            >
-                              <option value="attribution">Attribution</option>
-                              <option value="arithmetic">Arithmetic</option>
-                              <option value="omission">Omission</option>
-                            </select>
-                          </label>
-                          <label className="grid gap-2 text-xs">
-                            <span className="uppercase tracking-[.16em] text-[var(--color-brass)]">Requested correction</span>
-                            <textarea
-                              autoFocus
-                              required
-                              minLength={10}
-                              maxLength={2000}
-                              value={explanation}
-                              onChange={(event) => setExplanation(event.target.value)}
-                              className="min-h-24 rounded-lg border border-[var(--color-ink-line)] bg-[var(--color-ink)] px-3 py-3"
-                            />
-                          </label>
-                          <div className="flex flex-wrap gap-2">
-                            <button type="submit" className="rounded-full bg-[var(--color-brass)] px-4 py-3 text-[9px] uppercase text-[var(--color-ink)]">Submit</button>
-                            <button type="button" onClick={() => setPendingDisputeId(null)} className="rounded-full border border-[var(--color-ink-line)] px-4 py-3 text-[9px] uppercase">Cancel</button>
-                          </div>
-                        </form>
-                      </td>
-                    </tr>
-                  ) : null}
-                </Fragment>
+                <tr key={item.id}>
+                  {role === "admin" ? <td>{item.barber_name ?? "Unlinked barber"}</td> : null}
+                  <td>{new Date(item.calculated_at).toLocaleDateString()}</td>
+                  <td>{item.attribution_type}</td>
+                  <td>{money(item.eligible_basis_cents)}</td>
+                  <td>{money(item.tip_cents)}</td>
+                  <td>{Math.round(Number(item.barber_rate) * 100)}%</td>
+                  <td>{money(item.barber_amount_cents)}</td>
+                  <td>{item.status}</td>
+                  <td>
+                    {role === "barber" && !["locked", "paid", "voided"].includes(item.status)
+                      ? "SMS owner within 24h"
+                      : "—"}
+                  </td>
+                </tr>
               ))}
               {!calculations.length ? (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={role === "admin" ? 9 : 8}>
                     No live calculation lines. Connect Square sandbox and run
                     reconciliation.
                   </td>

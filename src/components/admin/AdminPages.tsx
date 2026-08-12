@@ -17,6 +17,7 @@ import { loadAdminAutomationRules, loadAdminBarberDetail, loadAdminClientDetail,
 import { AdminClientEditor } from "./AdminClientEditor";
 import { AdminCreateClient } from "./AdminCreateClient";
 import { AdminMembershipPlanForm } from "./AdminMembershipPlanForm";
+import { AdminMembershipManager } from "./AdminMembershipManager";
 import { AdminBarberEditor } from "./AdminBarberEditor";
 import { AdminBarberInvite } from "./AdminBarberInvite";
 import { AdminAutomationManager } from "./AdminAutomationManager";
@@ -50,7 +51,7 @@ export async function AdminClientsPage() {
   const data = await loadAdminPortalData();
   return <AdminPageHeader eyebrow="Client management" title="Clients" copy="Find a client, review visit history, update approved details, and handle follow-up.">
     <AdminCreateClient />
-    {data.clients.length ? <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Client</th><th>Phone</th><th>Language</th><th>Marketing</th><th>Created</th><th /></tr></thead><tbody>{data.clients.map((client) => <tr key={client.id}><td><strong>{client.name}</strong></td><td>{client.phone ?? "—"}</td><td>{client.language.toUpperCase()}</td><td>{titleCase(client.marketing)}</td><td>{shortDate(client.createdAt)}</td><td><Link href={`/admin/clients/${client.id}`} className="text-[9px] tracking-[.14em] uppercase text-[var(--color-brass)]">Open</Link></td></tr>)}</tbody></table></div> : <Empty text="No client profiles have been linked yet." />}
+    {data.clients.length ? <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Client</th><th>Email</th><th>Phone</th><th>Language</th><th>Marketing</th><th>Created</th><th /></tr></thead><tbody>{data.clients.map((client) => <tr key={client.id}><td><strong>{client.name}</strong></td><td>{client.email ?? "—"}</td><td>{client.phone ?? "—"}</td><td>{client.language.toUpperCase()}</td><td>{titleCase(client.marketing)}</td><td>{shortDate(client.createdAt)}</td><td><Link href={`/admin/clients/${client.id}`} className="text-[9px] tracking-[.14em] uppercase text-[var(--color-brass)]">Open</Link></td></tr>)}</tbody></table></div> : <Empty text="No client records have been created yet." />}
   </AdminPageHeader>;
 }
 
@@ -78,6 +79,7 @@ export async function AdminMembershipsPage() {
   const owner = session.roles.some((role) => role === "owner" || role === "super_admin");
   return <AdminPageHeader eyebrow="Membership operations" title="Memberships" copy="Manage approved plans, active members, usage, renewal dates, and membership requests in one place.">
     {owner ? <AdminMembershipPlanForm /> : <div className={styles.empty}>Managers may review membership activity. Only the owner can create or publish plan terms.</div>}
+    <AdminMembershipManager plans={data.membershipPlans} requests={data.membershipRequests} owner={owner} />
     {data.memberships.length ? <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Client</th><th>Plan</th><th>Status</th><th>Renews</th></tr></thead><tbody>{data.memberships.map((item) => <tr key={item.id}><td><Link href={`/admin/clients/${item.clientId}`} className="text-[var(--color-brass)]">{item.clientName}</Link></td><td>{item.plan}</td><td>{titleCase(item.status)}</td><td>{item.renewsAt ? shortDate(item.renewsAt) : "—"}</td></tr>)}</tbody></table></div> : <Empty text="No client memberships yet. Approved plans and active members will appear here automatically." />}
   </AdminPageHeader>;
 }

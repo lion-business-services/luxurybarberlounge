@@ -20,10 +20,13 @@ import { getBrowserSupabase } from "@/lib/supabase/client";
 
 type Entry = {
   position: number;
+  kind?: "walk_in" | "appointment";
   label: string;
   token: string;
   barber: string;
+  service?: string;
   status: string;
+  scheduledAt?: string | null;
   estimatedWaitMinutes: number | null;
 };
 

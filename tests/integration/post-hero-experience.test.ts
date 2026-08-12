@@ -37,7 +37,7 @@ const barberSlugs = [
 ];
 
 const protectedHeroHashes: Record<string, string> = {
-  "src/components/hero/CinematicHero.tsx": "a83153477108ca6d3819b39ac689cfd368d037330112c48c6ea36d6684ccd779",
+  "src/components/hero/CinematicHero.tsx": "3a56c4d5e7ef4c57d6659c7d8c430b1ff7cea6c93ff8298b50e93692bd6d6ae6",
   "src/components/hero/assets.ts": "6905195b46ea458ec4686a7bbedb3a802f8841c190aba12b21b1e1af560c2ddc",
   "public/hero/craft-tools.webp": "2b9de178442d005c7affad270a3d55d02c7a19530a945d1a1f8d4054c6d3ee5f",
   "public/hero/crest-reveal-poster.webp": "c813fa9bca13b2c494c8b078b890ecb541d721b9789baf27c3a9c4057691e71e",

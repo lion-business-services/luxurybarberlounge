@@ -11,7 +11,17 @@ const createSchema = z.object({
   depositCents: z.number().int().min(0).nullable().optional(),
   bookable: z.boolean().default(true),
 });
-const updateSchema = createSchema.partial().extend({ id: z.string().uuid(), active: z.boolean().optional() });
+const updateSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().trim().min(2).max(100).optional(),
+  description: z.string().trim().max(500).optional(),
+  priceCents: z.number().int().min(0).nullable().optional(),
+  durationMinutes: z.number().int().min(5).max(480).nullable().optional(),
+  depositCents: z.number().int().min(0).nullable().optional(),
+  bookable: z.boolean().optional(),
+  active: z.boolean().optional(),
+  squareCatalogId: z.string().trim().max(255).nullable().optional(),
+});
 
 function slugify(value: string) {
   return value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
@@ -65,10 +75,17 @@ export async function PATCH(request: NextRequest) {
   if (!ctx.admin || !ctx.businessId) return NextResponse.json({ ok: false, message: "Supabase is not configured." }, { status: 503 });
   const parsed = updateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Enter valid service changes." }, { status: 400 });
-  const { id, name, description, ...rest } = parsed.data;
-  const update: Record<string, unknown> = { ...rest };
+  const { id, name, description, priceCents, durationMinutes, depositCents, bookable, active, squareCatalogId } = parsed.data;
+  if (squareCatalogId !== undefined && !ctx.session.roles.some((role) => role === "owner" || role === "super_admin")) return NextResponse.json({ ok: false, message: "Owner access is required to change Square catalog mappings." }, { status: 403 });
+  const update: Record<string, unknown> = {};
   if (name !== undefined) { update.name = { en: name, es: name }; update.slug = slugify(name); }
   if (description !== undefined) update.short_description = { en: description, es: description };
+  if (priceCents !== undefined) update.price_cents = priceCents;
+  if (durationMinutes !== undefined) update.duration_minutes = durationMinutes;
+  if (depositCents !== undefined) update.deposit_cents = depositCents;
+  if (bookable !== undefined) update.bookable = bookable;
+  if (active !== undefined) update.active = active;
+  if (squareCatalogId !== undefined) update.square_catalog_id = squareCatalogId?.trim() || null;
   const { error } = await ctx.admin.from("services").update(update).eq("business_id", ctx.businessId).eq("id", id);
   if (error) return NextResponse.json({ ok: false, message: "The service could not be updated." }, { status: 500 });
   await ctx.admin.from("audit_logs").insert({ business_id: ctx.businessId, actor_user_id: ctx.session.user.id, actor_role: ctx.session.roles[0] ?? null, action: "service_updated", resource_type: "service", resource_id: id, after_data: update, metadata: {} });

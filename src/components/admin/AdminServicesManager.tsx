@@ -30,14 +30,22 @@ export function AdminServicesManager() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [squareMappings, setSquareMappings] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     const response = await fetch("/api/admin/services", { cache: "no-store" });
     const body = await response.json() as { services?: Service[]; message?: string };
     if (!response.ok) throw new Error(body.message ?? "Services could not be loaded.");
-    setServices(body.services ?? []);
+    const next = body.services ?? [];
+    setServices(next);
+    setSquareMappings(Object.fromEntries(next.map((service) => [service.id, service.square_catalog_id ?? ""])));
   }, []);
-  useEffect(() => { void load().catch((error) => setMessage(error instanceof Error ? error.message : "Services could not be loaded.")); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void load().catch((error) => setMessage(error instanceof Error ? error.message : "Services could not be loaded."));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   async function create(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage("");
@@ -47,6 +55,28 @@ export function AdminServicesManager() {
     const body = await response.json() as { message?: string };
     setMessage(response.ok ? "Service created." : body.message ?? "The service could not be created.");
     if (response.ok) { event.currentTarget.reset(); setOpen(false); await load(); }
+    setBusy(false);
+  }
+
+  async function syncSquare() {
+    setBusy(true); setMessage("Synchronizing exact service matches from Square...");
+    const response = await fetch("/api/admin/services/square-sync", { method: "POST" });
+    const body = await response.json().catch(() => null) as { message?: string; matched?: number; total?: number; unmatched?: string[]; ambiguous?: string[] } | null;
+    if (!response.ok) setMessage(body?.message ?? "Square service synchronization failed.");
+    else {
+      const issues = [...(body?.unmatched ?? []), ...(body?.ambiguous ?? [])];
+      setMessage(`Square linked ${body?.matched ?? 0} of ${body?.total ?? 0} active bookable services${issues.length ? `. Review: ${issues.join(", ")}` : "."}`);
+      await load();
+    }
+    setBusy(false);
+  }
+
+  async function saveSquareMapping(service: Service) {
+    setBusy(true); setMessage("");
+    const response = await fetch("/api/admin/services", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: service.id, squareCatalogId: squareMappings[service.id]?.trim() || null }) });
+    const body = await response.json().catch(() => null) as { message?: string } | null;
+    setMessage(response.ok ? `${text(service.name)} Square mapping saved.` : body?.message ?? "Square mapping could not be saved.");
+    if (response.ok) await load();
     setBusy(false);
   }
 
@@ -61,12 +91,12 @@ export function AdminServicesManager() {
 
   return <div className="grid gap-5">
     <section className="portal-card">
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[9px] uppercase tracking-[.18em] text-[var(--color-brass)]">Service menu</p><h2 className="font-display mt-2 text-2xl">Services offered</h2></div><button onClick={() => setOpen((value) => !value)} className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-5 py-3 text-[9px] uppercase tracking-[.16em] text-[var(--color-ink)]"><Plus className="h-4 w-4" />Add service</button></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[9px] uppercase tracking-[.18em] text-[var(--color-brass)]">Service menu</p><h2 className="font-display mt-2 text-2xl">Services offered</h2></div><div className="flex flex-wrap gap-2"><button disabled={busy} onClick={() => void syncSquare()} className="rounded-full border border-white/10 px-5 py-3 text-[9px] uppercase tracking-[.16em]">Sync Square services</button><button onClick={() => setOpen((value) => !value)} className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-5 py-3 text-[9px] uppercase tracking-[.16em] text-[var(--color-ink)]"><Plus className="h-4 w-4" />Add service</button></div></div>
       {open ? <form onSubmit={create} className="mt-5 grid gap-4 md:grid-cols-2"><label><span className="form-label">Service name</span><input name="name" required className="form-control" /></label><label><span className="form-label">Duration in minutes</span><input name="durationMinutes" type="number" min="5" step="5" className="form-control" /></label><label><span className="form-label">Price</span><input name="price" type="number" min="0" step="0.01" className="form-control" placeholder="Leave blank if not final" /></label><label><span className="form-label">Deposit</span><input name="deposit" type="number" min="0" step="0.01" className="form-control" placeholder="Leave blank if none" /></label><label className="md:col-span-2"><span className="form-label">Short description</span><textarea name="description" className="form-control min-h-24" /></label><label className="flex items-center gap-3 text-sm"><input name="bookable" type="checkbox" defaultChecked className="accent-[var(--color-brass)]" />Available for booking</label><button disabled={busy} className="inline-flex w-fit items-center gap-2 rounded-full bg-[var(--color-brass)] px-5 py-3 text-[9px] uppercase tracking-[.16em] text-black disabled:opacity-50">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}Save service</button></form> : null}
       {message ? <p className="mt-4 text-xs text-[var(--color-bone-muted)]" role="status">{message}</p> : null}
     </section>
     <section className="grid gap-3">
-      {services.map((service) => <article key={service.id} className="grid gap-4 rounded-2xl border border-white/[.07] bg-white/[.025] p-4 md:grid-cols-[1fr_auto_auto] md:items-center"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-display text-xl">{text(service.name)}</h3><span className="rounded-full border border-white/10 px-2 py-1 text-[8px] uppercase tracking-[.12em] text-[var(--color-bone-muted)]">{service.active ? "Active" : "Paused"}</span></div><p className="mt-1 text-xs leading-5 text-[var(--color-bone-muted)]">{text(service.short_description) || "No description yet."}</p></div><div className="text-sm text-[var(--color-bone-muted)]"><strong className="text-[var(--color-bone)]">{service.price_cents == null ? "Price pending" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(service.price_cents / 100)}</strong><br />{service.duration_minutes ? `${service.duration_minutes} minutes` : "Duration pending"}{service.square_catalog_id ? " · Square linked" : ""}</div><button disabled={busy} onClick={() => void toggle(service)} className="rounded-full border border-white/10 px-4 py-2 text-[9px] uppercase tracking-[.14em]">{service.active ? "Pause" : "Activate"}</button></article>)}
+      {services.map((service) => <article key={service.id} className="grid gap-4 rounded-2xl border border-white/[.07] bg-white/[.025] p-4 lg:grid-cols-[1fr_auto] lg:items-center"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-display text-xl">{text(service.name)}</h3><span className="rounded-full border border-white/10 px-2 py-1 text-[8px] uppercase tracking-[.12em] text-[var(--color-bone-muted)]">{service.active ? "Active" : "Paused"}</span><span className="rounded-full border border-white/10 px-2 py-1 text-[8px] uppercase tracking-[.12em] text-[var(--color-bone-muted)]">{service.square_catalog_id ? "Square linked" : "Square mapping required"}</span></div><p className="mt-1 text-xs leading-5 text-[var(--color-bone-muted)]">{text(service.short_description) || "No description yet."}</p><p className="mt-2 text-sm text-[var(--color-bone-muted)]"><strong className="text-[var(--color-bone)]">{service.price_cents == null ? "Price pending" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(service.price_cents / 100)}</strong> · {service.duration_minutes ? `${service.duration_minutes} minutes` : "Duration pending"}</p></div><div className="grid gap-2 sm:grid-cols-[minmax(16rem,1fr)_auto_auto]"><input aria-label={`Square catalog ID for ${text(service.name)}`} className="form-control" value={squareMappings[service.id] ?? ""} onChange={(event) => setSquareMappings((current) => ({ ...current, [service.id]: event.target.value }))} placeholder="Square service variation ID" /><button disabled={busy} onClick={() => void saveSquareMapping(service)} className="rounded-full border border-white/10 px-4 py-2 text-[9px] uppercase tracking-[.14em]">Save Square</button><button disabled={busy} onClick={() => void toggle(service)} className="rounded-full border border-white/10 px-4 py-2 text-[9px] uppercase tracking-[.14em]">{service.active ? "Pause" : "Activate"}</button></div></article>)}
       {!services.length ? <div className="portal-empty">No services have been added yet.</div> : null}
     </section>
   </div>;

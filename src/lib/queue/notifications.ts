@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { features } from "@/lib/config/features";
 
-type AdminClient = SupabaseClient<any, "public", any>;
+type AdminClient = SupabaseClient;
 
 type QueueNotificationInput = {
   businessId: string;

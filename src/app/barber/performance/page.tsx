@@ -1,4 +1,4 @@
 import type { Metadata } from "next";
-import { PortalSectionPage } from "@/components/portal/PortalSectionPage";
-export const metadata:Metadata={title:"Performance",robots:{index:false,follow:false}};
-export default function Page(){return <PortalSectionPage role="barber" slug="performance"/>}
+import { BarberSectionLive } from "@/components/barber/BarberPortalLive";
+export const metadata: Metadata = { title: "Barber Portal", robots: { index: false, follow: false } };
+export default function Page() { return <BarberSectionLive slug="performance" />; }

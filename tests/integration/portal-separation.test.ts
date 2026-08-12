@@ -108,30 +108,51 @@ test("client portal exposes only four primary destinations and a direct sign-out
   assert.match(shell, /\/api\/auth\/logout/);
 });
 
+test("owner-provided barber portal emails and the private support test account are seeded", async () => {
+  const migration = await readFile("supabase/migrations/202608120019_barber_portals_commissions_queue_payments.sql", "utf8");
+  for (const email of [
+    "riverahommy3@gmail.com",
+    "daniel.penalo97@gmail.com",
+    "russell3hawkins@gmail.com",
+    "jochylp12@gmail.com",
+    "elvis29p@gmail.com",
+    "angelicaakaica03@icloud.com",
+    "support@lbsprocess.com",
+  ]) assert.match(migration, new RegExp(email.replaceAll(".", "\\."), "i"));
+  assert.match(migration, /barber_profile_id/);
+  assert.match(migration, /portal_email/);
+});
+
 test("admin navigation stays focused on daily barbershop operations", async () => {
   const shell = await readFile("src/components/admin/AdminShell.tsx", "utf8");
-  for (const label of ["Dashboard", "Appointments", "Queue", "Clients", "Barbers", "Services", "Memberships", "Commissions"]) {
+  for (const label of ["Dashboard", "Appointments", "Queue", "Clients", "Barbers", "Services", "Memberships", "Commissions", "Automations", "Integrations"]) {
     assert.match(shell, new RegExp(`label: "${label}"`));
   }
-  assert.doesNotMatch(shell, /label: "Automations"|label: "Settings"|Owner CRM|Executive dashboard|Marketing & CRM/);
+  assert.doesNotMatch(shell, /label: "Settings"|Owner CRM|Executive dashboard|Marketing & CRM/);
 });
 
 test("public queue display exposes only privacy-safe operational fields", async () => {
   const route = await readFile("src/app/api/queue/display/route.ts", "utf8");
+  const operations = await readFile("src/lib/queue/operations.ts", "utf8");
   const board = await readFile("src/app/queue-board/QueueBoard.tsx", "utf8");
-  assert.match(route, /privacySafeQueueLabel/);
-  assert.match(route, /publicDisplayConsent/);
-  assert.match(route, /assignedBarberName/);
+  assert.match(route, /loadUnifiedQueueDisplay/);
+  assert.match(operations, /privacySafeQueueLabel/);
+  assert.match(operations, /publicDisplayConsent/);
+  assert.match(operations, /assignedBarberName/);
+  assert.match(operations, /Appointment \${suffix}/);
   assert.doesNotMatch(route, /client_phone|client_email|phone:|email:/);
   assert.match(board, /Names appear only when the guest has chosen to share/);
   assert.match(board, /requestFullscreen/);
 });
 
-test("admin hides workflow configuration while protected background processors remain", async () => {
+test("admin exposes owner automation controls while protected background processors remain", async () => {
   const automationPage = await readFile("src/app/admin/automations/page.tsx", "utf8");
+  const adminShell = await readFile("src/components/admin/AdminShell.tsx", "utf8");
   const settingsPage = await readFile("src/app/admin/settings/page.tsx", "utf8");
   const vercel = await readFile("vercel.json", "utf8");
-  assert.match(automationPage, /redirect\("\/admin"\)/);
+  assert.match(automationPage, /AdminAutomationsPage/);
+  assert.match(adminShell, /href: "\/admin\/automations"/);
+  assert.match(adminShell, /href: "\/admin\/integrations"/);
   assert.match(settingsPage, /redirect\("\/admin"\)/);
   for (const path of ["/api/cron/webhooks", "/api/cron/notifications", "/api/cron/appointments", "/api/cron/queue", "/api/cron/commissions"]) {
     assert.match(vercel, new RegExp(path.replaceAll("/", "\\/")));

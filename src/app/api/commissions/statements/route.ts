@@ -17,7 +17,48 @@ export async function GET() {
   if (!administrative) { statements = statements.eq("barber_user_id", session.user.id); calculations = calculations.eq("barber_user_id", session.user.id); disputes = disputes.eq("barber_user_id", session.user.id); }
   const [statementResult, calculationResult, disputeResult] = await Promise.all([statements, calculations, disputes]);
   if (statementResult.error || calculationResult.error || disputeResult.error) return NextResponse.json({ ok: false, message: "Statement records could not be loaded." }, { status: 503 });
-  return NextResponse.json({ ok: true, live: true, statements: statementResult.data ?? [], calculations: calculationResult.data ?? [], disputes: disputeResult.data ?? [] });
+
+  const statementRows = statementResult.data ?? [];
+  const calculationRows = calculationResult.data ?? [];
+  const disputeRows = disputeResult.data ?? [];
+  const barberUserIds = [...new Set([
+    ...statementRows.map((row) => String(row.barber_user_id ?? "")),
+    ...calculationRows.map((row) => String(row.barber_user_id ?? "")),
+    ...disputeRows.map((row) => String(row.barber_user_id ?? "")),
+  ].filter(Boolean))];
+  const barberNames = new Map<string, string>();
+
+  if (barberUserIds.length) {
+    const businessIds = [...new Set(statementRows.map((row) => String(row.business_id ?? "")).filter(Boolean))];
+    let barberQuery = admin.from("barber_profiles").select("staff_user_id,display_name").in("staff_user_id", barberUserIds);
+    if (businessIds.length) barberQuery = barberQuery.in("business_id", businessIds);
+    const { data: barberProfiles } = await barberQuery;
+    for (const profile of barberProfiles ?? []) {
+      if (profile.staff_user_id && profile.display_name) barberNames.set(String(profile.staff_user_id), String(profile.display_name));
+    }
+
+    const missingIds = barberUserIds.filter((id) => !barberNames.has(id));
+    if (missingIds.length) {
+      const { data: profiles } = await admin.from("profiles").select("id,display_name,full_name").in("id", missingIds);
+      for (const profile of profiles ?? []) {
+        const label = profile.display_name || profile.full_name;
+        if (profile.id && label) barberNames.set(String(profile.id), String(label));
+      }
+    }
+  }
+
+  const withBarberName = <T extends { barber_user_id: string }>(row: T) => ({
+    ...row,
+    barber_name: barberNames.get(String(row.barber_user_id)) ?? (administrative ? "Unlinked barber" : "My account"),
+  });
+
+  return NextResponse.json({
+    ok: true,
+    live: true,
+    statements: statementRows.map(withBarberName),
+    calculations: calculationRows.map(withBarberName),
+    disputes: disputeRows.map(withBarberName),
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -29,16 +70,10 @@ export async function POST(request: NextRequest) {
   if (!body?.action) return NextResponse.json({ ok: false, message: "An action is required." }, { status: 400 });
 
   if (body.action === "create_dispute") {
-    if (!session.roles.includes("barber") || !body.calculationId || !body.reasonCode || (body.explanation?.trim().length ?? 0) < 12) return NextResponse.json({ ok: false, message: "A calculation, dispute type, and explanation are required." }, { status: 422 });
-    const { data: calculation } = await admin.from("commission_calculations").select("id,business_id,barber_user_id,status,calculated_at").eq("id", body.calculationId).eq("barber_user_id", session.user.id).maybeSingle();
-    if (!calculation) return NextResponse.json({ ok: false, message: "Calculation not found." }, { status: 404 });
-    const dueAt = new Date(new Date(calculation.calculated_at).getTime() + 24 * 60 * 60_000);
-    if (Date.now() > dueAt.getTime() && !["disputed","under_review"].includes(calculation.status)) return NextResponse.json({ ok: false, message: "The 24-hour dispute window has closed. Contact the owner to request an Adjustment review." }, { status: 409 });
-    const { data: dispute, error } = await admin.from("commission_disputes").insert({ business_id: calculation.business_id, calculation_id: calculation.id, barber_user_id: session.user.id, reason_code: body.reasonCode, explanation: body.explanation!.trim().slice(0, 3000), status: "submitted", submitted_at: new Date().toISOString(), due_at: dueAt.toISOString() }).select("id").single();
-    if (error || !dispute?.id) return NextResponse.json({ ok: false, message: "The dispute could not be submitted." }, { status: 500 });
-    await admin.from("commission_calculations").update({ status: "disputed" }).eq("id", calculation.id).neq("status", "locked").neq("status", "paid");
-    await admin.from("dispute_events").insert({ dispute_id: dispute.id, actor_user_id: session.user.id, event_type: "submitted", barber_visible: true, note: body.explanation!.trim().slice(0, 1000) });
-    return NextResponse.json({ ok: true, disputeId: dispute.id }, { status: 201 });
+    return NextResponse.json(
+      { ok: false, message: "Under the confirmed commission rule, disputes must be submitted to the owner by SMS within 24 hours." },
+      { status: 409 },
+    );
   }
 
   if (!session.roles.some((role) => adminRoles.has(role))) return NextResponse.json({ ok: false, message: "Owner or manager access is required." }, { status: 403 });

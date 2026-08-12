@@ -60,10 +60,15 @@ export function AdminAppointmentsWorkspace() {
     return next;
   }, [barberFilter, dateFilter, sourceFilter, status]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
   useEffect(() => {
     const reference = new URLSearchParams(window.location.search).get("reference");
-    if (reference) setSearch(reference);
+    if (!reference) return;
+    const timer = window.setTimeout(() => setSearch(reference), 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const visible = useMemo(() => {

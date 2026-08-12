@@ -418,6 +418,26 @@ async function syncPayment(
     throw error;
   }
 
+  const orderId = text(payment.order_id);
+  const paymentStatus = text(payment.status);
+  if (orderId) {
+    const { data: checkoutLink } = await admin
+      .from("appointment_payment_links")
+      .select("id,appointment_id,purpose,status")
+      .eq("business_id", business)
+      .eq("square_order_id", orderId)
+      .maybeSingle();
+    if (checkoutLink?.id && paymentStatus === "COMPLETED") {
+      await admin.from("appointment_payment_links").update({ status: "paid", paid_at: text(payment.updated_at) ?? text(payment.created_at) ?? new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", checkoutLink.id);
+      if (checkoutLink.purpose === "deposit") {
+        await admin.from("appointments").update({ deposit_status: "paid" }).eq("id", checkoutLink.appointment_id).neq("deposit_status", "refunded");
+      }
+    } else if (checkoutLink?.id && ["CANCELED", "FAILED"].includes(paymentStatus ?? "")) {
+      await admin.from("appointment_payment_links").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", checkoutLink.id).neq("status", "paid");
+      if (checkoutLink.purpose === "deposit") await admin.from("appointments").update({ deposit_status: "failed" }).eq("id", checkoutLink.appointment_id).neq("deposit_status", "paid");
+    }
+  }
+
   return {
     resource: "payment",
     squareId: id,

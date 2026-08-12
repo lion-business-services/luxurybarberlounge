@@ -55,12 +55,14 @@ export function QueueOperationsPanel() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadQueue(controller.signal).catch((error: unknown) => {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setMessage(error instanceof Error ? error.message : "The queue could not be loaded.");
-    });
+    const initial = window.setTimeout(() => {
+      void loadQueue(controller.signal).catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setMessage(error instanceof Error ? error.message : "The queue could not be loaded.");
+      });
+    }, 0);
     const timer = window.setInterval(() => void loadQueue().catch(() => undefined), 5000);
-    return () => { controller.abort(); window.clearInterval(timer); };
+    return () => { controller.abort(); window.clearTimeout(initial); window.clearInterval(timer); };
   }, [loadQueue]);
 
   const waiting = useMemo(() => entries.filter((entry) => ["waiting", "confirmed", "checked_in"].includes(entry.status)).length, [entries]);

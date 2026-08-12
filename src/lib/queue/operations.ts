@@ -3,12 +3,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createUntypedAdminSupabase } from "@/lib/auth/server";
 import { estimateQueueWait, selectNextAssignment, type AssignmentBarber, type QueueWorkItem } from "./engine";
 import { enqueueQueueStatusNotification } from "./notifications";
+import { dateInZone, zonedDateTimeToUtc } from "@/lib/booking/timezone";
 
 export const activeQueueStatuses = ["waiting", "confirmed", "checked_in", "assigned", "called", "ready", "in_service"] as const;
 export const assignableQueueStatuses = ["waiting", "confirmed", "checked_in"] as const;
 export const terminalQueueStatuses = ["completed", "cancelled", "removed", "no_show"] as const;
 
-type AdminClient = SupabaseClient<any, "public", any>;
+type AdminClient = SupabaseClient;
 
 type QueueContext = {
   admin: AdminClient;
@@ -27,6 +28,7 @@ export type OperationalBarber = {
 
 export type OperationalQueueEntry = {
   id: string;
+  appointmentId: string | null;
   publicToken: string;
   clientName: string | null;
   clientId: string | null;
@@ -96,7 +98,7 @@ export async function loadOperationalQueue(context: QueueContext) {
   const [{ data: entryRows, error }, { data: assignmentRows }, { data: barberRows }, { data: serviceRows }] = await Promise.all([
     context.admin
       .from("queue_entries")
-      .select("id,public_token,client_id,client_name,client_phone,service_slug,service_id,barber_preference,preferred_barber_id,status,estimated_wait_minutes,manual_priority,joined_at,public_display_consent,public_display_label,metadata")
+      .select("id,appointment_id,public_token,client_id,client_name,client_phone,service_slug,service_id,barber_preference,preferred_barber_id,status,estimated_wait_minutes,manual_priority,joined_at,public_display_consent,public_display_label,metadata")
       .eq("location_id", context.locationId)
       .in("status", [...activeQueueStatuses])
       .order("manual_priority", { ascending: true })
@@ -140,6 +142,7 @@ export async function loadOperationalQueue(context: QueueContext) {
     const service = serviceMap.get(String(row.service_id ?? row.service_slug ?? ""));
     return {
       id: String(row.id),
+      appointmentId: row.appointment_id ? String(row.appointment_id) : null,
       publicToken: String(row.public_token),
       clientName: typeof row.client_name === "string" ? row.client_name : null,
       clientId: row.client_id ? String(row.client_id) : null,
@@ -161,6 +164,88 @@ export async function loadOperationalQueue(context: QueueContext) {
     };
   });
   return { entries, barbers: [...barberMap.values()], serviceMap };
+}
+
+
+export type UnifiedQueueDisplayEntry = {
+  kind: "walk_in" | "appointment";
+  sourceId: string;
+  position: number;
+  label: string;
+  token: string;
+  barber: string;
+  service: string;
+  status: string;
+  estimatedWaitMinutes: number | null;
+  scheduledAt: string | null;
+};
+
+/**
+ * Builds the shop-TV snapshot from both active walk-ins and today's live
+ * appointments. Appointment-only rows use the public booking reference, never
+ * client PII, and are de-duplicated when an appointment already has a queue row.
+ */
+export async function loadUnifiedQueueDisplay(context: QueueContext): Promise<UnifiedQueueDisplayEntry[]> {
+  const { entries } = await loadOperationalQueue(context);
+  const today = dateInZone(new Date(), "America/New_York");
+  const dayStart = zonedDateTimeToUtc(today, "00:00:00", "America/New_York");
+  const dayEnd = zonedDateTimeToUtc(today, "23:59:59", "America/New_York");
+  const { data: appointmentRows, error } = await context.admin
+    .from("appointments")
+    .select("id,public_reference,barber_name_snapshot,service_name_snapshot,status,starts_at")
+    .eq("business_id", context.businessId)
+    .eq("location_id", context.locationId)
+    .gte("starts_at", dayStart.toISOString())
+    .lte("starts_at", dayEnd.toISOString())
+    .in("status", ["confirmed", "rescheduled", "checked_in", "assigned", "in_service"])
+    .order("starts_at", { ascending: true });
+  if (error) throw error;
+
+  const linkedAppointments = new Set(entries.map((entry) => entry.appointmentId).filter((id): id is string => Boolean(id)));
+  const rows: Omit<UnifiedQueueDisplayEntry, "position">[] = entries.map((entry) => ({
+    kind: entry.appointmentId ? "appointment" : "walk_in",
+    sourceId: entry.id,
+    label: privacySafeQueueLabel({ token: entry.publicToken, consent: entry.publicDisplayConsent, label: entry.publicDisplayLabel }),
+    token: entry.publicToken.slice(-4).toUpperCase(),
+    barber: entry.assignedBarberName ?? (entry.barberPreference && entry.barberPreference !== "first-available" ? entry.barberPreference : "First available"),
+    service: entry.serviceName,
+    status: entry.status,
+    estimatedWaitMinutes: entry.estimatedWaitMinutes,
+    scheduledAt: null,
+  }));
+
+  for (const appointment of appointmentRows ?? []) {
+    const id = String(appointment.id);
+    if (linkedAppointments.has(id)) continue;
+    const reference = String(appointment.public_reference ?? id);
+    const suffix = reference.replace(/[^A-Z0-9]/gi, "").slice(-4).toUpperCase() || "APPT";
+    rows.push({
+      kind: "appointment",
+      sourceId: id,
+      label: `Appointment ${suffix}`,
+      token: suffix,
+      barber: String(appointment.barber_name_snapshot ?? "Assigned barber"),
+      service: String(appointment.service_name_snapshot ?? "Service"),
+      status: appointment.status === "rescheduled" ? "confirmed" : String(appointment.status ?? "confirmed"),
+      estimatedWaitMinutes: null,
+      scheduledAt: typeof appointment.starts_at === "string" ? appointment.starts_at : null,
+    });
+  }
+
+  const rank = (status: string) => ["in_service", "ready", "called", "assigned", "checked_in", "waiting", "confirmed"].indexOf(status);
+  rows.sort((a, b) => {
+    const aRank = rank(a.status);
+    const bRank = rank(b.status);
+    const normalizedA = aRank < 0 ? 99 : aRank;
+    const normalizedB = bRank < 0 ? 99 : bRank;
+    if (normalizedA !== normalizedB) return normalizedA - normalizedB;
+    if (a.scheduledAt && b.scheduledAt) return a.scheduledAt.localeCompare(b.scheduledAt);
+    if (a.scheduledAt) return 1;
+    if (b.scheduledAt) return -1;
+    return 0;
+  });
+
+  return rows.map((entry, index) => ({ ...entry, position: index + 1 }));
 }
 
 export async function recalculateQueueWaits(context: QueueContext) {

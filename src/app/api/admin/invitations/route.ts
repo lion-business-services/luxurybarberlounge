@@ -9,7 +9,8 @@ const inviteSchema = z.object({
   email: z.string().trim().email().max(254),
   role: z.enum(["barber", "receptionist", "manager"]),
   locationId: z.string().uuid().nullable().optional(),
-  expiresInDays: z.number().int().min(1).max(30).default(7),
+  expiresInDays: z.number().int().min(1).max(365).default(7),
+  barberProfileId: z.string().uuid().nullable().optional(),
 });
 
 async function ownerContext() {
@@ -27,7 +28,7 @@ export async function GET() {
   if (!context.admin || !context.businessId) return NextResponse.json({ ok: false, message: "Supabase is not configured." }, { status: 503 });
 
   const [{ data: invitations, error: invitationError }, userResult, { data: roleRows }] = await Promise.all([
-    context.admin.from("user_invitations").select("id,email,intended_role,status,expires_at,created_at,accepted_at").eq("business_id", context.businessId).order("created_at", { ascending: false }).limit(100),
+    context.admin.from("user_invitations").select("id,email,intended_role,status,expires_at,created_at,accepted_at,barber_profile_id").eq("business_id", context.businessId).order("created_at", { ascending: false }).limit(100),
     context.admin.auth.admin.listUsers({ page: 1, perPage: 100 }),
     context.admin.from("user_roles").select("user_id,roles!inner(key)").eq("business_id", context.businessId),
   ]);
@@ -60,6 +61,25 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Enter a valid email and staff role." }, { status: 400 });
 
   const email = parsed.data.email.toLowerCase();
+  let barberProfileId = parsed.data.role === "barber" ? parsed.data.barberProfileId ?? null : null;
+  if (parsed.data.role === "barber" && !barberProfileId) {
+    const { data: mappedProfile } = await context.admin
+      .from("barber_profiles")
+      .select("id")
+      .eq("business_id", context.businessId)
+      .eq("portal_email", email)
+      .maybeSingle();
+    barberProfileId = typeof mappedProfile?.id === "string" ? mappedProfile.id : null;
+  }
+  if (barberProfileId) {
+    const { data: validProfile } = await context.admin
+      .from("barber_profiles")
+      .select("id")
+      .eq("business_id", context.businessId)
+      .eq("id", barberProfileId)
+      .maybeSingle();
+    if (!validProfile?.id) return NextResponse.json({ ok: false, message: "The selected barber profile is not available." }, { status: 422 });
+  }
   const token = randomBytes(32).toString("hex");
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const expiresAt = new Date(Date.now() + parsed.data.expiresInDays * 24 * 60 * 60 * 1000).toISOString();
@@ -73,6 +93,7 @@ export async function POST(request: NextRequest) {
     invited_by: context.session.user.id,
     token_hash: tokenHash,
     expires_at: expiresAt,
+    barber_profile_id: barberProfileId,
   }).select("id").single();
   if (error || !invitation?.id) return NextResponse.json({ ok: false, message: "The invitation could not be created." }, { status: 500 });
 
@@ -99,7 +120,7 @@ export async function POST(request: NextRequest) {
     action: "staff_invitation_created",
     resource_type: "user_invitation",
     resource_id: invitation.id,
-    metadata: { email, role: parsed.data.role, delivery },
+    metadata: { email, role: parsed.data.role, delivery, barber_profile_id: barberProfileId },
   });
   return NextResponse.json({ ok: true, invitationId: invitation.id, delivery });
 }

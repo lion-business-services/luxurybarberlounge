@@ -22,7 +22,7 @@ export const lockedCommissionRules: PolicyRule[] = [
   { key: "tips", label: "Tips", state: "locked", summary: "100% independent barber and excluded from Commission Basis.", effectiveValue: "100% Barber" },
   { key: "default_attribution", label: "Default attribution", state: "locked", summary: "SHOP unless the independent barber establishes BARBER attribution.", effectiveValue: "SHOP" },
   { key: "walkins", label: "Walk-ins", state: "locked", summary: "Walk-ins are SHOP-attributed.", effectiveValue: "SHOP" },
-  { key: "attribution_dispute_window", label: "Attribution dispute window", state: "locked", summary: "24 hours from the attribution notice.", effectiveValue: "24 hours" },
+  { key: "attribution_dispute_window", label: "Dispute window", state: "locked", summary: "24 hours, submitted by SMS to the owner.", effectiveValue: "24 hours by SMS" },
   { key: "integrity_volume_flag", label: "Volume integrity flag", state: "locked", summary: "Review when more than 40% of new clients are claimed as pre-existing.", effectiveValue: "> 40%" },
   { key: "settlement_week", label: "Settlement week", state: "locked", summary: "Monday 12:00 a.m. through Sunday 11:59 p.m., Eastern Time.", effectiveValue: "Monday–Sunday" },
   { key: "statement_issue_day", label: "Statement issue day", state: "locked", summary: "Statement issued Monday.", effectiveValue: "Monday" },

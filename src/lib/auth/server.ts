@@ -65,7 +65,7 @@ async function consumePendingInvitation(user: User): Promise<AppRole | null> {
   const now = new Date().toISOString();
   const { data: invitation } = await admin
     .from("user_invitations")
-    .select("id,business_id,location_id,intended_role,expires_at")
+    .select("id,business_id,location_id,intended_role,expires_at,barber_profile_id")
     .eq("email", email)
     .eq("status", "pending")
     .gt("expires_at", now)
@@ -106,6 +106,15 @@ async function consumePendingInvitation(user: User): Promise<AppRole | null> {
       active: true,
     }, { onConflict: "user_id" });
     if (staffError) throw staffError;
+
+    if (intendedRole === "barber" && invitation.barber_profile_id) {
+      const { error: barberLinkError } = await admin
+        .from("barber_profiles")
+        .update({ staff_user_id: user.id })
+        .eq("id", invitation.barber_profile_id)
+        .eq("business_id", invitation.business_id);
+      if (barberLinkError) throw barberLinkError;
+    }
   }
 
   const { error: invitationError } = await admin.from("user_invitations").update({
@@ -119,7 +128,7 @@ async function consumePendingInvitation(user: User): Promise<AppRole | null> {
     user_id: user.id,
     event_type: "staff_invitation_accepted",
     outcome: "success",
-    metadata: { invitation_id: invitation.id, role: intendedRole },
+    metadata: { invitation_id: invitation.id, role: intendedRole, barber_profile_id: invitation.barber_profile_id ?? null },
   });
   return intendedRole;
 }

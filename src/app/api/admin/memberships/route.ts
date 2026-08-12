@@ -9,7 +9,7 @@ const createSchema = z.object({
   billingInterval: z.enum(["week", "month", "quarter", "year", "one_time"]),
   benefits: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
 });
-const patchSchema = z.object({ planId: z.string().uuid(), action: z.enum(["archive", "publish", "unpublish"]), reason: z.string().trim().min(3).max(500) });
+const patchSchema = z.object({ planId: z.string().uuid(), action: z.enum(["archive", "publish", "unpublish", "map_square"]), squareCatalogId: z.string().trim().max(255).nullable().optional(), reason: z.string().trim().min(3).max(500) });
 function slugify(value: string) { return value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 70); }
 
 export async function POST(request: NextRequest) {
@@ -37,6 +37,13 @@ export async function PATCH(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ ok: false, message: "A valid plan action and reason are required." }, { status: 400 });
   const { data: plan } = await context.admin.from("membership_plans").select("id,status,active,square_catalog_id").eq("business_id", context.businessId).eq("id", parsed.data.planId).maybeSingle();
   if (!plan?.id) return NextResponse.json({ ok: false, message: "Membership plan not found." }, { status: 404 });
+  if (parsed.data.action === "map_square") {
+    const squareCatalogId = parsed.data.squareCatalogId?.trim() || null;
+    const { error } = await context.admin.from("membership_plans").update({ square_catalog_id: squareCatalogId }).eq("id", plan.id).eq("business_id", context.businessId);
+    if (error) return NextResponse.json({ ok: false, message: "The Square membership mapping could not be saved." }, { status: 500 });
+    await context.admin.from("audit_logs").insert({ business_id: context.businessId, actor_user_id: context.session.user.id, action: "membership_plan_square_mapping_updated", resource_type: "membership_plan", resource_id: plan.id, before_data: { square_catalog_id: plan.square_catalog_id }, after_data: { square_catalog_id: squareCatalogId }, reason: parsed.data.reason, metadata: {} });
+    return NextResponse.json({ ok: true, squareCatalogId });
+  }
   if (parsed.data.action === "publish" && (!process.env.NEXT_PUBLIC_FEATURE_MEMBERSHIP_BILLING || process.env.NEXT_PUBLIC_FEATURE_MEMBERSHIP_BILLING !== "true" || !plan.square_catalog_id)) return NextResponse.json({ ok: false, message: "Connect the provider catalog and enable membership billing before publishing this plan." }, { status: 409 });
   const update = parsed.data.action === "archive" ? { active: false, status: "archived" } : parsed.data.action === "publish" ? { active: true, status: "published" } : { active: false, status: "draft" };
   const { error } = await context.admin.from("membership_plans").update(update).eq("id", plan.id).eq("business_id", context.businessId);

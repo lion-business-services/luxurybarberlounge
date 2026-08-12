@@ -1,20 +1,84 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
+import { addDays, dateInZone, weekdayForDate, zonedDateTimeToUtc } from "@/lib/booking/timezone";
+import { businessConfig } from "@/lib/config/business";
 
 const claimTypes = new Set(["pre_existing","personal_referral","referral_code","approved_lead","roster","late_claim"]);
 const evidenceTypes = new Set(["appointment_record","pos_record","booking_export","client_list","message_history","client_confirmation","other"]);
+
+type AdminClient = NonNullable<ReturnType<typeof createUntypedAdminSupabase>>;
+type ClaimRow = {
+  id: string;
+  barber_user_id: string;
+  client_email?: string | null;
+  client_phone?: string | null;
+  claim_type: string;
+  status: string;
+  requested_at: string;
+};
+
+async function loadIntegrityFlags(admin: AdminClient, businessId: string, claims: ClaimRow[]) {
+  const localDate = dateInZone(new Date(), businessConfig.timezone);
+  const weekday = weekdayForDate(localDate);
+  const daysBack = weekday === 0 ? 6 : weekday - 1;
+  const monday = addDays(localDate, -daysBack);
+  const startsAt = zonedDateTimeToUtc(monday, "00:00:00", businessConfig.timezone).toISOString();
+  const recentClaims = claims.filter((claim) => claim.claim_type === "pre_existing" && String(claim.requested_at ?? "") >= startsAt && claim.status !== "withdrawn");
+  const barberIds = [...new Set(recentClaims.map((claim) => String(claim.barber_user_id)).filter(Boolean))];
+  if (!barberIds.length) return [];
+
+  const [{ data: profiles }, { data: appointments }] = await Promise.all([
+    admin.from("barber_profiles").select("staff_user_id,display_name").eq("business_id", businessId).in("staff_user_id", barberIds),
+    admin.from("appointments").select("assigned_staff_user_id,client_id,starts_at,status").eq("business_id", businessId).in("assigned_staff_user_id", barberIds).gte("starts_at", startsAt).not("status", "in", "(cancelled_by_client,cancelled_by_business,declined,expired,failed)"),
+  ]);
+  const nameByBarber = new Map((profiles ?? []).map((profile) => [String(profile.staff_user_id), String(profile.display_name ?? "Barber")]));
+  const allClientIds = [...new Set((appointments ?? []).map((appointment) => String(appointment.client_id ?? "")).filter(Boolean))];
+  const { data: clientRows } = allClientIds.length
+    ? await admin.from("clients").select("id,created_at").eq("business_id", businessId).in("id", allClientIds)
+    : { data: [] };
+  const createdAtByClient = new Map((clientRows ?? []).map((client) => [String(client.id), String(client.created_at ?? "")]));
+
+  return barberIds.flatMap((barberUserId) => {
+    const claimsForBarber = recentClaims.filter((claim) => String(claim.barber_user_id) === barberUserId);
+    const uniqueClaims = new Set(claimsForBarber.map((claim) => String(claim.client_email ?? claim.client_phone ?? claim.id))).size;
+    const newClientIds = new Set(
+      (appointments ?? [])
+        .filter((appointment) => String(appointment.assigned_staff_user_id) === barberUserId)
+        .map((appointment) => String(appointment.client_id ?? ""))
+        .filter((clientId: string) => clientId && (createdAtByClient.get(clientId) ?? "") >= startsAt),
+    );
+    const newClients = newClientIds.size;
+    const ratio = newClients > 0 ? uniqueClaims / newClients : uniqueClaims > 0 ? 1 : 0;
+    if (ratio <= 0.4) return [];
+    return [{
+      barberUserId,
+      barberName: nameByBarber.get(barberUserId) ?? "Barber",
+      preExistingClaims: uniqueClaims,
+      newClients,
+      ratio,
+      threshold: 0.4,
+      settlementWeekStart: monday,
+    }];
+  });
+}
 
 export async function GET() {
   const session = await getServerAuthSession();
   if (!session.user || !session.roles.some((role) => ["barber","manager","owner","super_admin"].includes(role))) return NextResponse.json({ ok: false }, { status: 403 });
   const admin = createUntypedAdminSupabase();
   if (!admin) return NextResponse.json({ ok: true, live: false, claims: [] });
-  let query = admin.from("attribution_claims").select("id,barber_user_id,client_email,client_phone,claim_type,status,explanation,criteria,requested_at,policy_version").order("requested_at", { ascending: false }).limit(100);
-  if (session.roles.includes("barber") && !session.roles.some((role) => ["manager","owner","super_admin"].includes(role))) query = query.eq("barber_user_id", session.user.id);
+  let query = admin.from("attribution_claims").select("id,business_id,barber_user_id,client_email,client_phone,claim_type,status,explanation,criteria,requested_at,policy_version").order("requested_at", { ascending: false }).limit(100);
+  const administrative = session.roles.some((role) => ["manager","owner","super_admin"].includes(role));
+  if (session.roles.includes("barber") && !administrative) query = query.eq("barber_user_id", session.user.id);
   const { data, error } = await query;
   if (error) return NextResponse.json({ ok: false, message: "Claims could not be loaded." }, { status: 503 });
-  return NextResponse.json({ ok: true, live: true, claims: data ?? [] });
+  let integrityFlags: Awaited<ReturnType<typeof loadIntegrityFlags>> = [];
+  if (administrative) {
+    const { data: business } = await admin.from("businesses").select("id").eq("slug", businessConfig.slug).maybeSingle();
+    if (business?.id) integrityFlags = await loadIntegrityFlags(admin, String(business.id), data ?? []);
+  }
+  return NextResponse.json({ ok: true, live: true, claims: data ?? [], integrityFlags });
 }
 
 export async function POST(request: NextRequest) {

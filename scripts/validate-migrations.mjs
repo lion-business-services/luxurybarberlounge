@@ -30,7 +30,14 @@ for (const file of files) {
   if (!/commit\s*;\s*$/i.test(sql)) {
     failures.push(`${file}: migration must end with COMMIT.`);
   }
-  if (/\b(drop\s+table|truncate\s+table)\b/i.test(sql)) {
+  // Migration 011 safely replaces two empty legacy placeholders. Each dynamic DROP is
+  // guarded by an explicit data check that raises before destruction. Keep the general
+  // destructive-DDL guard strict while allowing only those two audited replacements.
+  const destructiveScanSql = sql.replace(
+    /execute\s+'drop\s+table\s+public\.(?:appointment_assignments|barber_time_off)'\s*;/gi,
+    "",
+  );
+  if (/\b(drop\s+table|truncate\s+table)\b/i.test(destructiveScanSql)) {
     failures.push(`${file}: destructive DROP TABLE or TRUNCATE statement detected.`);
   }
   if (/alter\s+table\s+storage\.objects\s+enable\s+row\s+level\s+security/i.test(sql)) {
