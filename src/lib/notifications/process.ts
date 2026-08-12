@@ -121,12 +121,30 @@ export async function processNotificationJobs(admin: AdminClient, options: Proce
         status: result.status,
         sanitized_response: { live: result.live },
       });
-      await admin.from("notification_jobs").update({ status: result.live ? "delivered" : "queued", last_error: result.live ? null : "Provider is in development mode." }).eq("id", job.id);
-      if (result.live && typeof payload.appointmentId === "string" && typeof payload.appointmentField === "string" && ["client_confirmation_status", "barber_notification_status"].includes(payload.appointmentField)) {
-        await admin.from("appointments").update({ [payload.appointmentField]: "sent" }).eq("id", payload.appointmentId);
+
+      if (result.live) {
+        await admin.from("notification_jobs").update({ status: "delivered", last_error: null }).eq("id", job.id);
+        if (typeof payload.appointmentId === "string" && typeof payload.appointmentField === "string" && ["client_confirmation_status", "barber_notification_status"].includes(payload.appointmentField)) {
+          await admin.from("appointments").update({ [payload.appointmentField]: "sent" }).eq("id", payload.appointmentId);
+        }
+        delivered += 1;
+      } else {
+        // A provider deliberately running in development mode will not become
+        // live by retrying the same job every few minutes. Suppress the stale
+        // job once, surface the reason in admin, and let future jobs deliver
+        // normally as soon as production provider credentials are configured.
+        await admin
+          .from("notification_jobs")
+          .update({
+            status: "suppressed",
+            last_error: "Provider is in development mode. Configure production provider credentials to enable this channel.",
+          })
+          .eq("id", job.id);
+        if (typeof payload.appointmentId === "string" && typeof payload.appointmentField === "string" && ["client_confirmation_status", "barber_notification_status"].includes(payload.appointmentField)) {
+          await admin.from("appointments").update({ [payload.appointmentField]: "suppressed" }).eq("id", payload.appointmentId);
+        }
+        development += 1;
       }
-      if (result.live) delivered += 1;
-      else development += 1;
     } catch (caught) {
       const attempt = Number(job.attempt_count ?? 0) + 1;
       const terminal = attempt >= Number(job.max_attempts ?? 4);
