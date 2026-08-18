@@ -20,7 +20,14 @@ export async function POST(request: Request) {
   const { data: existing } = await admin.from("webhook_events").select("id,processing_status").eq("provider", "square").eq("provider_event_id", event.event_id).maybeSingle();
   if (existing) return NextResponse.json({ accepted: true, duplicate: true });
 
+  const { data: business } = await admin
+    .from("businesses")
+    .select("id")
+    .eq("slug", "luxury-barber-lounge")
+    .maybeSingle();
+
   const { error } = await admin.from("webhook_events").insert({
+    business_id: business?.id ?? null,
     provider: "square",
     provider_event_id: event.event_id,
     event_type: event.type,
