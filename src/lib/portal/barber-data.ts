@@ -74,7 +74,7 @@ function emptyData(email: string | null = null): BarberPortalData {
       userId: null,
       profileId: null,
       slug: null,
-      name: email === "support@lbsprocess.com" ? "Barber Portal Test" : "Barber",
+      name: "Barber",
       title: "Independent Barber",
       email,
       portrait: null,
@@ -104,15 +104,17 @@ export async function loadBarberPortalData(): Promise<BarberPortalData> {
   const { data: business } = await admin.from("businesses").select("id").eq("slug", "luxury-barber-lounge").maybeSingle();
   if (!business?.id) return empty;
   const businessId = String(business.id);
-  const [{ data: staff }, { data: profile }] = await Promise.all([
+  const [{ data: staff }, { data: profile }, { data: accountProfile }] = await Promise.all([
     admin.from("staff_profiles").select("user_id,professional_title,location_id,active").eq("business_id", businessId).eq("user_id", session.user.id).maybeSingle(),
     admin.from("barber_profiles").select("id,slug,display_name,professional_title,staff_user_id,accepting_walk_ins,availability_status,active,status").eq("business_id", businessId).eq("staff_user_id", session.user.id).maybeSingle(),
+    admin.from("profiles").select("full_name,display_name").eq("id", session.user.id).maybeSingle(),
   ]);
 
   const profileId = profile?.id ? String(profile.id) : null;
   const slug = text(profile?.slug);
   const publicProfile = slug ? publicBarbers.find((item) => item.slug === slug) : null;
-  const barberName = profile ? localizedName(profile.display_name, publicProfile?.name ?? "Barber") : email === "support@lbsprocess.com" ? "Barber Portal Test" : "Barber";
+  const accountName = text(accountProfile?.display_name) ?? text(accountProfile?.full_name) ?? "Barber";
+  const barberName = profile ? localizedName(profile.display_name, publicProfile?.name ?? accountName) : accountName;
   const title = profile ? localizedName(profile.professional_title, text(staff?.professional_title) ?? "Independent Barber") : text(staff?.professional_title) ?? "Independent Barber";
 
   const appointmentQuery = admin
@@ -191,7 +193,6 @@ export async function loadBarberPortalData(): Promise<BarberPortalData> {
   const latest = statements[0];
   const periodJoin = latest?.settlement_periods;
   const period = (Array.isArray(periodJoin) ? periodJoin[0] : periodJoin) as Record<string, unknown> | undefined;
-
 
   return {
     configured: true,
