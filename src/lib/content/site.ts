@@ -27,7 +27,7 @@ export const business = {
   email: "info@theluxurybarberlounge.com",
   statementsEmail: "info@theluxurybarberlounge.com",
   domain: "https://www.theluxurybarberlounge.com",
-  mapsUrl: "https://www.google.com/maps/search/?api=1&query=801+Tilton+Road+Suite+106+Northfield+NJ+08225",
+  mapsUrl: "https://maps.app.goo.gl/JpLgr89PxyVQzSsx7",
   googleBusinessUrl: "https://share.google/hDyTg77M6c4LdIX3o",
   instagram: "https://instagram.com/luxury_barberlounge",
   instagramHandle: "@luxury_barberlounge",
