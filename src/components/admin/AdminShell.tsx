@@ -55,13 +55,20 @@ const groups: Group[] = [
       { label: "Commissions", href: "/admin/commissions", icon: CircleDollarSign, ownerOnly: true },
     ],
   },
-  {
-    label: "Systems",
-    items: [
-      { label: "Automations", href: "/admin/automations", icon: WandSparkles, ownerOnly: true },
-      { label: "Integrations", href: "/admin/integrations", icon: PlugZap, ownerOnly: true },
-    ],
-  },
+  // "Systems" (Automations / Integrations) is operator tooling, not business
+  // owner surface. The routes remain reachable by direct URL for support work,
+  // but they are removed from the owner navigation.
+  ...(process.env.NEXT_PUBLIC_SHOW_SYSTEM_TOOLS === "true"
+    ? [
+        {
+          label: "Systems",
+          items: [
+            { label: "Automations", href: "/admin/automations", icon: WandSparkles, ownerOnly: true },
+            { label: "Integrations", href: "/admin/integrations", icon: PlugZap, ownerOnly: true },
+          ],
+        },
+      ]
+    : []),
 ];
 
 function active(pathname: string, href: string) {

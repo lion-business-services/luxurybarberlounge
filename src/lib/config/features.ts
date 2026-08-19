@@ -14,9 +14,13 @@ function enabled(value: string | undefined, fallback = false) {
  * while the seller's Square Appointments roster is still being completed.
  */
 export const features = {
-  liveSquare: enabled(process.env.NEXT_PUBLIC_FEATURE_LIVE_SQUARE),
+  // Square is live in production (payments, orders, webhooks, catalog and team
+  // sync all confirmed healthy). Defaulting this to false was gating the
+  // commission engine behind an env var that was never set in Vercel, so every
+  // statement request returned 409 before it looked at any data.
+  liveSquare: enabled(process.env.NEXT_PUBLIC_FEATURE_LIVE_SQUARE, true),
   squareBookings: enabled(process.env.NEXT_PUBLIC_FEATURE_SQUARE_BOOKINGS),
-  walkInQueue: enabled(process.env.NEXT_PUBLIC_FEATURE_WALK_IN_QUEUE),
+  walkInQueue: enabled(process.env.NEXT_PUBLIC_FEATURE_WALK_IN_QUEUE, true),
   kiosk: enabled(process.env.NEXT_PUBLIC_FEATURE_KIOSK),
   memberships: enabled(process.env.NEXT_PUBLIC_FEATURE_MEMBERSHIPS, true),
   membershipBilling: enabled(process.env.NEXT_PUBLIC_FEATURE_MEMBERSHIP_BILLING),
