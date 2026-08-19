@@ -78,7 +78,61 @@ export async function GET() {
     const { data: business } = await admin.from("businesses").select("id").eq("slug", businessConfig.slug).maybeSingle();
     if (business?.id) integrityFlags = await loadIntegrityFlags(admin, String(business.id), data ?? []);
   }
-  return NextResponse.json({ ok: true, live: true, claims: data ?? [], integrityFlags });
+  // Supply the barber's real clients so a claim is chosen from a list rather
+  // than typed from memory. Clients who declared themselves NEW are returned
+  // with claimable:false so the UI can disable them and state why - the
+  // database trigger still refuses them regardless of what the UI does.
+  let claimableClients: Array<{
+    clientId: string; name: string; email: string | null; phone: string | null;
+    lastVisit: string | null; declaredStatus: string | null; claimable: boolean; reason: string | null;
+    barberName: string | null;
+  }> = [];
+  try {
+    const { data: business } = await admin.from("businesses").select("id").eq("slug", businessConfig.slug).maybeSingle();
+    if (business?.id) {
+      // A supervisor/test identity may review every barber's clients.
+      const { data: me } = await admin
+        .from("barber_profiles")
+        .select("can_claim_for_any_barber,staff_user_id")
+        .eq("staff_user_id", session.user.id)
+        .eq("business_id", business.id)
+        .maybeSingle();
+      const seesEveryone = administrative || me?.can_claim_for_any_barber === true;
+
+      let apptQuery = admin
+        .from("appointments")
+        .select("client_id,client_name_snapshot,client_email_snapshot,client_phone_snapshot,starts_at,client_declared_status,assigned_staff_user_id,barber_name_snapshot,status")
+        .eq("business_id", business.id)
+        .not("status", "in", "(cancelled_by_client,cancelled_by_business,declined,expired,failed)")
+        .order("starts_at", { ascending: false })
+        .limit(200);
+      if (!seesEveryone) apptQuery = apptQuery.eq("assigned_staff_user_id", session.user.id);
+      const { data: appts } = await apptQuery;
+
+      const seen = new Set<string>();
+      claimableClients = (appts ?? []).flatMap((a) => {
+        const key = String(a.client_id ?? a.client_email_snapshot ?? "");
+        if (!key || seen.has(key)) return [];
+        seen.add(key);
+        const isNew = a.client_declared_status === "new";
+        return [{
+          clientId: String(a.client_id ?? ""),
+          name: String(a.client_name_snapshot ?? "Client"),
+          email: a.client_email_snapshot ? String(a.client_email_snapshot) : null,
+          phone: a.client_phone_snapshot ? String(a.client_phone_snapshot) : null,
+          lastVisit: a.starts_at ? String(a.starts_at) : null,
+          declaredStatus: a.client_declared_status ? String(a.client_declared_status) : null,
+          claimable: !isNew,
+          reason: isNew ? "Declared themselves a NEW client at booking - shop-generated, cannot be claimed." : null,
+          barberName: a.barber_name_snapshot ? String(a.barber_name_snapshot) : null,
+        }];
+      });
+    }
+  } catch {
+    claimableClients = [];
+  }
+
+  return NextResponse.json({ ok: true, live: true, claims: data ?? [], integrityFlags, claimableClients });
 }
 
 export async function POST(request: NextRequest) {

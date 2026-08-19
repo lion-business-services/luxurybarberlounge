@@ -15,11 +15,23 @@ type Claim = {
 
 type ClaimsResponse = {
   claims?: Claim[];
+  claimableClients?: Array<{
+    clientId: string; name: string; email: string | null; phone: string | null;
+    lastVisit: string | null; declaredStatus: string | null; claimable: boolean;
+    reason: string | null; barberName: string | null;
+  }>;
   message?: string;
 };
 
 export function BarberAttributionPanel() {
   const [claims, setClaims] = useState<Claim[]>([]);
+  type ClaimableClient = {
+    clientId: string; name: string; email: string | null; phone: string | null;
+    lastVisit: string | null; declaredStatus: string | null; claimable: boolean;
+    reason: string | null; barberName: string | null;
+  };
+  const [clientOptions, setClientOptions] = useState<ClaimableClient[]>([]);
+  const [selectedClient, setSelectedClient] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -35,6 +47,7 @@ export function BarberAttributionPanel() {
     }
 
     setClaims(result.claims ?? []);
+    setClientOptions(result.claimableClients ?? []);
   }, []);
 
   useEffect(() => {
@@ -49,6 +62,7 @@ export function BarberAttributionPanel() {
         if (!response.ok) {
           throw new Error(result.message ?? "Claims could not be loaded.");
         }
+        setClientOptions(result.claimableClients ?? []);
         return result.claims ?? [];
       })
       .then(setClaims)
@@ -133,13 +147,53 @@ export function BarberAttributionPanel() {
             </select>
           </label>
           <label>
-            <span className="form-label">Client email</span>
-            <input name="clientEmail" type="email" className="form-control" />
+            <span className="form-label">Client</span>
+            <select
+              className="form-control"
+              value={selectedClient}
+              onChange={(event) => setSelectedClient(event.target.value)}
+              required
+            >
+              <option value="">Select a client…</option>
+              {clientOptions.map((client) => (
+                <option
+                  key={client.clientId || client.email || client.name}
+                  value={client.clientId}
+                  disabled={!client.claimable}
+                >
+                  {client.name}
+                  {client.barberName ? ` · ${client.barberName}` : ""}
+                  {client.claimable ? "" : "  — NEW CLIENT, cannot be claimed"}
+                </option>
+              ))}
+            </select>
           </label>
-          <label>
-            <span className="form-label">Client phone</span>
-            <input name="clientPhone" className="form-control" />
-          </label>
+          {(() => {
+            const chosen = clientOptions.find((client) => client.clientId === selectedClient);
+            if (!chosen) {
+              return (
+                <p className="text-xs text-[var(--color-bone-muted)]">
+                  Clients who declared themselves new at booking are shop-generated and appear greyed out.
+                </p>
+              );
+            }
+            return (
+              <>
+                <input type="hidden" name="clientEmail" value={chosen.email ?? ""} />
+                <input type="hidden" name="clientPhone" value={chosen.phone ?? ""} />
+                {chosen.reason ? (
+                  <p className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-3 text-xs text-amber-100">
+                    {chosen.reason}
+                  </p>
+                ) : (
+                  <p className="text-xs text-[var(--color-bone-muted)]">
+                    {chosen.email ?? chosen.phone ?? "No contact on file"}
+                    {chosen.lastVisit ? ` · last visit ${new Date(chosen.lastVisit).toLocaleDateString()}` : ""}
+                  </p>
+                )}
+              </>
+            );
+          })()}
           <label>
             <span className="form-label">Prior service date</span>
             <input name="priorServiceDate" type="date" className="form-control" />

@@ -13,7 +13,19 @@ export async function GET() {
   let statements = admin.from("settlement_statements").select("id,business_id,settlement_period_id,barber_user_id,gross_basis_cents,tips_cents,adjustments_cents,refunds_cents,final_amount_cents,status,statement_snapshot,published_at,paid_at,created_at").order("created_at", { ascending: false }).limit(100);
   let calculations = admin.from("commission_calculations").select("id,barber_user_id,settlement_period_id,square_payment_id,attribution_type,attribution_source,gross_service_cents,discount_cents,tip_cents,eligible_basis_cents,barber_rate,barber_amount_cents,shop_amount_cents,status,calculated_at,locked_at").order("calculated_at", { ascending: false }).limit(300);
   let disputes = admin.from("commission_disputes").select("id,calculation_id,barber_user_id,reason_code,explanation,status,submitted_at,due_at,resolved_at,resolution_reason,created_at").order("created_at", { ascending: false }).limit(100);
-  if (!administrative) { statements = statements.eq("barber_user_id", session.user.id); calculations = calculations.eq("barber_user_id", session.user.id); disputes = disputes.eq("barber_user_id", session.user.id); }
+  // A designated test/supervisor barber identity sees every barber's figures,
+  // so the portal can be demonstrated and verified without logging in as each
+  // real barber. Real barbers remain scoped strictly to their own rows.
+  let seesAllBarbers = administrative;
+  if (!administrative) {
+    const { data: me } = await admin
+      .from("barber_profiles")
+      .select("can_claim_for_any_barber")
+      .eq("staff_user_id", session.user.id)
+      .maybeSingle();
+    if (me?.can_claim_for_any_barber === true) seesAllBarbers = true;
+  }
+  if (!seesAllBarbers) { statements = statements.eq("barber_user_id", session.user.id); calculations = calculations.eq("barber_user_id", session.user.id); disputes = disputes.eq("barber_user_id", session.user.id); }
   const [statementResult, calculationResult, disputeResult] = await Promise.all([statements, calculations, disputes]);
   if (statementResult.error || calculationResult.error || disputeResult.error) return NextResponse.json({ ok: false, message: "Statement records could not be loaded." }, { status: 503 });
 
@@ -85,6 +97,26 @@ export async function POST(request: NextRequest) {
     // appeared empty. Reconciliation is safe to run regardless: it reads
     // confirmed Square payments and writes only calculated rows.
     try {
+      // Pull the freshest Square data before calculating, so "Update Amounts"
+      // always reflects current reality instead of waiting for the 10-minute
+      // sync cron. A sync failure must not block reconciliation of data that
+      // has already landed.
+      try {
+        const { syncSquareFoundation } = await import("@/lib/integrations/syncSquareFoundation");
+        await syncSquareFoundation();
+      } catch {
+        // Non-fatal: reconcile against whatever is already synced.
+      }
+      try {
+        // Pull any Square order referenced by a payment but not yet stored.
+        // This previously ran only in the cron, so a booking paid moments
+        // before pressing Update Amounts had no order to calculate against
+        // and was silently skipped as ORDER_NOT_SYNCED.
+        const { backfillMissingSquareOrders } = await import("@/lib/integrations/backfillSquareOrders");
+        await backfillMissingSquareOrders();
+      } catch {
+        // Non-fatal.
+      }
       const result = await reconcileCommissions();
       return NextResponse.json({ ok: true, result });
     } catch (error) {
