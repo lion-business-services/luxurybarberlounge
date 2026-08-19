@@ -291,7 +291,7 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
               <thead><tr><th>Barber</th><th>Commission basis</th><th>Tips</th><th>Adjustments</th><th>Final amount</th><th>Status</th></tr></thead>
               <tbody>
                 {latestStatementsByBarber.map((statement) => <tr key={statement.id}><td>{statement.barber_name ?? "Unlinked barber"}</td><td>{money(statement.gross_basis_cents)}</td><td>{money(statement.tips_cents)}</td><td>{money(statement.adjustments_cents)}</td><td><strong>{money(statement.final_amount_cents)}</strong></td><td>{statement.status}</td></tr>)}
-                {!latestStatementsByBarber.length ? <tr><td colSpan={6}>No barber statements yet. Press Update Amounts to generate this week\u2019s pay.</td></tr> : null}
+                {!latestStatementsByBarber.length ? <tr><td colSpan={6}>No barber statements yet. Press Update Amounts to generate this week's pay.</td></tr> : null}
               </tbody>
             </table>
           </div>

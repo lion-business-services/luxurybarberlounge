@@ -267,7 +267,11 @@ export async function reconcileCommissions(limit = 100) {
     if (!order?.id) { await exception(admin, run.id, businessId, payment.square_id, "ORDER_NOT_SYNCED", "The related Square order has not been synchronized."); exceptions += 1; continue; }
 
     const modern = await resolveModernAppointment(admin, businessId, order, payment);
-    if (modern.deposit) { depositsSkipped += 1; skipped += 1; continue; }
+    // A deposit is a genuine part-payment for the service, taken up front. It
+    // was previously skipped entirely, which meant a website booking - the one
+    // case where the barber is always known - produced no commission at all.
+    // Skip only when we cannot tie the deposit to an appointment.
+    if (modern.deposit && !modern.appointment) { depositsSkipped += 1; skipped += 1; continue; }
 
     let source: {
       barberUserId: string | null;

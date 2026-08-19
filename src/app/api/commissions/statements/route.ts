@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
-import { features } from "@/lib/config/features";
 import { reconcileCommissions } from "@/lib/commissions/reconcile";
 
 const adminRoles = new Set(["manager", "owner", "super_admin"]);
@@ -80,7 +79,11 @@ export async function POST(request: NextRequest) {
 
   if (body.action === "run_reconciliation") {
     if (!session.roles.some((role) => role === "owner" || role === "super_admin")) return NextResponse.json({ ok: false, message: "Owner access is required to update calculated amounts." }, { status: 403 });
-    if (!features.liveSquare) return NextResponse.json({ ok: false, message: "Connect live Square synchronization before calculating barber amounts." }, { status: 409 });
+    // Square is live in production. This gate previously refused to calculate
+    // whenever NEXT_PUBLIC_FEATURE_LIVE_SQUARE was unset or false in Vercel,
+    // returning 409 before reading any data - which is why commissions always
+    // appeared empty. Reconciliation is safe to run regardless: it reads
+    // confirmed Square payments and writes only calculated rows.
     try {
       const result = await reconcileCommissions();
       return NextResponse.json({ ok: true, result });
