@@ -445,9 +445,19 @@ async function syncPayment(
         // deposit was outstanding. Now that it has settled, send them.
         if (promoted) {
           try {
-            const { queueBookingNotifications } = await import(
-              "@/lib/booking/notifications"
-            );
+            const [{ queueBookingNotifications }, { randomBytes, createHash }] =
+              await Promise.all([
+                import("@/lib/booking/notifications"),
+                import("node:crypto"),
+              ]);
+            // Single-purpose token for the "Pay balance now" email link. Stored
+            // in its own column so it never invalidates the manage token the
+            // client is already holding in their browser.
+            const balanceToken = randomBytes(32).toString("hex");
+            await admin
+              .from("appointments")
+              .update({ balance_token_hash: createHash("sha256").update(balanceToken).digest("hex") })
+              .eq("id", promoted.id);
             // NEVER rotate manage_token_hash here. The client is holding the
             // original token in their browser URL; rotating it 404s the page
             // they are actively looking at. Only the hash is stored, so the
@@ -455,7 +465,7 @@ async function syncPayment(
             // client portal link instead.
             await queueBookingNotifications(
               admin,
-              { ...promoted, deposit_status: "paid" },
+              { ...promoted, deposit_status: "paid", balance_token: balanceToken },
               "",
             );
             // Send now instead of waiting for the 5-minute notification cron.
