@@ -15,7 +15,7 @@ export type ContentStatus = "confirmed" | "curated-placeholder" | "integration-r
 export const business = {
   name: "Luxury Barber Lounge",
   legalName: "Luxury Barber Lounge, LLC",
-  street: "801 Tilton Road, Suite 106",
+  street: "801 Tilton Road, Suite 106A",
   city: "Northfield",
   state: "NJ",
   postalCode: "08225",
@@ -47,8 +47,8 @@ export const business = {
     es: "Una barbería de lujo en Northfield, Nueva Jersey, con cortes de precisión, fades, barba, rituales de toalla caliente y atención personalizada.",
   },
   parking: {
-    en: "On-site parking is available near Suite 106.",
-    es: "Hay estacionamiento en el lugar cerca de la Suite 106.",
+    en: "On-site parking is available near Suite 106A.",
+    es: "Hay estacionamiento en el lugar cerca de la Suite 106A.",
   },
   grandOpening: {
     date: "2026-08-04",
@@ -721,7 +721,7 @@ export const copy = {
   visit: {
     eyebrow: { en: "Northfield, New Jersey", es: "Northfield, Nueva Jersey" },
     title: { en: "Visit the Lounge", es: "Visita el Salón" },
-    lead: { en: "Suite 106 on Tilton Road, with complimentary parking directly outside.", es: "Suite 106 en Tilton Road, con estacionamiento gratuito justo afuera." },
+    lead: { en: "Suite 106A on Tilton Road, with complimentary parking directly outside.", es: "Suite 106A en Tilton Road, con estacionamiento gratuito justo afuera." },
     hoursTitle: { en: "Hours", es: "Horario" },
     findTitle: { en: "Getting here", es: "Cómo llegar" },
     parking: business.parking,

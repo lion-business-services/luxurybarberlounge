@@ -17,7 +17,7 @@ const names = [
 test("canonical business details and hours match the completed intake", () => {
   assert.equal(business.phone, "(609) 384-5171");
   assert.equal(business.email, "info@theluxurybarberlounge.com");
-  assert.equal(business.street, "801 Tilton Road, Suite 106");
+  assert.equal(business.street, "801 Tilton Road, Suite 106A");
   assert.equal(business.city, "Northfield");
   assert.equal(business.timezone, "America/New_York");
   assert.deepEqual(hours.map(({ weekday, open, close, closed }) => [weekday, open, close, Boolean(closed)]), [

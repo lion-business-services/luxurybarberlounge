@@ -85,7 +85,7 @@ export const experienceCopy = {
   },
   visit: {
     kicker: { en: "Visit the lounge", es: "Visita el salón" },
-    title: { en: "Suite 106, off Tilton Road.", es: "Suite 106, sobre Tilton Road." },
+    title: { en: "Suite 106A, off Tilton Road.", es: "Suite 106A, sobre Tilton Road." },
     body: { en: "Park at the door and walk straight in.", es: "Estaciónate en la puerta y entra directo." },
     call: { en: "Call the lounge", es: "Llama al salón" },
     directions: { en: "Get directions", es: "Cómo llegar" },

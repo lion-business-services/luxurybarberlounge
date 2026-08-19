@@ -431,6 +431,13 @@ async function syncPayment(
       await admin.from("appointment_payment_links").update({ status: "paid", paid_at: text(payment.updated_at) ?? text(payment.created_at) ?? new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", checkoutLink.id);
       if (checkoutLink.purpose === "deposit") {
         await admin.from("appointments").update({ deposit_status: "paid" }).eq("id", checkoutLink.appointment_id).neq("deposit_status", "refunded");
+        // Deposit settled -> promote the held booking to confirmed.
+        // Scoped to pending_confirmation so cancelled/completed rows are never resurrected.
+        await admin
+          .from("appointments")
+          .update({ status: "confirmed" })
+          .eq("id", checkoutLink.appointment_id)
+          .eq("status", "pending_confirmation");
       }
     } else if (checkoutLink?.id && ["CANCELED", "FAILED"].includes(paymentStatus ?? "")) {
       await admin.from("appointment_payment_links").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", checkoutLink.id).neq("status", "paid");

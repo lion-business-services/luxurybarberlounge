@@ -9,6 +9,7 @@ type Appointment = {
   id: string;
   public_reference: string;
   client_name_snapshot: string;
+  client_declared_status?: "new" | "existing" | "unsure" | null;
   client_email_snapshot: string | null;
   client_phone_snapshot: string | null;
   service_name_snapshot: string;
@@ -114,7 +115,7 @@ export function AdminAppointmentsWorkspace() {
 
     <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,.75fr)]">
       <div className={styles.card}>
-        {visible.length ? <div className="grid gap-2">{visible.map((item) => <button type="button" key={item.id} onClick={() => { setSelected(item); setMessage(""); }} className={`grid w-full gap-3 rounded-xl border p-4 text-left transition sm:grid-cols-[150px_1fr_auto] sm:items-center ${selected?.id === item.id ? "border-[var(--color-brass)] bg-[var(--color-brass)]/10" : "border-[var(--color-ink-line)] hover:border-[var(--color-brass)]/50"}`}><div><p className="text-xs text-[var(--color-bone)]">{dateTime(item.starts_at, item.timezone)}</p><p className="mt-1 text-[9px] tracking-[.12em] uppercase text-[var(--color-bone-muted)]">{item.public_reference}</p></div><div><strong className="text-sm">{item.client_name_snapshot}</strong><p className="mt-1 text-xs text-[var(--color-bone-muted)]">{item.service_name_snapshot} · {item.barber_name_snapshot}</p></div><Status value={item.status} /></button>)}</div> : <div className={styles.empty}>No appointments match this view.</div>}
+        {visible.length ? <div className="grid gap-2">{visible.map((item) => <button type="button" key={item.id} onClick={() => { setSelected(item); setMessage(""); }} className={`grid w-full gap-3 rounded-xl border p-4 text-left transition sm:grid-cols-[150px_1fr_auto] sm:items-center ${selected?.id === item.id ? "border-[var(--color-brass)] bg-[var(--color-brass)]/10" : "border-[var(--color-ink-line)] hover:border-[var(--color-brass)]/50"}`}><div><p className="text-xs text-[var(--color-bone)]">{dateTime(item.starts_at, item.timezone)}</p><p className="mt-1 text-[9px] tracking-[.12em] uppercase text-[var(--color-bone-muted)]">{item.public_reference}</p></div><div><strong className="text-sm">{item.client_name_snapshot}</strong><p className="mt-1 text-xs text-[var(--color-bone-muted)]">{item.service_name_snapshot} · {item.barber_name_snapshot}</p></div><div className="flex flex-col items-end gap-2"><Status value={item.status} /><ClientOrigin value={item.client_declared_status} /></div></button>)}</div> : <div className={styles.empty}>No appointments match this view.</div>}
       </div>
       <aside className={styles.card}>{selected ? <AppointmentDetail item={selected} barbers={payload.barbers} busy={busy} message={message} onAction={act} /> : <div className="grid min-h-64 place-items-center text-center"><div><Clock3 className="mx-auto h-7 w-7 text-[var(--color-brass)]" /><h2 className="font-display mt-4 text-2xl">Choose an appointment</h2><p className="mt-2 text-xs leading-5 text-[var(--color-bone-muted)]">Details and daily actions appear here.</p></div></div>}</aside>
     </section>
@@ -126,7 +127,7 @@ function AppointmentDetail({ item, barbers, busy, message, onAction }: { item: A
   const [newTime, setNewTime] = useState(new Date(item.starts_at).toISOString().slice(0, 16));
   const [note, setNote] = useState("");
   return <div>
-    <div className="flex items-start justify-between gap-4"><div><p className="text-[9px] tracking-[.18em] uppercase text-[var(--color-brass)]">{item.public_reference}</p><h2 className="font-display mt-2 text-3xl">{item.client_name_snapshot}</h2><p className="mt-2 text-sm text-[var(--color-bone-muted)]">{item.service_name_snapshot} with {item.barber_name_snapshot}</p></div><Status value={item.status} /></div>
+    <div className="flex items-start justify-between gap-4"><div><p className="text-[9px] tracking-[.18em] uppercase text-[var(--color-brass)]">{item.public_reference}</p><h2 className="font-display mt-2 text-3xl">{item.client_name_snapshot}</h2><p className="mt-2 text-sm text-[var(--color-bone-muted)]">{item.service_name_snapshot} with {item.barber_name_snapshot}</p></div><div className="flex flex-col items-end gap-2"><Status value={item.status} /><ClientOrigin value={item.client_declared_status} /></div></div>
     <dl className="mt-6 grid gap-4 sm:grid-cols-2"><Field label="Date" value={dateTime(item.starts_at, item.timezone)} /><Field label="Duration" value={`${item.service_duration_snapshot_minutes} minutes`} /><Field label="Phone" value={item.client_phone_snapshot || "Not provided"} /><Field label="Email" value={item.client_email_snapshot || "Not provided"} /><Field label="Price" value={money(item.service_price_snapshot_cents)} /><Field label="Deposit" value={`${pretty(item.deposit_status)}${item.deposit_required_cents ? ` · ${money(item.deposit_required_cents)}` : ""}`} /></dl>
     {item.client_notes ? <div className="mt-5 rounded-xl border border-[var(--color-ink-line)] p-4"><p className="text-[9px] tracking-[.15em] uppercase text-[var(--color-brass)]">Client note</p><p className="mt-2 text-sm leading-6 text-[var(--color-bone-muted)]">{item.client_notes}</p></div> : null}
     <div className="mt-6 grid gap-2 sm:grid-cols-2"><Action label="Confirm" icon={Check} disabled={busy !== null || item.status === "confirmed"} onClick={() => onAction("confirm")} /><Action label="Check in" icon={UserRoundCheck} disabled={busy !== null || item.status !== "confirmed"} onClick={() => onAction("check_in")} /><Action label="Start service" disabled={busy !== null || !["checked_in", "assigned"].includes(item.status)} onClick={() => onAction("in_service")} /><Action label="Complete" disabled={busy !== null || item.status !== "in_service"} onClick={() => onAction("complete")} /><Action label="No show" disabled={busy !== null || !["confirmed", "checked_in", "assigned"].includes(item.status)} onClick={() => onAction("no_show")} /><Action label="Cancel" icon={X} disabled={busy !== null || ["completed", "cancelled_by_client", "cancelled_by_business", "no_show"].includes(item.status)} onClick={() => onAction("cancel")} /></div>
@@ -140,6 +141,43 @@ function AppointmentDetail({ item, barbers, busy, message, onAction }: { item: A
 
 function Action({ label, icon: Icon, disabled, onClick }: { label: string; icon?: LucideIcon; disabled: boolean; onClick: () => void }) { return <button type="button" disabled={disabled} onClick={onClick} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--color-ink-line)] px-4 text-[9px] tracking-[.14em] uppercase disabled:opacity-35">{Icon ? <Icon className="h-4 w-4" /> : null}{label}</button>; }
 function Metric({ label, value }: { label: string; value: number }) { return <article className={styles.metric}><p className="text-[8px] tracking-[.16em] uppercase text-[var(--color-bone-muted)]">{label}</p><p className={styles.metricValue}>{value}</p></article>; }
+
+function ClientOrigin({ value }: { value?: string | null }) {
+  const map: Record<string, { label: string; cls: string; hint: string }> = {
+    new: {
+      label: "NEW CLIENT",
+      cls: "border-emerald-400/50 bg-emerald-400/10 text-emerald-300",
+      hint: "Shop-generated \u00b7 70/30 \u00b7 barber claim blocked",
+    },
+    existing: {
+      label: "CLAIMS EXISTING",
+      cls: "border-amber-400/50 bg-amber-400/10 text-amber-300",
+      hint: "Unverified claim \u00b7 defaults to SHOP until proven",
+    },
+    unsure: {
+      label: "UNSURE",
+      cls: "border-slate-400/40 bg-slate-400/10 text-slate-300",
+      hint: "Defaults to SHOP attribution",
+    },
+  };
+  const entry = value ? map[value] : undefined;
+  if (!entry) {
+    return (
+      <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[9px] tracking-[.14em] text-[var(--color-bone-muted)]">
+        NOT RECORDED
+      </span>
+    );
+  }
+  return (
+    <span
+      title={entry.hint}
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[9px] tracking-[.14em] ${entry.cls}`}
+    >
+      {entry.label}
+    </span>
+  );
+}
+
 function Status({ value }: { value: string }) { return <span className="w-fit rounded-full bg-[var(--color-brass)]/10 px-3 py-2 text-[8px] tracking-[.12em] uppercase text-[var(--color-brass)]">{pretty(value)}</span>; }
 function Field({ label, value }: { label: string; value: string }) { return <div><dt className="text-[8px] tracking-[.15em] uppercase text-[var(--color-bone-muted)]">{label}</dt><dd className="mt-1 break-words text-sm">{value}</dd></div>; }
 function pretty(value: string) { return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }

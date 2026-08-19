@@ -686,7 +686,10 @@ export async function POST(request: NextRequest) {
       timezone:
         catalog.location.timezone,
 
-      status: "confirmed",
+      status:
+        service.depositCents > 0
+          ? "pending_confirmation"
+          : "confirmed",
 
       booking_source: input.source,
       campaign_source:
@@ -785,6 +788,125 @@ export async function POST(request: NextRequest) {
       Array.isArray(appointment)
         ? appointment[0]
         : appointment;
+
+    // ------------------------------------------------------------------
+    // ATTRIBUTION CHAIN
+    // The client's new/existing declaration is recorded immutably against
+    // THIS appointment. Previously it was written to clients.metadata and
+    // overwritten on every subsequent booking, destroying the evidence the
+    // commission split depends on.
+    //
+    // declared "no"  -> new client      -> SHOP attribution (70/30)
+    // declared "yes" -> claims existing -> still SHOP by default; the barber
+    //                   must prove it via the dispute window. Burden of proof
+    //                   sits with the barber, per the locked policy.
+    // ------------------------------------------------------------------
+    const declaredStatus =
+      input.existingClient === "yes"
+        ? "existing"
+        : input.existingClient === "no"
+          ? "new"
+          : "unsure";
+
+    await admin
+      .from("appointments")
+      .update({ client_declared_status: declaredStatus })
+      .eq("id", record.id);
+
+    try {
+      const { data: metaRow } = await admin
+        .from("booking_metadata")
+        .upsert(
+          {
+            business_id: business.id,
+            appointment_id: record.id,
+            client_user_id: session.user?.id ?? null,
+            location_id: catalog.location.id,
+            source: input.source,
+            preferred_language: input.preferredLanguage,
+            policy_version: input.policyVersion,
+            deposit_status:
+              service.depositCents > 0 ? "pending" : "not_required",
+            reference_code: record.public_reference,
+            service_snapshot: {
+              id: service.id,
+              slug: service.slug,
+              name: service.name,
+              priceCents: service.priceCents,
+              depositCents: service.depositCents,
+            },
+            addon_snapshot: addons.map((a) => ({
+              id: a.id,
+              slug: a.slug,
+              priceCents: a.priceCents,
+            })),
+            metadata: {
+              declared_status: declaredStatus,
+              barber_requested: !input.firstAvailable,
+              barber_id: barber.id,
+            },
+          },
+          { onConflict: "appointment_id" },
+        )
+        .select("id")
+        .single();
+
+      if (metaRow?.id) {
+        // Default attribution is always SHOP. A "yes" answer is a claim, not
+        // proof — it never auto-grants the barber 100%.
+        await admin.from("booking_attributions").insert({
+          booking_metadata_id: metaRow.id,
+          attribution_type: "shop",
+          source:
+            input.campaignSource ??
+            input.referralSource ??
+            input.source ??
+            "website",
+          client_response: {
+            existing_client: input.existingClient,
+            declared_status: declaredStatus,
+          },
+          referral_code: input.referralSource ?? null,
+          evidence: {
+            capturedAt: new Date().toISOString(),
+            channel: "website_booking_form",
+            pageUrl: input.pageUrl ?? null,
+            campaign: {
+              source: input.campaignSource ?? null,
+              medium: input.campaignMedium ?? null,
+              name: input.campaignName ?? null,
+            },
+            barberSelected: !input.firstAvailable,
+          },
+          // A self-declared "existing" is low confidence until a barber
+          // substantiates it through the dispute workflow.
+          confidence:
+            declaredStatus === "new"
+              ? "high"
+              : declaredStatus === "existing"
+                ? "low"
+                : "medium",
+          rule_version: 1,
+        });
+      }
+    } catch (attributionError) {
+      // Attribution must never block a booking. Surface it as a
+      // reconciliation exception for admin follow-up instead.
+      await admin.from("reconciliation_exceptions").insert({
+        business_id: business.id,
+        resource_type: "appointment",
+        resource_id: record.id,
+        exception_code: "ATTRIBUTION_CAPTURE_FAILED",
+        severity: "warning",
+        message:
+          "Booking succeeded but the attribution record could not be written.",
+        details: {
+          reference: record.public_reference,
+          reason: String(attributionError),
+        },
+        status: "open",
+      });
+    }
 
     if (addons.length) {
       await admin

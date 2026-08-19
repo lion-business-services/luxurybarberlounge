@@ -34,10 +34,12 @@ type SquareOrder = {
 type SquarePayment = {
   square_id: string;
   square_order_id?: string | null;
+  square_customer_id?: string | null;
   amount_cents?: number | null;
   tip_cents?: number | null;
   processing_fee_cents?: number | null;
   created_at_square?: string | null;
+  raw?: { note?: string | null; team_member_id?: string | null } | null;
 };
 type AttributionRow = {
   attribution?: string | null;
@@ -133,8 +135,15 @@ async function prepareStatementsForPeriod(admin: AdminClient, businessId: string
 }
 
 async function exception(admin: AdminClient, runId: string, businessId: string, paymentId: string, code: string, message: string, details: Record<string, unknown> = {}) {
-  const { data: existing } = await admin.from("reconciliation_exceptions").select("id").eq("reconciliation_run_id", runId).eq("resource_type", "square_payment").eq("resource_id", paymentId).eq("exception_code", code).eq("status", "open").maybeSingle();
-  if (!existing?.id) await admin.from("reconciliation_exceptions").insert({ business_id: businessId, reconciliation_run_id: runId, resource_type: "square_payment", resource_id: paymentId, exception_code: code, severity: "warning", message, details, status: "open" });
+  // Dedupe across ALL runs, not just the current one. The reconciler runs every
+  // 15 minutes; scoping to reconciliation_run_id meant each pass re-inserted the
+  // same unresolved exception, growing the table ~300 rows/day.
+  const { data: existing } = await admin.from("reconciliation_exceptions").select("id").eq("business_id", businessId).eq("resource_type", "square_payment").eq("resource_id", paymentId).eq("exception_code", code).eq("status", "open").maybeSingle();
+  if (existing?.id) {
+    await admin.from("reconciliation_exceptions").update({ reconciliation_run_id: runId, message, details }).eq("id", existing.id);
+    return;
+  }
+  await admin.from("reconciliation_exceptions").insert({ business_id: businessId, reconciliation_run_id: runId, resource_type: "square_payment", resource_id: paymentId, exception_code: code, severity: "warning", message, details, status: "open" });
 }
 
 async function modernAttribution(admin: AdminClient, businessId: string, appointment: ModernAppointment, barberUserId: string) {
@@ -161,6 +170,12 @@ async function resolveModernAppointment(admin: AdminClient, businessId: string, 
   const { data: linkedCheckout } = await admin.from("appointment_payment_links").select("appointment_id,purpose,status").eq("business_id", businessId).eq("square_order_id", order.square_id).maybeSingle();
   if (linkedCheckout?.purpose === "deposit") return { deposit: true, appointment: null };
 
+  // Website deposits stamp the Square payment note with
+  //   LBL_DEPOSIT:<appointmentId>:<publicReference>
+  // Use it as an authoritative fallback when the order link is missing.
+  const noteRef = String((payment as { raw?: { note?: unknown } }).raw?.note ?? "");
+  if (noteRef.startsWith("LBL_DEPOSIT:")) return { deposit: true, appointment: null };
+
   const select = "id,client_id,auth_user_id,service_id,barber_profile_id,assigned_staff_user_id,location_id,square_booking_id,square_customer_id,square_order_id,booking_source,client_email_snapshot,client_phone_snapshot,status,starts_at";
   if (linkedCheckout?.appointment_id) {
     const { data } = await admin.from("appointments").select(select).eq("business_id", businessId).eq("id", linkedCheckout.appointment_id).maybeSingle();
@@ -169,11 +184,14 @@ async function resolveModernAppointment(admin: AdminClient, businessId: string, 
   const { data: direct } = await admin.from("appointments").select(select).eq("business_id", businessId).eq("square_order_id", order.square_id).maybeSingle();
   if (direct) return { deposit: false, appointment: direct };
 
-  if (order.customer_square_id) {
+  // square_orders.customer_square_id is null on every POS order; the customer id
+  // only survives on the payment. Prefer the payment, fall back to the order.
+  const customerSquareId = payment.square_customer_id ?? order.customer_square_id ?? null;
+  if (customerSquareId) {
     const paidAt = new Date(payment.created_at_square ?? Date.now());
     const start = new Date(paidAt.getTime() - 24 * 60 * 60_000).toISOString();
     const end = new Date(paidAt.getTime() + 24 * 60 * 60_000).toISOString();
-    const { data: candidates } = await admin.from("appointments").select(select).eq("business_id", businessId).eq("square_customer_id", order.customer_square_id).gte("starts_at", start).lte("starts_at", end).not("status", "in", "(cancelled_by_client,cancelled_by_business,declined,expired,failed)").order("starts_at");
+    const { data: candidates } = await admin.from("appointments").select(select).eq("business_id", businessId).eq("square_customer_id", customerSquareId).gte("starts_at", start).lte("starts_at", end).not("status", "in", "(cancelled_by_client,cancelled_by_business,declined,expired,failed)").order("starts_at");
     if ((candidates ?? []).length === 1) {
       const match = candidates![0];
       if (!match.square_order_id) await admin.from("appointments").update({ square_order_id: order.square_id }).eq("id", match.id).is("square_order_id", null);
@@ -208,7 +226,7 @@ export async function reconcileCommissions(limit = 100) {
     throw new Error("Active commission and attribution policy versions are required.");
   }
 
-  const { data: payments, error } = await admin.from("square_payments").select("id,square_id,square_order_id,status,amount_cents,tip_cents,processing_fee_cents,created_at_square").eq("business_id", businessId).in("status", ["COMPLETED", "APPROVED"]).gte("created_at_square", new Date(Date.now() - 21 * 24 * 60 * 60_000).toISOString()).order("created_at_square").limit(limit);
+  const { data: payments, error } = await admin.from("square_payments").select("id,square_id,square_order_id,square_customer_id,status,amount_cents,tip_cents,processing_fee_cents,created_at_square,raw").eq("business_id", businessId).in("status", ["COMPLETED", "APPROVED"]).gte("created_at_square", new Date(Date.now() - 21 * 24 * 60 * 60_000).toISOString()).order("created_at_square").limit(limit);
   if (error) throw error;
   let calculated = 0, exceptions = 0, skipped = 0, depositsSkipped = 0, modernMatches = 0, legacyMatches = 0;
 
@@ -287,7 +305,34 @@ export async function reconcileCommissions(limit = 100) {
       }
     }
 
-    if (!source) { await exception(admin, run.id, businessId, payment.square_id, "ORDER_NOT_MATCHED", "No unique modern appointment or verified legacy booking match was found for this Square order.", { squareOrderId: order.square_id, customerSquareId: order.customer_square_id ?? null }); exceptions += 1; continue; }
+    if (!source) {
+      // Distinguish "we could not match this sale" from "Square never recorded
+      // who performed it". The second is an operational fix in Square POS
+      // (barbers must ring sales under their own team member login) and no
+      // amount of matching logic can recover it.
+      const teamMemberId = payment.raw?.team_member_id ?? null;
+      if (!teamMemberId) {
+        await exception(
+          admin,
+          run.id,
+          businessId,
+          payment.square_id,
+          "TEAM_MEMBER_MISSING",
+          "Square recorded no team member for this sale, so no barber can be credited. Enable team member sales attribution in Square POS and have each barber check out under their own login.",
+          {
+            squareOrderId: order.square_id,
+            customerSquareId: payment.square_customer_id ?? null,
+            amountCents: payment.amount_cents ?? null,
+            remediation: "square_pos_team_member_attribution",
+          },
+        );
+        exceptions += 1;
+        continue;
+      }
+      await exception(admin, run.id, businessId, payment.square_id, "ORDER_NOT_MATCHED", "No unique modern appointment or verified legacy booking match was found for this Square order.", { squareOrderId: order.square_id, customerSquareId: payment.square_customer_id ?? null, teamMemberId });
+      exceptions += 1;
+      continue;
+    }
 
     const paymentWindow = settlementWindowFor(new Date(payment.created_at_square ?? Date.now()));
     let paymentPeriodId = periodCache.get(paymentWindow.key);

@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
   }
   let query = value.admin
     .from("appointments")
-    .select("id,public_reference,client_id,auth_user_id,service_id,barber_profile_id,assigned_staff_user_id,service_name_snapshot,service_price_snapshot_cents,service_duration_snapshot_minutes,addon_snapshot,barber_name_snapshot,client_name_snapshot,client_email_snapshot,client_phone_snapshot,starts_at,ends_at,timezone,status,booking_source,campaign_source,referral_source,deposit_required_cents,deposit_status,client_notes,internal_notes,formsubmit_status,client_confirmation_status,barber_notification_status,sync_status,created_at,updated_at")
+    .select("id,public_reference,client_id,auth_user_id,service_id,barber_profile_id,assigned_staff_user_id,service_name_snapshot,service_price_snapshot_cents,service_duration_snapshot_minutes,addon_snapshot,barber_name_snapshot,client_name_snapshot,client_email_snapshot,client_phone_snapshot,starts_at,ends_at,timezone,status,client_declared_status,booking_source,campaign_source,referral_source,deposit_required_cents,deposit_status,client_notes,internal_notes,formsubmit_status,client_confirmation_status,barber_notification_status,sync_status,created_at,updated_at")
     .eq("business_id", value.businessId)
     .order("starts_at", { ascending: true })
     .limit(300);

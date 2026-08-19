@@ -460,7 +460,7 @@ function Visit({ lang }: { lang: Lang }) {
             <div><dt>{lang === "es" ? "Dirección" : "Address"}</dt><dd>{business.street}<br />{business.city}, {business.state} {business.postalCode}</dd></div>
             <div><dt>{lang === "es" ? "Teléfono" : "Phone"}</dt><dd><a href={business.phoneHref}>{business.phone}</a><br /><a href={`mailto:${business.email}`}>{business.email}</a></dd></div>
             <div><dt>{lang === "es" ? "Horario" : "Hours"}</dt><dd>{formatHours(lang).map((line) => <span key={line} className="block">{line}</span>)}</dd></div>
-            <div><dt>{lang === "es" ? "Estacionamiento" : "Parking"}</dt><dd>{lang === "es" ? "Hay estacionamiento en el lugar cerca de la Suite 106." : "On-site parking is available near Suite 106."}</dd></div>
+            <div><dt>{lang === "es" ? "Estacionamiento" : "Parking"}</dt><dd>{lang === "es" ? "Hay estacionamiento en el lugar cerca de la Suite 106A." : "On-site parking is available near Suite 106A."}</dd></div>
           </dl>
           <div className={styles.actions}><a href={business.mapsUrl} target="_blank" rel="noreferrer" className={styles.primary}><MapPin size={15} />{lang === "es" ? "Indicaciones" : "Directions"}</a><a href={business.phoneHref} className={styles.secondary}><Phone size={15} />{lang === "es" ? "Llamar" : "Call"}</a><Link href="/visit" className={styles.secondary}>{lang === "es" ? "Detalles de visita" : "Visit details"}<ExternalLink size={14} /></Link></div>
         </motion.div>
