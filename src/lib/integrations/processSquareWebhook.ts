@@ -445,23 +445,18 @@ async function syncPayment(
         // deposit was outstanding. Now that it has settled, send them.
         if (promoted) {
           try {
-            const [{ queueBookingNotifications }, { hashManageToken }, { randomBytes }] =
-              await Promise.all([
-                import("@/lib/booking/notifications"),
-                import("@/lib/booking/manage"),
-                import("node:crypto"),
-              ]);
-            // Only the hash of the original manage token is stored, so issue a
-            // fresh one for the confirmation email's manage link.
-            const manageToken = randomBytes(32).toString("hex");
-            await admin
-              .from("appointments")
-              .update({ manage_token_hash: hashManageToken(manageToken) })
-              .eq("id", promoted.id);
+            const { queueBookingNotifications } = await import(
+              "@/lib/booking/notifications"
+            );
+            // NEVER rotate manage_token_hash here. The client is holding the
+            // original token in their browser URL; rotating it 404s the page
+            // they are actively looking at. Only the hash is stored, so the
+            // raw token cannot be recovered - the email falls back to the
+            // client portal link instead.
             await queueBookingNotifications(
               admin,
               { ...promoted, deposit_status: "paid" },
-              manageToken,
+              "",
             );
           } catch {
             // Never let notification delivery fail the payment webhook.

@@ -28,7 +28,11 @@ function visit(appointment: Appointment) {
 }
 
 function clientHtml(appointment: Appointment, manageToken: string) {
-  const manageUrl = absoluteUrl(`/booking/confirmation/${encodeURIComponent(appointment.public_reference)}?token=${encodeURIComponent(manageToken)}`);
+  // When no raw token is available (deposit-settled confirmations), link to the
+  // client portal rather than emitting a tokenised URL that would not validate.
+  const manageUrl = manageToken
+    ? absoluteUrl(`/booking/confirmation/${encodeURIComponent(appointment.public_reference)}?token=${encodeURIComponent(manageToken)}`)
+    : absoluteUrl(`/login?next=/client/appointments`);
   return `<div style="margin:0;background:#090909;padding:36px 16px;font-family:Arial,sans-serif;color:#f4efe6"><div style="max-width:620px;margin:auto;border:1px solid #9d772e;background:#111;padding:34px"><p style="color:#c99a3e;letter-spacing:3px;text-transform:uppercase;font-size:12px">Appointment confirmed</p><h1 style="font-family:Georgia,serif;font-weight:400;color:#fff">Your chair is reserved.</h1><p style="color:#d5cec2;line-height:1.7">${appointment.client_name_snapshot}, your appointment at Luxury Barber Lounge is confirmed.</p><table style="width:100%;border-collapse:collapse;color:#f4efe6"><tr><td style="padding:10px;border-bottom:1px solid #292929">Reference</td><td style="padding:10px;border-bottom:1px solid #292929;text-align:right">${appointment.public_reference}</td></tr><tr><td style="padding:10px;border-bottom:1px solid #292929">Service</td><td style="padding:10px;border-bottom:1px solid #292929;text-align:right">${appointment.service_name_snapshot}</td></tr><tr><td style="padding:10px;border-bottom:1px solid #292929">Barber</td><td style="padding:10px;border-bottom:1px solid #292929;text-align:right">${appointment.barber_name_snapshot}</td></tr><tr><td style="padding:10px;border-bottom:1px solid #292929">Date & time</td><td style="padding:10px;border-bottom:1px solid #292929;text-align:right">${visit(appointment)}</td></tr><tr><td style="padding:10px">Location</td><td style="padding:10px;text-align:right">${businessConfig.address.line1}, ${businessConfig.address.city}, ${businessConfig.address.region}</td></tr></table><p style="margin:26px 0"><a href="${manageUrl}" style="display:inline-block;background:#c99a3e;color:#090909;padding:14px 22px;text-decoration:none;text-transform:uppercase;letter-spacing:2px;font-size:12px">Manage appointment</a></p><p style="color:#999;font-size:13px;line-height:1.6">Questions? Call ${businessConfig.phone}.</p></div></div>`;
 }
 

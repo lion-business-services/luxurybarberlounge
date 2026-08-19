@@ -166,17 +166,42 @@ async function modernAttribution(admin: AdminClient, businessId: string, appoint
     : { type: "SHOP" as const, source: "default_shop", evidence: { defaulted: true } };
 }
 
+const APPOINTMENT_COLUMNS = "id,client_id,auth_user_id,service_id,barber_profile_id,assigned_staff_user_id,location_id,square_booking_id,square_customer_id,square_order_id,booking_source,client_email_snapshot,client_phone_snapshot,status,starts_at";
+
 async function resolveModernAppointment(admin: AdminClient, businessId: string, order: SquareOrder, payment: SquarePayment) {
   const { data: linkedCheckout } = await admin.from("appointment_payment_links").select("appointment_id,purpose,status").eq("business_id", businessId).eq("square_order_id", order.square_id).maybeSingle();
-  if (linkedCheckout?.purpose === "deposit") return { deposit: true, appointment: null };
+  // A deposit is a partial payment against a known appointment. Resolve the
+  // appointment so the barber is identified; the calculator still excludes the
+  // deposit amount itself from the commission basis.
+  if (linkedCheckout?.appointment_id) {
+    const { data: appt } = await admin
+      .from("appointments")
+      .select(APPOINTMENT_COLUMNS)
+      .eq("id", linkedCheckout.appointment_id)
+      .eq("business_id", businessId)
+      .maybeSingle();
+    if (appt) return { deposit: linkedCheckout.purpose === "deposit", appointment: appt };
+  }
 
   // Website deposits stamp the Square payment note with
   //   LBL_DEPOSIT:<appointmentId>:<publicReference>
-  // Use it as an authoritative fallback when the order link is missing.
+  // Authoritative fallback when the order link is missing.
   const noteRef = String((payment as { raw?: { note?: unknown } }).raw?.note ?? "");
-  if (noteRef.startsWith("LBL_DEPOSIT:")) return { deposit: true, appointment: null };
+  if (noteRef.startsWith("LBL_DEPOSIT:")) {
+    const apptId = noteRef.split(":")[1];
+    if (apptId) {
+      const { data: appt } = await admin
+        .from("appointments")
+        .select(APPOINTMENT_COLUMNS)
+        .eq("id", apptId)
+        .eq("business_id", businessId)
+        .maybeSingle();
+      if (appt) return { deposit: true, appointment: appt };
+    }
+    return { deposit: true, appointment: null };
+  }
 
-  const select = "id,client_id,auth_user_id,service_id,barber_profile_id,assigned_staff_user_id,location_id,square_booking_id,square_customer_id,square_order_id,booking_source,client_email_snapshot,client_phone_snapshot,status,starts_at";
+  const select = APPOINTMENT_COLUMNS;
   if (linkedCheckout?.appointment_id) {
     const { data } = await admin.from("appointments").select(select).eq("business_id", businessId).eq("id", linkedCheckout.appointment_id).maybeSingle();
     if (data) return { deposit: false, appointment: data };
