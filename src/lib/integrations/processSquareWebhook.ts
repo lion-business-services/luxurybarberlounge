@@ -5,6 +5,7 @@ import {
   squareRequest,
   SquareConfigurationError,
 } from "@/lib/square/client";
+import { squareConfig } from "@/lib/square/config";
 
 type AnyRecord = Record<string, unknown>;
 
@@ -429,6 +430,7 @@ async function syncPayment(
       .maybeSingle();
     if (checkoutLink?.id && paymentStatus === "COMPLETED") {
       await admin.from("appointment_payment_links").update({ status: "paid", paid_at: text(payment.updated_at) ?? text(payment.created_at) ?? new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", checkoutLink.id);
+      // Membership first-month payments have no appointment link; handled below.
       if (checkoutLink.purpose === "deposit") {
         await admin.from("appointments").update({ deposit_status: "paid" }).eq("id", checkoutLink.appointment_id).neq("deposit_status", "refunded");
         // Deposit settled -> promote the held booking to confirmed.
@@ -483,6 +485,10 @@ async function syncPayment(
     } else if (checkoutLink?.id && ["CANCELED", "FAILED"].includes(paymentStatus ?? "")) {
       await admin.from("appointment_payment_links").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", checkoutLink.id).neq("status", "paid");
       if (checkoutLink.purpose === "deposit") await admin.from("appointments").update({ deposit_status: "failed" }).eq("id", checkoutLink.appointment_id).neq("deposit_status", "paid");
+    }
+    // Membership enrolment: a paid first month with no appointment link.
+    if (status === "COMPLETED" || status === "APPROVED") {
+      await activateMembershipIfPaid(admin, raw);
     }
   }
 
@@ -1187,6 +1193,100 @@ async function syncTeamMember(
       teamMember.status,
     ),
   };
+}
+
+
+async function activateMembershipIfPaid(
+  admin: NonNullable<ReturnType<typeof createUntypedAdminSupabase>>,
+  payment: Record<string, unknown>,
+) {
+  const orderId = text(payment.order_id);
+  const customerId = text(payment.customer_id);
+  if (!orderId) return;
+
+  const { data: intent } = await admin
+    .from("membership_checkout_intents")
+    .select("id,plan_id,business_id,email,name,phone,client_user_id,status")
+    .eq("square_order_id", orderId)
+    .maybeSingle();
+  if (!intent || intent.status === "activated") return;
+
+  await admin
+    .from("membership_checkout_intents")
+    .update({ status: "paid", square_customer_id: customerId ?? null, updated_at: new Date().toISOString() })
+    .eq("id", intent.id);
+
+  const { data: plan } = await admin
+    .from("membership_plans")
+    .select("square_catalog_id,billing_interval")
+    .eq("id", intent.plan_id)
+    .maybeSingle();
+  if (!plan?.square_catalog_id || !customerId) {
+    await admin
+      .from("membership_checkout_intents")
+      .update({ status: "failed", last_error: "No Square customer or plan variation available." })
+      .eq("id", intent.id);
+    return;
+  }
+
+  try {
+    // Start the recurring cycle after the period just paid for, so the member
+    // is never billed twice for the same window. A yearly plan renews in a
+    // year, a monthly plan in a month.
+    const startDate = new Date();
+    if (plan.billing_interval === "year") {
+      startDate.setFullYear(startDate.getFullYear() + 1);
+    } else if (plan.billing_interval === "quarter") {
+      startDate.setMonth(startDate.getMonth() + 3);
+    } else if (plan.billing_interval === "week") {
+      startDate.setDate(startDate.getDate() + 7);
+    } else {
+      startDate.setMonth(startDate.getMonth() + 1);
+    }
+    const subscription = await squareRequest<{ subscription?: { id?: string; status?: string } }>(
+      "/v2/subscriptions",
+      {
+        method: "POST",
+        idempotencyKey: `lbl-sub-${intent.id}`,
+        body: {
+          location_id: squareConfig.locationId,
+          plan_variation_id: plan.square_catalog_id,
+          customer_id: customerId,
+          start_date: startDate.toISOString().slice(0, 10),
+        },
+      },
+    );
+
+    const subscriptionId = subscription.subscription?.id ?? null;
+
+    if (intent.client_user_id) {
+      await admin.from("memberships").insert({
+        business_id: intent.business_id,
+        client_user_id: intent.client_user_id,
+        plan_id: intent.plan_id,
+        square_subscription_id: subscriptionId,
+        status: "active",
+        starts_at: new Date().toISOString(),
+        renews_at: startDate.toISOString(),
+        metadata: { source: "website_checkout", email: intent.email },
+      });
+    }
+
+    await admin
+      .from("membership_checkout_intents")
+      .update({
+        status: "activated",
+        square_subscription_id: subscriptionId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", intent.id);
+  } catch (error) {
+    // The member has paid; enrolment needs manual completion by an admin.
+    await admin
+      .from("membership_checkout_intents")
+      .update({ status: "failed", last_error: String(error).slice(0, 500) })
+      .eq("id", intent.id);
+  }
 }
 
 export async function processSquareWebhookEvent(

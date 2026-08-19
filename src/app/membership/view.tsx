@@ -7,6 +7,7 @@ import { PageHero } from "@/components/PageHero";
 import { Reveal, Scene3D, Layer, TiltCard } from "@/components/motion";
 import { useLang } from "@/lib/i18n/context";
 import { copy, tiers } from "@/lib/content/site";
+import { MembershipPurchaseButton } from "@/components/membership/MembershipPurchaseButton";
 
 export function MembershipView() {
   const { lang } = useLang();
@@ -64,19 +65,17 @@ export function MembershipView() {
                       ))}
                     </ul>
 
-                    <Link
-                      href={`/book?membership=${tier.slug}`}
-                      data-magnetic
+                    <MembershipPurchaseButton
+                      planSlug={tier.slug}
+                      featured={tier.featured}
+                      lang={lang}
                       className={clsx(
                         "mt-9 inline-flex items-center justify-center gap-3 rounded-full px-6 py-3 text-[11px] tracking-[0.24em] uppercase transition-colors duration-300",
                         tier.featured
                           ? "bg-[var(--color-brass)] text-[var(--color-ink)] hover:bg-[var(--color-brass-light)]"
                           : "border border-[var(--color-ink-line)] text-[var(--color-bone)] hover:border-[var(--color-brass)] hover:text-[var(--color-brass)]",
                       )}
-                    >
-                      {copy.common.book[lang]}
-                      <ArrowUpRight className="h-4 w-4" aria-hidden />
-                    </Link>
+                    />
                   </article>
                 </TiltCard>
               </Reveal>

@@ -12,6 +12,9 @@ type Statement = {
   adjustments_cents: number;
   refunds_cents: number;
   final_amount_cents: number;
+  paid_at?: string | null;
+  payout_method?: string | null;
+  payout_reference?: string | null;
   status: string;
   created_at: string;
 };
@@ -60,6 +63,7 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
   const [calculations, setCalculations] = useState<Calculation[]>([]);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const applyResponse = useCallback((result: StatementsResponse) => {
     setStatements(result.statements ?? []);
@@ -116,6 +120,41 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
     }
     return [...latest.values()];
   }, [statements]);
+
+  async function markPaid(statementId: string, amountCents: number) {
+    const method = window.prompt(
+      `Record payout of ${(amountCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })}.\n\nHow was this barber paid? (zelle / cash / other)`,
+      "zelle",
+    );
+    if (!method) return;
+    const reference = window.prompt("Confirmation number or note (optional)", "") ?? "";
+
+    setBusy(true);
+    setMessage("Recording payout...");
+    try {
+      const response = await fetch("/api/commissions/statements", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "mark_statement_paid",
+          statementId,
+          payoutMethod: method,
+          payoutReference: reference,
+        }),
+      });
+      const result = await response.json();
+      setMessage(
+        result.ok
+          ? "Payout recorded. These figures are now locked."
+          : result.message ?? "The payout could not be recorded.",
+      );
+      if (result.ok) await loadRecords();
+    } catch {
+      setMessage("The payout could not be recorded.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function refresh() {
     setMessage("");
@@ -288,9 +327,9 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
           <h2 className="font-display mb-4 text-2xl">Latest statement by barber</h2>
           <div className="portal-table-wrap">
             <table className="portal-table">
-              <thead><tr><th>Barber</th><th>Commission basis</th><th>Tips</th><th>Adjustments</th><th>Final amount</th><th>Status</th></tr></thead>
+              <thead><tr><th>Barber</th><th>Commission basis</th><th>Tips</th><th>Adjustments</th><th>Final amount</th><th>Status</th>{String(role) !== "barber" ? <th>Payout</th> : null}</tr></thead>
               <tbody>
-                {latestStatementsByBarber.map((statement) => <tr key={statement.id}><td>{statement.barber_name ?? "Unlinked barber"}</td><td>{money(statement.gross_basis_cents)}</td><td>{money(statement.tips_cents)}</td><td>{money(statement.adjustments_cents)}</td><td><strong>{money(statement.final_amount_cents)}</strong></td><td>{statement.status}</td></tr>)}
+                {latestStatementsByBarber.map((statement) => <tr key={statement.id}><td>{statement.barber_name ?? "Unlinked barber"}</td><td>{money(statement.gross_basis_cents)}</td><td>{money(statement.tips_cents)}</td><td>{money(statement.adjustments_cents)}</td><td><strong>{money(statement.final_amount_cents)}</strong></td><td>{statement.paid_at ? <span className="inline-flex items-center rounded-full border border-emerald-400/50 bg-emerald-400/10 px-2.5 py-1 text-[9px] uppercase tracking-[.14em] text-emerald-300">Paid</span> : statement.status}</td>{String(role) !== "barber" ? <td>{statement.paid_at ? <span className="text-xs text-[var(--color-bone-muted)]">{statement.payout_method ?? "paid"} · {new Date(statement.paid_at).toLocaleDateString()}</span> : <button type="button" onClick={() => void markPaid(statement.id, statement.final_amount_cents)} disabled={busy} className="rounded-full border border-[var(--color-brass)] px-3 py-1.5 text-[9px] uppercase tracking-[.14em] text-[var(--color-brass)] disabled:opacity-40">Mark paid</button>}</td> : null}</tr>)}
                 {!latestStatementsByBarber.length ? <tr><td colSpan={6}>No barber statements yet. Press Update Amounts to generate this week's pay.</td></tr> : null}
               </tbody>
             </table>

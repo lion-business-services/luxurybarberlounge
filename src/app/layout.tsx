@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { LangProvider } from "@/lib/i18n/context";
 import { Header } from "@/components/Header";
@@ -8,6 +8,20 @@ import SmoothScroll from "@/components/SmoothScroll";
 import { business } from "@/lib/content/site";
 import { GlobalClientWidgets } from "@/components/GlobalClientWidgets";
 import { AdaptiveMotionProvider } from "@/lib/motion/useAdaptiveMotionTier";
+
+// Without this, mobile browsers render at a ~980px desktop viewport and every
+// page - including the admin login - appears zoomed out and unusable on a phone.
+// Next.js requires viewport as its own export; it is not part of metadata.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Not locking maximumScale: pinch-zoom must stay available for accessibility.
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#090a0a" },
+    { media: "(prefers-color-scheme: light)", color: "#090a0a" },
+  ],
+};
 
 export const metadata: Metadata = {
   title: {

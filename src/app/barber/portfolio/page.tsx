@@ -1,4 +1,13 @@
 import type { Metadata } from "next";
-import { BarberSectionLive } from "@/components/barber/BarberPortalLive";
+import { PortalShell } from "@/components/portal/PortalShell";
+import { BarberPortfolioManager } from "@/components/barber/BarberPortfolioManager";
+
 export const metadata: Metadata = { title: "Portfolio", robots: { index: false, follow: false } };
-export default function Page(){ return <BarberSectionLive slug="portfolio" />; }
+
+export default function Page() {
+  return (
+    <PortalShell role="barber">
+      <BarberPortfolioManager />
+    </PortalShell>
+  );
+}

@@ -614,7 +614,7 @@ export type Tier = {
   description: Bi;
   perks: Bi[];
   durationWeeks: number;
-  billingInterval: "one_time";
+  billingInterval: "one_time" | "month" | "year";
   featured?: boolean;
   contentStatus: ContentStatus;
 };
@@ -630,7 +630,7 @@ export const tiers: Tier[] = [
       { en: "Full haircut and beard plus hot towel", es: "Corte completo y barba mas toalla caliente" },
     ],
     durationWeeks: 52,
-    billingInterval: "one_time",
+    billingInterval: "year",
     contentStatus: "confirmed",
   },
   {
@@ -643,7 +643,7 @@ export const tiers: Tier[] = [
       { en: "Full haircut and beard plus hot towel", es: "Corte completo y barba mas toalla caliente" },
     ],
     durationWeeks: 4,
-    billingInterval: "one_time",
+    billingInterval: "month",
     featured: true,
     contentStatus: "confirmed",
   },
@@ -716,7 +716,7 @@ export const copy = {
     eyebrow: { en: "Standing Appointments", es: "Citas Fijas" },
     title: { en: "Membership", es: "Membresía" },
     lead: { en: "A consistent grooming rhythm with priority access, planned maintenance, and member benefits.", es: "Un ritmo constante de grooming con acceso prioritario, mantenimiento planificado y beneficios." },
-    note: { en: "These are the owner-provided membership terms. Purchase activation depends on the configured payment provider.", es: "Estos son los terminos de membresia provistos. La compra depende del proveedor de pago configurado." },
+    note: { en: "Memberships bill automatically through Square. Cancel anytime — your card is stored securely by Square, never by us.", es: "Las membresias se cobran automaticamente a traves de Square. Cancela cuando quieras — Square guarda tu tarjeta de forma segura, nunca nosotros." },
   },
   visit: {
     eyebrow: { en: "Northfield, New Jersey", es: "Northfield, Nueva Jersey" },

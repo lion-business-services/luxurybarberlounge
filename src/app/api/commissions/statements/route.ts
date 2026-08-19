@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
   if (!session.user) return NextResponse.json({ ok: false }, { status: 401 });
   const admin = createUntypedAdminSupabase();
   if (!admin) return NextResponse.json({ ok: false, message: "Supabase is not configured." }, { status: 503 });
-  const body = await request.json().catch(() => null) as { action?: string; calculationId?: string; reasonCode?: string; explanation?: string; barberUserId?: string; settlementPeriodId?: string; amountCents?: number; reason?: string } | null;
+  const body = await request.json().catch(() => null) as { action?: string; calculationId?: string; reasonCode?: string; explanation?: string; barberUserId?: string; settlementPeriodId?: string; amountCents?: number; reason?: string; statementId?: string; payoutMethod?: string; payoutReference?: string } | null;
   if (!body?.action) return NextResponse.json({ ok: false, message: "An action is required." }, { status: 400 });
 
   if (body.action === "create_dispute") {
@@ -122,6 +122,68 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : "Calculated amounts could not be updated." }, { status: 500 });
     }
+  }
+
+  // ------------------------------------------------------------------
+  // MARK A BARBER STATEMENT AS PAID
+  // Locks the underlying calculations so figures cannot drift after payout,
+  // records who paid, how, and when, and writes an audit entry.
+  // ------------------------------------------------------------------
+  if (body.action === "mark_statement_paid") {
+    if (!session.roles.some((role) => role === "owner" || role === "super_admin")) {
+      return NextResponse.json({ ok: false, message: "Owner access is required to record a payout." }, { status: 403 });
+    }
+    if (!body.statementId) {
+      return NextResponse.json({ ok: false, message: "Statement is required." }, { status: 422 });
+    }
+
+    const { data: statement } = await admin
+      .from("settlement_statements")
+      .select("id,business_id,settlement_period_id,barber_user_id,final_amount_cents,status,paid_at")
+      .eq("id", body.statementId)
+      .maybeSingle();
+    if (!statement) return NextResponse.json({ ok: false, message: "Statement not found." }, { status: 404 });
+    if (statement.paid_at) return NextResponse.json({ ok: false, message: "This statement is already marked paid." }, { status: 409 });
+
+    const paidAt = new Date().toISOString();
+    const method = (body.payoutMethod ?? "zelle").slice(0, 40);
+
+    const { error: updateError } = await admin
+      .from("settlement_statements")
+      .update({
+        status: "paid",
+        paid_at: paidAt,
+        payout_method: method,
+        payout_reference: (body.payoutReference ?? "").slice(0, 120) || null,
+        paid_by: session.user.id,
+      })
+      .eq("id", statement.id);
+    if (updateError) return NextResponse.json({ ok: false, message: "The payout could not be recorded." }, { status: 500 });
+
+    // Lock the calculation lines behind this statement so the figures that were
+    // paid can never be recalculated retroactively.
+    await admin
+      .from("commission_calculations")
+      .update({ status: "locked", locked_at: paidAt })
+      .eq("settlement_period_id", statement.settlement_period_id)
+      .eq("barber_user_id", statement.barber_user_id)
+      .neq("status", "locked");
+
+    await admin.from("audit_logs").insert({
+      business_id: statement.business_id,
+      actor_user_id: session.user.id,
+      action: "commission_statement_paid",
+      resource_type: "settlement_statement",
+      resource_id: statement.id,
+      metadata: {
+        barberUserId: statement.barber_user_id,
+        amountCents: statement.final_amount_cents,
+        payoutMethod: method,
+        payoutReference: body.payoutReference ?? null,
+      },
+    });
+
+    return NextResponse.json({ ok: true, paidAt, amountCents: statement.final_amount_cents });
   }
 
   if (body.action === "create_adjustment") {
