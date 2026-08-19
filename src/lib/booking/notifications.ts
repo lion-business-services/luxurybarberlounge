@@ -44,7 +44,7 @@ function clientHtml(appointment: Appointment, manageToken: string) {
       <p style="margin:0 0 6px;color:#c99a3e;letter-spacing:2px;text-transform:uppercase;font-size:11px">Balance due at your visit</p>
       <p style="margin:0 0 4px;color:#f4efe6;font-size:22px;font-family:Georgia,serif">${money(balance)}</p>
       <p style="margin:0 0 14px;color:#999;font-size:13px;line-height:1.6">You paid ${money(paid)} today. The remaining ${money(balance)} is due when you visit ${appointment.barber_name_snapshot}. You can settle it now to skip payment at the chair.</p>
-      <a href="${absoluteUrl(`/booking/confirmation/${encodeURIComponent(appointment.public_reference)}?token=${encodeURIComponent(manageToken)}&pay=balance`)}" style="display:inline-block;background:#c99a3e;color:#090909;padding:12px 20px;text-decoration:none;text-transform:uppercase;letter-spacing:2px;font-size:12px">Pay balance now</a>
+      <a href="${manageToken ? absoluteUrl(`/booking/confirmation/${encodeURIComponent(appointment.public_reference)}?token=${encodeURIComponent(manageToken)}&pay=balance`) : absoluteUrl(`/login?next=/client/appointments`)}" style="display:inline-block;background:#c99a3e;color:#090909;padding:12px 20px;text-decoration:none;text-transform:uppercase;letter-spacing:2px;font-size:12px">Pay balance now</a>
     </div>`;
   })()}<p style="margin:26px 0"><a href="${manageUrl}" style="display:inline-block;background:#c99a3e;color:#090909;padding:14px 22px;text-decoration:none;text-transform:uppercase;letter-spacing:2px;font-size:12px">Manage appointment</a></p><p style="color:#999;font-size:13px;line-height:1.6">Questions? Call ${businessConfig.phone}.</p></div></div>`;
 }

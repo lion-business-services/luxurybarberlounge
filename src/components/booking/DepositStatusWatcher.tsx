@@ -31,8 +31,8 @@ export function DepositStatusWatcher({
 
     // Poll on return, and also once on a normal load in case the webhook
     // arrived while the page was rendering.
-    const maxAttempts = returned ? 12 : 3;
-    const intervalMs = returned ? 2500 : 4000;
+    const maxAttempts = returned ? 40 : 4;
+    const intervalMs = returned ? 1500 : 4000;
 
     setChecking(true);
     const timer = setInterval(() => {

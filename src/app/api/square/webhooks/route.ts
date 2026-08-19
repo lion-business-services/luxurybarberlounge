@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     .eq("slug", "luxury-barber-lounge")
     .maybeSingle();
 
-  const { error } = await admin.from("webhook_events").insert({
+  const { data: inserted, error } = await admin.from("webhook_events").insert({
     business_id: business?.id ?? null,
     provider: "square",
     provider_event_id: event.event_id,
@@ -35,7 +35,29 @@ export async function POST(request: Request) {
     payload: { merchant_id: event.merchant_id ?? null, data: event.data ?? null },
     sanitized_headers: { content_type: request.headers.get("content-type") },
     processing_status: "received",
-  });
+  }).select("*").maybeSingle();
   if (error) return NextResponse.json({ message: "Webhook inbox is unavailable." }, { status: 503 });
+
+  // Process immediately rather than waiting for the 2-minute cron. A client who
+  // has just paid is watching the confirmation page; a two-minute lag reads as
+  // a failed payment. The cron remains as a retry net for anything that throws
+  // here, so this is an accelerator and not a single point of failure.
+  if (inserted) {
+    try {
+      const { processSquareWebhookEvent } = await import("@/lib/integrations/processSquareWebhook");
+      await processSquareWebhookEvent(inserted);
+      await admin
+        .from("webhook_events")
+        .update({ processing_status: "processed", processed_at: new Date().toISOString() })
+        .eq("id", inserted.id);
+    } catch (processingError) {
+      // Leave it as "received" so the cron retries it.
+      await admin
+        .from("webhook_events")
+        .update({ last_error: String(processingError).slice(0, 500) })
+        .eq("id", inserted.id);
+    }
+  }
+
   return NextResponse.json({ accepted: true }, { status: 202 });
 }

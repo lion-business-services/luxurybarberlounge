@@ -458,6 +458,13 @@ async function syncPayment(
               { ...promoted, deposit_status: "paid" },
               "",
             );
+            // Send now instead of waiting for the 5-minute notification cron.
+            try {
+              const { processNotificationJobs } = await import("@/lib/notifications/process");
+              await processNotificationJobs(admin, { appointmentId: promoted.id, limit: 10 });
+            } catch {
+              // Cron will retry.
+            }
           } catch {
             // Never let notification delivery fail the payment webhook.
           }
