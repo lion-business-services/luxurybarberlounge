@@ -5,7 +5,8 @@ import { squareConfig } from "@/lib/square/config";
 import { squareRequest, SquareApiError, SquareConfigurationError } from "@/lib/square/client";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 
-const schema = z.object({ reference: z.string().trim().min(4).max(80), token: z.string().trim().min(20).max(300) });
+const schema = z.object({
+  purpose: z.enum(["deposit", "balance"]).optional(), reference: z.string().trim().min(4).max(80), token: z.string().trim().min(20).max(300) });
 type SquarePaymentLinkResponse = { payment_link?: { id?: string; order_id?: string; url?: string; long_url?: string } };
 
 export async function POST(request: NextRequest) {
@@ -17,9 +18,13 @@ export async function POST(request: NextRequest) {
   if (!managed) return NextResponse.json({ ok: false, message: "Appointment not found." }, { status: 404 });
   const { appointment, admin } = managed;
   if (["cancelled_by_client", "cancelled_by_business", "declined", "expired", "failed"].includes(appointment.status)) return NextResponse.json({ ok: false, message: "This appointment is not eligible for a deposit payment." }, { status: 409 });
-  const amount = Number(appointment.deposit_required_cents ?? 0);
-  if (amount <= 0 || appointment.deposit_status === "not_required") return NextResponse.json({ ok: true, paid: true, message: "No deposit is required for this appointment." });
-  if (appointment.deposit_status === "paid") return NextResponse.json({ ok: true, paid: true, message: "The deposit is already paid." });
+  const requestedPurpose = parsed.data.purpose === "balance" ? "balance" : "deposit";
+  const servicePrice = Number(appointment.service_price_snapshot_cents ?? 0);
+  const depositCents = Number(appointment.deposit_required_cents ?? 0);
+  // The balance is whatever remains of the service after the deposit.
+  const amount = requestedPurpose === "balance" ? Math.max(0, servicePrice - depositCents) : depositCents;
+  if (amount <= 0 || (requestedPurpose === "deposit" && appointment.deposit_status === "not_required")) return NextResponse.json({ ok: true, paid: true, message: "No payment is required for this appointment." });
+  if (requestedPurpose === "deposit" && appointment.deposit_status === "paid") return NextResponse.json({ ok: true, paid: true, message: "The deposit is already paid." });
   if (!squareConfig.locationId || !squareConfig.accessToken) return NextResponse.json({ ok: false, message: "Square checkout is not configured yet." }, { status: 503 });
 
   if (squareConfig.environment === "sandbox") {
@@ -38,8 +43,10 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { data: existing } = await admin.from("appointment_payment_links").select("checkout_url,status").eq("appointment_id", appointment.id).eq("purpose", "deposit").in("status", ["created", "paid"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (existing?.status === "paid") return NextResponse.json({ ok: true, paid: true, message: "The deposit is already paid." });
+  // "deposit" is the up-front 50%; "balance" is the remainder due at the shop.
+  const purpose = requestedPurpose;
+  const { data: existing } = await admin.from("appointment_payment_links").select("checkout_url,status").eq("appointment_id", appointment.id).eq("purpose", purpose).in("status", ["created", "paid"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (existing?.status === "paid") return NextResponse.json({ ok: true, paid: true, message: purpose === "balance" ? "The balance is already paid." : "The deposit is already paid." });
   if (typeof existing?.checkout_url === "string" && existing.checkout_url) return NextResponse.json({ ok: true, paid: false, url: existing.checkout_url });
 
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.theluxurybarberlounge.com").replace(/\/$/, "");
@@ -47,12 +54,12 @@ export async function POST(request: NextRequest) {
   try {
     const response = await squareRequest<SquarePaymentLinkResponse>("/v2/online-checkout/payment-links", {
       method: "POST",
-      idempotencyKey: `lbl-deposit-${appointment.id}`,
+      idempotencyKey: `lbl-${purpose}-${appointment.id}`,
       body: {
-        description: `Luxury Barber Lounge booking deposit ${appointment.public_reference}`,
-        payment_note: `LBL_DEPOSIT:${appointment.id}:${appointment.public_reference}`,
+        description: `Luxury Barber Lounge ${purpose === "balance" ? "balance" : "booking deposit"} ${appointment.public_reference}`,
+        payment_note: `${purpose === "balance" ? "LBL_BALANCE" : "LBL_DEPOSIT"}:${appointment.id}:${appointment.public_reference}`,
         quick_pay: {
-          name: `Deposit - ${appointment.service_name_snapshot}`.slice(0, 255),
+          name: `${purpose === "balance" ? "Balance" : "Deposit"} - ${appointment.service_name_snapshot}`.slice(0, 255),
           price_money: { amount, currency: "USD" },
           location_id: squareConfig.locationId,
         },
@@ -69,7 +76,7 @@ export async function POST(request: NextRequest) {
     const { error } = await admin.from("appointment_payment_links").insert({
       business_id: appointment.business_id,
       appointment_id: appointment.id,
-      purpose: "deposit",
+      purpose,
       amount_cents: amount,
       square_payment_link_id: link.id,
       square_order_id: link.order_id,

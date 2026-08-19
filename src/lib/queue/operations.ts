@@ -192,7 +192,7 @@ export async function loadUnifiedQueueDisplay(context: QueueContext): Promise<Un
   const dayEnd = zonedDateTimeToUtc(today, "23:59:59", "America/New_York");
   const { data: appointmentRows, error } = await context.admin
     .from("appointments")
-    .select("id,public_reference,barber_name_snapshot,service_name_snapshot,status,starts_at")
+    .select("id,public_reference,client_name_snapshot,barber_name_snapshot,service_name_snapshot,status,starts_at")
     .eq("business_id", context.businessId)
     .eq("location_id", context.locationId)
     .gte("starts_at", dayStart.toISOString())
@@ -219,10 +219,15 @@ export async function loadUnifiedQueueDisplay(context: QueueContext): Promise<Un
     if (linkedAppointments.has(id)) continue;
     const reference = String(appointment.public_reference ?? id);
     const suffix = reference.replace(/[^A-Z0-9]/gi, "").slice(-4).toUpperCase() || "APPT";
+    // Show the guest by first name + last initial ("Hommy R."), which reads
+    // clearly across a room while keeping full names off a public screen.
+    const displayName = appointment.client_name_snapshot
+      ? createPublicDisplayLabel(String(appointment.client_name_snapshot))
+      : null;
     rows.push({
       kind: "appointment",
       sourceId: id,
-      label: `Appointment ${suffix}`,
+      label: displayName ?? `Appointment ${suffix}`,
       token: suffix,
       barber: String(appointment.barber_name_snapshot ?? "Assigned barber"),
       service: String(appointment.service_name_snapshot ?? "Service"),

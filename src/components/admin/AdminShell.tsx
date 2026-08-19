@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   CircleDollarSign,
+  FileText,
   ClipboardList,
   ContactRound,
   LayoutDashboard,
@@ -53,6 +54,9 @@ const groups: Group[] = [
     label: "Pay",
     items: [
       { label: "Commissions", href: "/admin/commissions", icon: CircleDollarSign, ownerOnly: true },
+      // Barber attribution claims land here for owner review/approval. The page
+      // already existed but was unreachable from the navigation.
+      { label: "Attribution claims", href: "/admin/attribution", icon: FileText, ownerOnly: true },
     ],
   },
   // "Systems" (Automations / Integrations) is operator tooling, not business
