@@ -7,8 +7,15 @@ import { getManagedAppointment } from "@/lib/booking/manage";
 import { businessConfig } from "@/lib/config/business";
 import { GuestAppointmentActions } from "@/components/booking/GuestAppointmentActions";
 import { SquareDepositButton } from "@/components/booking/SquareDepositButton";
+import { DepositStatusWatcher } from "@/components/booking/DepositStatusWatcher";
 
 export const metadata: Metadata = { title: "Appointment Confirmation", robots: { index: false, follow: false } };
+
+// Payment state is updated by the Square webhook after the client is
+// redirected back here, so this page must never be served from cache.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export default async function BookingConfirmationPage({ params, searchParams }: { params: Promise<{ reference: string }>; searchParams: Promise<{ token?: string }> }) {
   const { reference } = await params;
@@ -35,6 +42,7 @@ export default async function BookingConfirmationPage({ params, searchParams }: 
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
           <p className="text-sm leading-6 text-amber-100">If the deposit is not paid, this slot is released and your barber will not be expecting you. You will not receive a confirmation until payment is complete.</p>
         </div>
+        <DepositStatusWatcher awaitingDeposit={awaitingDeposit} />
       </>
     ) : (
       <p className="mt-5 text-sm leading-7 text-[var(--color-bone-muted)]">Keep your reference number. Confirmation and reminder delivery continue in the background even if an email provider needs a retry.</p>
