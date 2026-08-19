@@ -147,6 +147,9 @@ async function exception(admin: AdminClient, runId: string, businessId: string, 
 }
 
 async function modernAttribution(admin: AdminClient, businessId: string, appointment: ModernAppointment, barberUserId: string) {
+  // Portal-less barbers have no user id; there can be no stored per-barber
+  // attribution override for them, so they default to SHOP as policy requires.
+  if (!barberUserId) return { type: "SHOP" as const, source: "default_shop", evidence: { defaulted: true, reason: "no_portal_identity" } };
   if (String(appointment.booking_source ?? "").toLowerCase().includes("walk")) return { type: "SHOP" as const, source: "walk_in", evidence: { bookingSource: appointment.booking_source } };
   let row: AttributionRow | null = null;
   if (appointment.auth_user_id) {
@@ -267,7 +270,8 @@ export async function reconcileCommissions(limit = 100) {
     if (modern.deposit) { depositsSkipped += 1; skipped += 1; continue; }
 
     let source: {
-      barberUserId: string;
+      barberUserId: string | null;
+      barberProfileId?: string | null;
       clientUserId: string | null;
       appointmentId: string | null;
       clientRecordId: string | null;
@@ -283,15 +287,24 @@ export async function reconcileCommissions(limit = 100) {
 
     if (modern.appointment) {
       const appointment = modern.appointment;
+      // Commission belongs to the barber the client booked, whether or not that
+      // barber has ever signed into the portal. barber_profile_id is the durable
+      // identity; barber_user_id is populated only when a portal login exists.
       let barberUserId = appointment.assigned_staff_user_id ? String(appointment.assigned_staff_user_id) : null;
-      if (!barberUserId && appointment.barber_profile_id) {
-        const { data: barberProfile } = await admin.from("barber_profiles").select("staff_user_id").eq("id", appointment.barber_profile_id).eq("business_id", businessId).maybeSingle();
+      let barberProfileId = appointment.barber_profile_id ? String(appointment.barber_profile_id) : null;
+      if (!barberUserId && barberProfileId) {
+        const { data: barberProfile } = await admin.from("barber_profiles").select("staff_user_id").eq("id", barberProfileId).eq("business_id", businessId).maybeSingle();
         barberUserId = barberProfile?.staff_user_id ? String(barberProfile.staff_user_id) : null;
       }
-      if (!barberUserId) { await exception(admin, run.id, businessId, payment.square_id, "BARBER_MISSING", "The matched appointment has no verified barber portal assignment.", { appointmentId: appointment.id }); exceptions += 1; continue; }
-      const attribution = await modernAttribution(admin, businessId, appointment, barberUserId);
+      if (!barberProfileId && barberUserId) {
+        const { data: byUser } = await admin.from("barber_profiles").select("id").eq("staff_user_id", barberUserId).eq("business_id", businessId).maybeSingle();
+        barberProfileId = byUser?.id ? String(byUser.id) : null;
+      }
+      if (!barberUserId && !barberProfileId) { await exception(admin, run.id, businessId, payment.square_id, "BARBER_MISSING", "The matched appointment names no barber at all.", { appointmentId: appointment.id }); exceptions += 1; continue; }
+      const attribution = await modernAttribution(admin, businessId, appointment, barberUserId ?? "");
       source = {
         barberUserId,
+        barberProfileId,
         clientUserId: appointment.auth_user_id ? String(appointment.auth_user_id) : null,
         appointmentId: String(appointment.id),
         clientRecordId: appointment.client_id ? String(appointment.client_id) : null,
@@ -394,6 +407,7 @@ export async function reconcileCommissions(limit = 100) {
       settlement_period_id: paymentPeriodId,
       reconciliation_run_id: run.id,
       barber_user_id: source.barberUserId,
+      barber_profile_id: source.barberProfileId ?? null,
       client_user_id: source.clientUserId,
       booking_metadata_id: source.bookingMetadataId,
       appointment_id: source.appointmentId,

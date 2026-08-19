@@ -98,7 +98,35 @@ export async function POST(request: NextRequest) {
   if (!claimTypes.has(claimType) || explanation.length < 20 || (!clientEmail && !clientPhone)) return NextResponse.json({ ok: false, message: "Claim type, client contact, and a complete explanation are required." }, { status: 422 });
   const { data: staff } = await admin.from("staff_profiles").select("business_id").eq("user_id", session.user.id).maybeSingle();
   if (!staff?.business_id) return NextResponse.json({ ok: false, message: "Barber profile is not connected to the business." }, { status: 409 });
-  const { data: claim, error } = await admin.from("attribution_claims").insert({ business_id: staff.business_id, barber_user_id: session.user.id, client_email: clientEmail, client_phone: clientPhone, claim_type: claimType, status: "submitted", explanation, criteria: { priorServiceDate, priorPlace, policyLookbackMonths: 24 }, policy_version: "1.0", submitted_before_service: form.get("submittedBeforeService") === "true" }).select("id").single();
+
+  // A designated test/supervisor identity may file a claim on behalf of another
+  // barber, so the claim rules can be exercised without logging in as each one.
+  // The NEW-client block still applies - that rule is never bypassable.
+  let claimBarberUserId = session.user.id;
+  const onBehalfOf = String(form.get("onBehalfOfBarberProfileId") ?? "").trim();
+  if (onBehalfOf) {
+    const { data: me } = await admin
+      .from("barber_profiles")
+      .select("can_claim_for_any_barber")
+      .eq("staff_user_id", session.user.id)
+      .eq("business_id", staff.business_id)
+      .maybeSingle();
+    if (!me?.can_claim_for_any_barber) {
+      return NextResponse.json({ ok: false, message: "You may only submit claims for your own clients." }, { status: 403 });
+    }
+    const { data: target } = await admin
+      .from("barber_profiles")
+      .select("staff_user_id")
+      .eq("id", onBehalfOf)
+      .eq("business_id", staff.business_id)
+      .maybeSingle();
+    if (!target?.staff_user_id) {
+      return NextResponse.json({ ok: false, message: "That barber has no portal identity to file a claim against." }, { status: 409 });
+    }
+    claimBarberUserId = String(target.staff_user_id);
+  }
+
+  const { data: claim, error } = await admin.from("attribution_claims").insert({ business_id: staff.business_id, barber_user_id: claimBarberUserId, client_email: clientEmail, client_phone: clientPhone, claim_type: claimType, status: "submitted", explanation, criteria: { priorServiceDate, priorPlace, policyLookbackMonths: 24 }, policy_version: "1.0", submitted_before_service: form.get("submittedBeforeService") === "true" }).select("id").single();
   if (error || !claim?.id) return NextResponse.json({ ok: false, message: "The claim could not be created." }, { status: 500 });
 
   if (file instanceof File && file.size > 0) {
