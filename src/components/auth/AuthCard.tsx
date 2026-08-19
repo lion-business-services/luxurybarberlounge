@@ -8,7 +8,7 @@ import { ArrowRight, Check, LoaderCircle, RefreshCw, ShieldCheck } from "lucide-
 
 type Stage = "email" | "sending" | "code" | "verifying" | "success";
 
-type ApiResult = { ok?: boolean; message?: string; retryAfter?: number; destination?: string };
+type ApiResult = { ok?: boolean; message?: string; retryAfter?: number; destination?: string; code?: string };
 
 const OTP_LENGTH = 6;
 
@@ -48,6 +48,18 @@ export function AuthCard({ mode }: { mode: "login" | "register" | "forgot" }) {
         body: JSON.stringify({ email, next: nextPath }),
       });
       const result = await response.json() as ApiResult;
+
+      // A throttle means a code was ALREADY sent successfully moments ago.
+      // Move the person forward to code entry instead of showing an error that
+      // makes a working login look broken.
+      if (response.status === 429 || result.code === "OTP_RATE_LIMITED") {
+        setMessage(result.message || "A code was already sent. Please check your inbox.");
+        setCountdown(result.retryAfter ?? 30);
+        setStage("code");
+        window.setTimeout(() => inputs.current[0]?.focus(), 60);
+        return;
+      }
+
       if (!response.ok || !result.ok) throw new Error(result.message || "We could not send a code right now.");
       setMessage(result.message || "A six-digit code is on its way.");
       setCountdown(result.retryAfter ?? 60);

@@ -22,6 +22,35 @@ export async function POST(request: NextRequest) {
     email: parsed.data.email.toLowerCase(),
     options: { shouldCreateUser: true, data: { requested_portal_access: true } },
   });
-  if (error) return NextResponse.json({ ok: false, message: "Secure email delivery is temporarily unavailable. Please try again shortly.", code: "OTP_DELIVERY_FAILED" }, { status: 503 });
+  if (error) {
+    // Supabase throttles OTP sends per address. That is NOT a delivery failure -
+    // reporting it as one made a working login look broken. Surface the real
+    // reason and the exact wait, so the person knows to simply wait a moment.
+    const status = (error as { status?: number }).status;
+    const code = (error as { code?: string }).code ?? "";
+    const raw = error.message ?? "";
+    const isThrottled =
+      status === 429 ||
+      code === "over_email_send_rate_limit" ||
+      /only request this after/i.test(raw);
+
+    if (isThrottled) {
+      const seconds = Number(raw.match(/after (\d+) seconds?/i)?.[1] ?? 30);
+      return NextResponse.json(
+        {
+          ok: false,
+          code: "OTP_RATE_LIMITED",
+          retryAfter: seconds,
+          message: `A code was just sent. Please check your inbox, or request another in ${seconds} second${seconds === 1 ? "" : "s"}.`,
+        },
+        { status: 429, headers: { "retry-after": String(seconds) } },
+      );
+    }
+
+    return NextResponse.json(
+      { ok: false, message: "Secure email delivery is temporarily unavailable. Please try again shortly.", code: "OTP_DELIVERY_FAILED" },
+      { status: 503 },
+    );
+  }
   return NextResponse.json({ ok: true, message: generic, retryAfter: 60 });
 }
