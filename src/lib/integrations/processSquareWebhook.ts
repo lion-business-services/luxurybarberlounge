@@ -433,11 +433,40 @@ async function syncPayment(
         await admin.from("appointments").update({ deposit_status: "paid" }).eq("id", checkoutLink.appointment_id).neq("deposit_status", "refunded");
         // Deposit settled -> promote the held booking to confirmed.
         // Scoped to pending_confirmation so cancelled/completed rows are never resurrected.
-        await admin
+        const { data: promoted } = await admin
           .from("appointments")
           .update({ status: "confirmed" })
           .eq("id", checkoutLink.appointment_id)
-          .eq("status", "pending_confirmation");
+          .eq("status", "pending_confirmation")
+          .select("*")
+          .maybeSingle();
+
+        // Confirmation email/SMS were withheld at booking time because the
+        // deposit was outstanding. Now that it has settled, send them.
+        if (promoted) {
+          try {
+            const [{ queueBookingNotifications }, { hashManageToken }, { randomBytes }] =
+              await Promise.all([
+                import("@/lib/booking/notifications"),
+                import("@/lib/booking/manage"),
+                import("node:crypto"),
+              ]);
+            // Only the hash of the original manage token is stored, so issue a
+            // fresh one for the confirmation email's manage link.
+            const manageToken = randomBytes(32).toString("hex");
+            await admin
+              .from("appointments")
+              .update({ manage_token_hash: hashManageToken(manageToken) })
+              .eq("id", promoted.id);
+            await queueBookingNotifications(
+              admin,
+              { ...promoted, deposit_status: "paid" },
+              manageToken,
+            );
+          } catch {
+            // Never let notification delivery fail the payment webhook.
+          }
+        }
       }
     } else if (checkoutLink?.id && ["CANCELED", "FAILED"].includes(paymentStatus ?? "")) {
       await admin.from("appointment_payment_links").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", checkoutLink.id).neq("status", "paid");

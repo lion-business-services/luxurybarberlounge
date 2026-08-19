@@ -6,6 +6,8 @@ type AdminClient = NonNullable<ReturnType<typeof createUntypedAdminSupabase>>;
 type Appointment = {
   id: string;
   business_id: string;
+  deposit_required_cents?: number | null;
+  deposit_status?: string | null;
   public_reference: string;
   client_name_snapshot: string;
   client_email_snapshot: string | null;
@@ -31,6 +33,14 @@ function clientHtml(appointment: Appointment, manageToken: string) {
 }
 
 export async function queueBookingNotifications(admin: AdminClient, appointment: Appointment, manageToken: string) {
+  // Do not tell the client their appointment is confirmed while the deposit is
+  // still outstanding. These notifications are re-queued by the Square payment
+  // webhook once the deposit settles.
+  const depositOutstanding =
+    Number(appointment.deposit_required_cents ?? 0) > 0 &&
+    appointment.deposit_status !== "paid";
+  if (depositOutstanding) return;
+
   const formatted = visit(appointment);
   const jobs: Array<Record<string, unknown>> = [];
   if (appointment.client_email_snapshot && appointment.email_consent) {
