@@ -15,7 +15,7 @@ const names = [
 ];
 
 test("canonical business details and hours match the completed intake", () => {
-  assert.equal(business.phone, "(609) 384-5171");
+  assert.equal(business.phone, "(609) 338-1876");
   assert.equal(business.email, "info@theluxurybarberlounge.com");
   assert.equal(business.street, "801 Tilton Road, Suite 106A");
   assert.equal(business.city, "Northfield");

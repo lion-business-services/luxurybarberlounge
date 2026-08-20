@@ -130,7 +130,7 @@ export async function ClientDashboard() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <a href="tel:+16093845171" className="rounded-full bg-[var(--color-brass)] px-5 py-2.5 text-[9px] tracking-[.15em] uppercase text-[var(--color-ink)]">Call</a>
+            <a href="tel:+16093381876" className="rounded-full bg-[var(--color-brass)] px-5 py-2.5 text-[9px] tracking-[.15em] uppercase text-[var(--color-ink)]">Call</a>
             <Link href="/client/support" className="inline-flex items-center gap-2 rounded-full border border-[var(--color-ink-line)] px-5 py-2.5 text-[9px] tracking-[.15em] uppercase">
               <HelpCircle className="h-4 w-4" /> Support
             </Link>

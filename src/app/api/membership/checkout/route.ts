@@ -12,6 +12,8 @@ const schema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
   email: z.string().trim().email().max(254).optional(),
   phone: z.string().trim().max(40).optional(),
+  barberProfileId: z.string().uuid().optional(),
+  clientStatus: z.enum(["new", "existing"]).optional(),
 });
 
 type SquarePaymentLinkResponse = {
@@ -103,6 +105,8 @@ export async function POST(request: NextRequest) {
       email,
       name,
       phone: parsed.data.phone ?? null,
+      barber_profile_id: parsed.data.barberProfileId ?? null,
+      client_status: parsed.data.clientStatus ?? null,
       square_payment_link_id: link.id,
       square_order_id: link.order_id ?? null,
       checkout_url: checkoutUrl,

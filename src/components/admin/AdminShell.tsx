@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
+  CalendarOff,
   CircleDollarSign,
   FileText,
   ClipboardList,
@@ -46,6 +47,7 @@ const groups: Group[] = [
     items: [
       { label: "Clients", href: "/admin/clients", icon: ContactRound },
       { label: "Barbers", href: "/admin/barbers", icon: Scissors },
+      { label: "Availability", href: "/admin/time-off", icon: CalendarOff, ownerOnly: false },
       { label: "Services", href: "/admin/services", icon: ListChecks },
       { label: "Memberships", href: "/admin/memberships", icon: BadgeCheck },
     ],

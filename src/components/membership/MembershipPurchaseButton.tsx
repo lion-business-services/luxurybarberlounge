@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowUpRight, Loader2 } from "lucide-react";
 
 /**
@@ -27,6 +27,23 @@ export function MembershipPurchaseButton({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [barberId, setBarberId] = useState("");
+  const [clientStatus, setClientStatus] = useState<"" | "new" | "existing">("");
+  const [barbers, setBarbers] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Load the public barber roster so the member can choose their barber.
+  useEffect(() => {
+    if (!open || barbers.length) return;
+    void (async () => {
+      try {
+        const response = await fetch("/api/barbers/public", { cache: "no-store" });
+        const result = await response.json();
+        setBarbers(result.barbers ?? []);
+      } catch {
+        setBarbers([]);
+      }
+    })();
+  }, [open, barbers.length]);
 
   const t = {
     en: {
@@ -36,13 +53,23 @@ export function MembershipPurchaseButton({
       name: "Full name",
       email: "Email",
       phone: "Phone (optional)",
+      barber: "Preferred barber",
+      barberAny: "First available",
+      status: "Have you visited us before?",
+      statusNew: "This will be my first visit",
+      statusExisting: "I am an existing client",
       go: "Continue to secure payment",
       cancel: "Cancel",
-      error: "Please enter your name and a valid email.",
+      error: "Please complete every field before continuing.",
     },
     es: {
       join: "Hazte miembro",
       title: "Comienza tu membresía",
+      barber: "Barbero preferido",
+      barberAny: "Primero disponible",
+      status: "¿Nos has visitado antes?",
+      statusNew: "Será mi primera visita",
+      statusExisting: "Ya soy cliente",
       copy: "El pago lo procesa Square de forma segura. Tu tarjeta la guarda Square para el cobro recurrente — nunca nosotros.",
       name: "Nombre completo",
       email: "Correo electrónico",
@@ -54,7 +81,7 @@ export function MembershipPurchaseButton({
   }[lang];
 
   async function start() {
-    if (name.trim().length < 2 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    if (name.trim().length < 2 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !clientStatus) {
       setError(t.error);
       return;
     }
@@ -64,7 +91,7 @@ export function MembershipPurchaseButton({
       const response = await fetch("/api/membership/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ planSlug, name: name.trim(), email: email.trim(), phone: phone.trim() || undefined }),
+        body: JSON.stringify({ planSlug, name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, barberProfileId: barberId || undefined, clientStatus: clientStatus || undefined }),
       });
       const result = await response.json();
       if (result.ok && result.url) {
@@ -116,6 +143,36 @@ export function MembershipPurchaseButton({
         autoComplete="tel"
         className="min-h-11 rounded-lg border border-[var(--color-ink-line)] bg-transparent px-3 text-sm text-[var(--color-bone)]"
       />
+
+      <label className="grid gap-1.5">
+        <span className="text-[9px] tracking-[.16em] uppercase text-[var(--color-brass)]">{t.barber}</span>
+        <select
+          value={barberId}
+          onChange={(event) => setBarberId(event.target.value)}
+          className="min-h-11 rounded-lg border border-[var(--color-ink-line)] bg-transparent px-3 text-sm text-[var(--color-bone)]"
+        >
+          <option value="">{t.barberAny}</option>
+          {barbers.map((barber) => (
+            <option key={barber.id} value={barber.id}>{barber.name}</option>
+          ))}
+        </select>
+      </label>
+
+      <fieldset className="grid gap-2">
+        <legend className="text-[9px] tracking-[.16em] uppercase text-[var(--color-brass)]">{t.status}</legend>
+        {([["new", t.statusNew], ["existing", t.statusExisting]] as const).map(([value, label]) => (
+          <label key={value} className="flex items-center gap-2.5 text-sm">
+            <input
+              type="radio"
+              name="clientStatus"
+              value={value}
+              checked={clientStatus === value}
+              onChange={() => setClientStatus(value)}
+            />
+            <span>{label}</span>
+          </label>
+        ))}
+      </fieldset>
 
       {error ? <p className="text-xs text-rose-300">{error}</p> : null}
 

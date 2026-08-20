@@ -303,8 +303,8 @@ async function syncBooking(
                 ? "Your Luxury Barber Lounge appointment"
                 : "Your appointment was updated",
               body: created
-                ? `Your Luxury Barber Lounge appointment is scheduled for ${when}. We look forward to welcoming you. Call 609-384-5171 if you need assistance.`
-                : `Your Luxury Barber Lounge appointment for ${when} is now ${status}. Call 609-384-5171 if you need assistance.`,
+                ? `Your Luxury Barber Lounge appointment is scheduled for ${when}. We look forward to welcoming you. Call 609-338-1876 if you need assistance.`
+                : `Your Luxury Barber Lounge appointment for ${when} is now ${status}. Call 609-338-1876 if you need assistance.`,
               transactional: true,
               squareBookingId: id,
               eventType:
@@ -1206,7 +1206,7 @@ async function activateMembershipIfPaid(
 
   const { data: intent } = await admin
     .from("membership_checkout_intents")
-    .select("id,plan_id,business_id,email,name,phone,client_user_id,status")
+    .select("id,plan_id,business_id,email,name,phone,client_user_id,status,barber_profile_id,client_status")
     .eq("square_order_id", orderId)
     .maybeSingle();
   if (!intent || intent.status === "activated") return;
@@ -1280,6 +1280,60 @@ async function activateMembershipIfPaid(
         updated_at: new Date().toISOString(),
       })
       .eq("id", intent.id);
+
+    // Notify the owner and the selected barber. Queued through the normal
+    // notification pipeline so delivery is logged and retried like everything
+    // else, rather than fired blind from inside the webhook.
+    try {
+      const { data: planRow } = await admin
+        .from("membership_plans")
+        .select("name,price_cents")
+        .eq("id", intent.plan_id)
+        .maybeSingle();
+      const planLabel = (planRow?.name as { en?: string })?.en ?? "Membership";
+      const amount = `$${(Number(planRow?.price_cents ?? 0) / 100).toFixed(2)}`;
+
+      let barberName = "First available";
+      let barberEmail: string | null = null;
+      if (intent.barber_profile_id) {
+        const { data: barber } = await admin
+          .from("barber_profiles")
+          .select("display_name,portal_email")
+          .eq("id", intent.barber_profile_id)
+          .maybeSingle();
+        barberName = String(barber?.display_name ?? barberName);
+        barberEmail = barber?.portal_email ? String(barber.portal_email) : null;
+      }
+
+      const summary = [
+        `Member: ${intent.name ?? intent.email}`,
+        `Email: ${intent.email}`,
+        intent.phone ? `Phone: ${intent.phone}` : null,
+        `Plan: ${planLabel} (${amount})`,
+        `Barber: ${barberName}`,
+        `Client status: ${intent.client_status ?? "not stated"}`,
+        `Square subscription: ${subscriptionId ?? "pending"}`,
+      ].filter(Boolean).join("\n");
+
+      const recipients = ["info@theluxurybarberlounge.com", barberEmail].filter(Boolean) as string[];
+      for (const to of recipients) {
+        await admin.from("notification_jobs").insert({
+          business_id: intent.business_id,
+          channel: "email",
+          template_key: "membership_activated",
+          recipient: to,
+          subject: `New membership: ${planLabel} — ${intent.name ?? intent.email}`,
+          body: summary,
+          status: "queued",
+          scheduled_for: new Date().toISOString(),
+        });
+      }
+
+      const { processNotificationJobs } = await import("@/lib/notifications/process");
+      await processNotificationJobs(admin, { limit: 10 });
+    } catch {
+      // Membership is active regardless; notification failure must not undo it.
+    }
   } catch (error) {
     // The member has paid; enrolment needs manual completion by an admin.
     await admin
