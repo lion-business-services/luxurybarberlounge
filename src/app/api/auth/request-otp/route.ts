@@ -71,8 +71,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Anything else is a genuine server-side fault. Retry once automatically -
+    // a transient Supabase blip should not become a dead end for someone
+    // standing in the shop trying to sign in.
+    const retry = await supabase.auth.signInWithOtp({
+      email: parsed.data.email.toLowerCase(),
+      options: { shouldCreateUser: true, data: { requested_portal_access: true } },
+    });
+    if (!retry.error) {
+      return NextResponse.json({ ok: true, message: generic, retryAfter: 60 });
+    }
+
     return NextResponse.json(
-      { ok: false, message: "Secure email delivery is temporarily unavailable. Please try again shortly.", code: "OTP_DELIVERY_FAILED" },
+      {
+        ok: false,
+        code: "OTP_DELIVERY_FAILED",
+        message:
+          "We could not send your code just now. Please try once more in a few seconds, or call the lounge on 609-338-1876 and we will let you in.",
+      },
       { status: 503 },
     );
   }

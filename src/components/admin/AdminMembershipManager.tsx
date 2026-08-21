@@ -13,14 +13,12 @@ export function AdminMembershipManager({ plans, requests, owner }: { plans: Plan
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [mapping, setMapping] = useState<Record<string, string>>(Object.fromEntries(plans.map((plan) => [plan.id, plan.squareCatalogId ?? ""])));
 
-  async function planAction(planId: string, action: "publish" | "unpublish" | "archive" | "map_square") {
-    const squareCatalogId = mapping[planId]?.trim() || null;
+  async function planAction(planId: string, action: "publish" | "unpublish" | "archive") {
     setBusy(`plan:${planId}`); setMessage("");
-    const response = await fetch("/api/admin/memberships", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ planId, action, squareCatalogId, reason: action === "map_square" ? "Owner updated Square catalog mapping" : `Owner requested ${action}` }) });
+    const response = await fetch("/api/admin/memberships", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ planId, action, reason: `Owner requested ${action}` }) });
     const body = await response.json().catch(() => null) as { message?: string } | null;
-    setMessage(response.ok ? (action === "map_square" ? "Square membership mapping saved." : `Membership plan ${action.replace("unpublish", "unpublished").replace("publish", "published").replace("archive", "archived")}.`) : body?.message ?? "Membership plan could not be updated.");
+    setMessage(response.ok ? (`Membership plan ${action.replace("unpublish", "unpublished").replace("publish", "published").replace("archive", "archived")}.`) : body?.message ?? "Membership plan could not be updated.");
     if (response.ok) router.refresh();
     setBusy(null);
   }
@@ -41,8 +39,11 @@ export function AdminMembershipManager({ plans, requests, owner }: { plans: Plan
       <h2 className="font-display mt-2 text-2xl">Membership plans</h2>
       <div className="mt-5 grid gap-3">
         {plans.map((plan) => <article key={plan.id} className="rounded-xl border border-white/[.07] p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-display text-xl">{plan.name}</h3><p className="mt-1 text-xs text-[var(--color-bone-muted)]">{money(plan.priceCents)} / {label(plan.billingInterval)} · {label(plan.status)}</p></div><span className="rounded-full border border-white/10 px-2 py-1 text-[8px] uppercase tracking-[.12em]">{plan.squareCatalogId ? "Square linked" : "Square mapping required"}</span></div>
-          {owner ? <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end"><label><span className="form-label">Square catalog ID</span><input className="form-control" value={mapping[plan.id] ?? ""} onChange={(event) => setMapping((current) => ({ ...current, [plan.id]: event.target.value }))} placeholder="Square catalog object ID" /></label><div className="flex flex-wrap gap-2"><button type="button" disabled={busy === `plan:${plan.id}`} onClick={() => void planAction(plan.id, "map_square")} className="rounded-full border border-white/10 px-4 py-2 text-[9px] uppercase">Save mapping</button>{plan.status === "published" ? <button type="button" disabled={busy === `plan:${plan.id}`} onClick={() => void planAction(plan.id, "unpublish")} className="rounded-full border border-white/10 px-4 py-2 text-[9px] uppercase">Unpublish</button> : <button type="button" disabled={busy === `plan:${plan.id}`} onClick={() => void planAction(plan.id, "publish")} className="rounded-full bg-[var(--color-brass)] px-4 py-2 text-[9px] uppercase text-[var(--color-ink)]">Publish</button>}<button type="button" disabled={busy === `plan:${plan.id}`} onClick={() => void planAction(plan.id, "archive")} className="rounded-full border border-white/10 px-4 py-2 text-[9px] uppercase">Archive</button></div></div> : null}
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-display text-xl">{plan.name}</h3><p className="mt-1 text-xs text-[var(--color-bone-muted)]">{money(plan.priceCents)} / {label(plan.billingInterval)} · {label(plan.status)}</p></div></div>
+          {/* Square catalog mapping is developer configuration, not owner
+              controls. The two live plans are wired to Square already; showing
+              raw catalog IDs here only invites accidental breakage. */}
+          {owner ? <div className="mt-4 flex flex-wrap gap-2">{plan.status === "published" ? <button type="button" disabled={busy === `plan:${plan.id}`} onClick={() => void planAction(plan.id, "unpublish")} className="rounded-full border border-white/10 px-4 py-2 text-[9px] uppercase">Hide from website</button> : <button type="button" disabled={busy === `plan:${plan.id}`} onClick={() => void planAction(plan.id, "publish")} className="rounded-full bg-[var(--color-brass)] px-4 py-2 text-[9px] uppercase text-[var(--color-ink)]">Show on website</button>}</div> : null}
         </article>)}
         {!plans.length ? <div className="portal-empty">No membership plans yet.</div> : null}
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -142,7 +143,7 @@ export function PortalShell({ role, children }: { role: PortalRole; children: Re
             </label>
           ) : null}
           {session?.email ? <p className="mt-4 truncate text-[10px] text-[var(--color-bone-muted)]">{session.email}</p> : null}
-          <button type="button" onClick={logout} className="mt-4 inline-flex items-center gap-2 text-[10px] tracking-[.18em] uppercase text-[var(--color-bone-muted)] hover:text-[var(--color-brass)]"><LogOut className="h-4 w-4" />Sign out</button>
+          <div className="mt-4"><LanguageToggle className="w-full justify-center" /></div><button type="button" onClick={logout} className="mt-3 inline-flex items-center gap-2 text-[10px] tracking-[.18em] uppercase text-[var(--color-bone-muted)] hover:text-[var(--color-brass)]"><LogOut className="h-4 w-4" />Sign out</button>
         </div>
       </aside>
       <main className="portal-main">{children}</main>

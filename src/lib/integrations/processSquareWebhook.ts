@@ -1315,6 +1315,40 @@ async function activateMembershipIfPaid(
         `Square subscription: ${subscriptionId ?? "pending"}`,
       ].filter(Boolean).join("\n");
 
+      const site = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.theluxurybarberlounge.com").replace(/\/$/, "");
+      const renews = startDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      const cadence = plan.billing_interval === "year" ? "year" : "month";
+
+      // 1. The member's own confirmation.
+      const memberHtml = `<div style="font-family:Georgia,serif;background:#090909;color:#f4efe6;padding:32px">
+        <div style="max-width:560px;margin:0 auto;border:1px solid #9d772e;padding:28px">
+          <p style="margin:0;color:#c99a3e;letter-spacing:3px;text-transform:uppercase;font-size:10px">Membership confirmed</p>
+          <h1 style="margin:10px 0 0;font-size:32px">Welcome to the Lounge.</h1>
+          <p style="margin:18px 0 0;font-size:14px;line-height:1.7;color:#cfc7b8">${intent.name ?? "Thank you"}, your ${planLabel} membership is active.</p>
+          <table style="width:100%;margin:22px 0;border-collapse:collapse;font-size:14px">
+            <tr><td style="padding:8px 0;color:#8d8578">Plan</td><td style="padding:8px 0;text-align:right">${planLabel}</td></tr>
+            <tr><td style="padding:8px 0;color:#8d8578">Amount</td><td style="padding:8px 0;text-align:right">${amount} / ${cadence}</td></tr>
+            <tr><td style="padding:8px 0;color:#8d8578">Your barber</td><td style="padding:8px 0;text-align:right">${barberName}</td></tr>
+            <tr><td style="padding:8px 0;color:#8d8578">Renews</td><td style="padding:8px 0;text-align:right">${renews}</td></tr>
+          </table>
+          <p style="margin:0 0 20px;font-size:12px;line-height:1.7;color:#8d8578">Your card is stored securely by Square and will be charged automatically each ${cadence}. Cancel anytime with 30 days notice.</p>
+          <a href="${site}/login?next=/client" style="display:inline-block;background:#c99a3e;color:#090909;padding:12px 22px;text-decoration:none;text-transform:uppercase;letter-spacing:2px;font-size:11px">Open your portal</a>
+          <p style="margin:22px 0 0;font-size:12px;color:#8d8578">801 Tilton Road, Suite 106A, Northfield, NJ 08225 · 609-338-1876</p>
+        </div>
+      </div>`;
+
+      await admin.from("notification_jobs").insert({
+        business_id: intent.business_id,
+        channel: "email",
+        template_key: "membership_confirmed_member",
+        recipient: intent.email,
+        subject: `Your ${planLabel} membership is active`,
+        body: memberHtml,
+        status: "queued",
+        scheduled_for: new Date().toISOString(),
+      });
+
+      // 2. Owner and the selected barber get the operational detail.
       const recipients = ["info@theluxurybarberlounge.com", barberEmail].filter(Boolean) as string[];
       for (const to of recipients) {
         await admin.from("notification_jobs").insert({
@@ -1323,7 +1357,7 @@ async function activateMembershipIfPaid(
           template_key: "membership_activated",
           recipient: to,
           subject: `New membership: ${planLabel} — ${intent.name ?? intent.email}`,
-          body: summary,
+          body: `<pre style="font-family:monospace;font-size:13px;white-space:pre-wrap">${summary}\nRenews: ${renews}</pre>`,
           status: "queued",
           scheduled_for: new Date().toISOString(),
         });

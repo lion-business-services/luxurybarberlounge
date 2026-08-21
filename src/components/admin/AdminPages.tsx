@@ -16,7 +16,6 @@ import {
 import { loadAdminAutomationRules, loadAdminBarberDetail, loadAdminClientDetail, loadAdminModuleSnapshot, loadAdminPortalData } from "@/lib/portal/admin-data";
 import { AdminClientEditor } from "./AdminClientEditor";
 import { AdminCreateClient } from "./AdminCreateClient";
-import { AdminMembershipPlanForm } from "./AdminMembershipPlanForm";
 import { AdminMembershipManager } from "./AdminMembershipManager";
 import { AdminBarberEditor } from "./AdminBarberEditor";
 import { AdminBarberInvite } from "./AdminBarberInvite";
@@ -78,7 +77,6 @@ export async function AdminMembershipsPage() {
   const [data, session] = await Promise.all([loadAdminPortalData(), getServerAuthSession()]);
   const owner = session.roles.some((role) => role === "owner" || role === "super_admin");
   return <AdminPageHeader eyebrow="Membership operations" title="Memberships" copy="Manage approved plans, active members, usage, renewal dates, and membership requests in one place.">
-    {owner ? <AdminMembershipPlanForm /> : <div className={styles.empty}>Managers may review membership activity. Only the owner can create or publish plan terms.</div>}
     <AdminMembershipManager plans={data.membershipPlans} requests={data.membershipRequests} owner={owner} />
     {data.memberships.length ? <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Client</th><th>Plan</th><th>Status</th><th>Renews</th></tr></thead><tbody>{data.memberships.map((item) => <tr key={item.id}><td><Link href={`/admin/clients/${item.clientId}`} className="text-[var(--color-brass)]">{item.clientName}</Link></td><td>{item.plan}</td><td>{titleCase(item.status)}</td><td>{item.renewsAt ? shortDate(item.renewsAt) : "—"}</td></tr>)}</tbody></table></div> : <Empty text="No client memberships yet. Approved plans and active members will appear here automatically." />}
   </AdminPageHeader>;

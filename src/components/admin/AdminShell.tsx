@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -157,7 +158,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <p className="mt-1 truncate text-[10px] text-[var(--color-bone-muted)]">{email ?? "Secure operations"}</p>
         </div>
         <Navigation pathname={pathname} owner={owner} />
-        <button type="button" onClick={logout} className={`${styles.navLink} mt-5 w-full`}>
+        <div className="mt-5 px-1">
+          <LanguageToggle className="w-full justify-center" />
+        </div>
+        <button type="button" onClick={logout} className={`${styles.navLink} mt-3 w-full`}>
           <LogOut className="h-4 w-4" /> Sign out
         </button>
       </aside>
