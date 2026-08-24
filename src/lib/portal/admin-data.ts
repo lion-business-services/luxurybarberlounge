@@ -57,7 +57,7 @@ export async function loadAdminPortalData(): Promise<AdminPortalData> {
     supabase.from("membership_requests").select("id,client_user_id,request_type,requested_plan_id,status,reason,review_note,created_at").eq("business_id", businessId).order("created_at", { ascending: false }).limit(50),
     supabase.from("barber_profiles").select("id,slug,display_name,professional_title,active,status").eq("business_id", businessId).order("sort_order", { ascending: true }).limit(50),
     supabase.from("integrations").select("provider,status,environment,last_success_at,last_error_at").eq("business_id", businessId).order("provider"),
-    supabase.from("sync_failures").select("id,provider,resource_type,error_message,created_at").eq("business_id", businessId).order("created_at", { ascending: false }).limit(10),
+    supabase.from("sync_failures").select("id,provider,resource_type,message,created_at").eq("business_id", businessId).order("created_at", { ascending: false }).limit(10),
     supabase.from("square_payments").select("amount_cents,tip_cents,created_at_square").eq("business_id", businessId).gte("created_at_square", start.toISOString()).lt("created_at_square", end.toISOString()),
   ]);
 
@@ -120,7 +120,7 @@ export async function loadAdminPortalData(): Promise<AdminPortalData> {
     }),
     barbers: ((barberRows.data ?? []) as Array<Record<string, unknown>>).map((row) => ({ id: String(row.id), slug: String(row.slug), name: localizedName(row.display_name, "Barber"), title: localizedName(row.professional_title, "Independent Barber"), active: Boolean(row.active), status: s(row.status) ?? "draft" })),
     systems: ((integrations.data ?? []) as Array<Record<string, unknown>>).map((row) => ({ provider: s(row.provider) ?? "unknown", status: s(row.status) ?? "not_configured", detail: s(row.last_success_at) ? `Last success ${new Date(String(row.last_success_at)).toLocaleString()}` : s(row.last_error_at) ? "Recent error recorded" : `Environment: ${s(row.environment) ?? "unknown"}` })),
-    failures: ((syncFailures.data ?? []) as Array<Record<string, unknown>>).map((row) => ({ id: String(row.id), provider: s(row.provider) ?? "unknown", resource: s(row.resource_type) ?? "resource", message: s(row.error_message) ?? "Sync failed", createdAt: String(row.created_at) })),
+    failures: ((syncFailures.data ?? []) as Array<Record<string, unknown>>).map((row) => ({ id: String(row.id), provider: s(row.provider) ?? "unknown", resource: s(row.resource_type) ?? "resource", message: s(row.message) ?? "Sync failed", createdAt: String(row.created_at) })),
   };
 }
 
