@@ -51,15 +51,19 @@ const nav: Record<PortalRole, NavItem[]> = {
   barber: [
     { label: "Dashboard", href: "/barber", icon: LayoutDashboard },
     { label: "Today", href: "/barber/today", icon: Clock3 },
+    { label: "Appointments", href: "/barber/appointments", icon: CalendarDays },
     { label: "Calendar", href: "/barber/calendar", icon: CalendarDays },
     { label: "Queue", href: "/barber/queue", icon: ClipboardList },
     { label: "Clients", href: "/barber/clients", icon: ContactRound },
     { label: "Attribution claims", href: "/barber/attribution", icon: FileText },
     { label: "Portfolio", href: "/barber/portfolio", icon: GalleryHorizontal },
     { label: "Performance", href: "/barber/performance", icon: BarChart3 },
+    { label: "Revenue", href: "/barber/revenue", icon: CircleDollarSign },
     { label: "Commissions", href: "/barber/commissions", icon: CircleDollarSign },
     { label: "Disputes", href: "/barber/disputes", icon: FileText },
+    { label: "Notifications", href: "/barber/notifications", icon: Bell },
     { label: "Profile", href: "/barber/profile", icon: Settings },
+    { label: "Policies & resources", href: "/barber/resources", icon: ShieldCheck },
   ],
   reception: [
     { label: "Dashboard", href: "/reception", icon: LayoutDashboard },
@@ -142,8 +146,8 @@ const barberResponsiveCss = `
       background: rgba(13, 13, 13, .98) !important;
     }
     .barber-portal-shell .portal-sidebar-brand { display: none !important; }
-    .barber-portal-shell .barber-mobile-nav-header {
-      display: flex;
+    .barber-portal-shell .portal-sidebar > .barber-mobile-nav-header:first-child {
+      display: flex !important;
       align-items: center;
       justify-content: space-between;
       gap: 1rem;
@@ -157,7 +161,13 @@ const barberResponsiveCss = `
       gap: .45rem;
       margin-top: .7rem;
       padding-top: .7rem;
+      padding-right: .15rem;
       border-top: 1px solid var(--color-ink-line);
+      max-height: min(66svh, 36rem);
+      overflow-y: auto;
+      overscroll-behavior-y: contain;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
     }
     .barber-portal-shell .portal-sidebar[data-mobile-open="true"] .portal-sidebar-footer {
       display: flex !important;
@@ -204,6 +214,7 @@ const barberResponsiveCss = `
     .barber-portal-shell .portal-sidebar { padding: .6rem .75rem !important; }
     .barber-portal-shell .portal-sidebar[data-mobile-open="true"] .portal-role-nav {
       grid-template-columns: minmax(0, 1fr);
+      max-height: min(62svh, 32rem);
     }
     .barber-portal-shell .portal-sidebar[data-mobile-open="true"] .portal-sidebar-footer {
       display: grid !important;
