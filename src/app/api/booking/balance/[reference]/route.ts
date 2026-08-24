@@ -87,10 +87,23 @@ export async function GET(
       body: {
         description: `Luxury Barber Lounge balance ${appointment.public_reference}`,
         payment_note: `LBL_BALANCE:${appointment.id}:${appointment.public_reference}`,
-        quick_pay: {
-          name: `Balance - ${appointment.service_name_snapshot}`.slice(0, 255),
-          price_money: { amount, currency: "USD" },
+        order: {
           location_id: squareConfig.locationId,
+          line_items: [
+            {
+              name: `Balance - ${appointment.service_name_snapshot}`.slice(0, 255),
+              quantity: "1",
+              base_price_money: { amount, currency: "USD" },
+            },
+          ],
+          service_charges: [
+            {
+              name: "Service fee (4%)",
+              percentage: "4.0",
+              calculation_phase: "SUBTOTAL_PHASE",
+              taxable: false,
+            },
+          ],
         },
         checkout_options: {
           allow_tipping: true,

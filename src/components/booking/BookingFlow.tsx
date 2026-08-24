@@ -293,7 +293,7 @@ function ReviewStep({ draft, service, addons, barber, slot, location, duration, 
       <Review label="Date and time" value={slot ? new Intl.DateTimeFormat("en-US", { timeZone: location.timezone, dateStyle: "full", timeStyle: "short" }).format(new Date(slot.startsAt)) : "—"} />
       <Review label="Duration" value={`${duration} minutes`} />
       <Review label="Price" value={`$${(estimatedPrice / 100).toFixed(2)}`} />
-      <Review label="Required deposit" value={`$${(deposit / 100).toFixed(2)} (50%)`} />
+      <Review label="Due now to confirm" value={`$${(deposit / 100).toFixed(2)} + 4% service fee`} />
       <Review label="Client" value={`${draft.firstName} ${draft.lastName}`} />
       <Review label="Contact" value={`${draft.email} · ${draft.phone}`} />
       <Review label="Preferred language" value={draft.preferredLanguage === "es" ? "Español" : "English"} />

@@ -5,6 +5,10 @@ import { squareConfig } from "@/lib/square/config";
 import { squareRequest, SquareApiError, SquareConfigurationError } from "@/lib/square/client";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 
+// Service fee applied to every online payment. Itemised on the Square receipt.
+const SERVICE_FEE_PERCENT = "4.0";
+const SERVICE_FEE_LABEL = "Service fee (4%)";
+
 const schema = z.object({
   purpose: z.enum(["deposit", "balance"]).optional(), reference: z.string().trim().min(4).max(80), token: z.string().trim().min(20).max(300) });
 type SquarePaymentLinkResponse = { payment_link?: { id?: string; order_id?: string; url?: string; long_url?: string } };
@@ -58,10 +62,28 @@ export async function POST(request: NextRequest) {
       body: {
         description: `Luxury Barber Lounge ${purpose === "balance" ? "balance" : "booking deposit"} ${appointment.public_reference}`,
         payment_note: `${purpose === "balance" ? "LBL_BALANCE" : "LBL_DEPOSIT"}:${appointment.id}:${appointment.public_reference}`,
-        quick_pay: {
-          name: `${purpose === "balance" ? "Balance" : "Deposit"} - ${appointment.service_name_snapshot}`.slice(0, 255),
-          price_money: { amount, currency: "USD" },
+        // A full order (not quick_pay) so the 4% service fee appears as its own
+        // itemised line on the Square receipt. Bundling it into a single total
+        // would hide the charge from the client, which is both poor practice
+        // and a disclosure problem for a consumer-facing surcharge.
+        order: {
           location_id: squareConfig.locationId,
+          reference_id: String(appointment.public_reference).slice(0, 40),
+          line_items: [
+            {
+              name: `${appointment.service_name_snapshot}`.slice(0, 255),
+              quantity: "1",
+              base_price_money: { amount, currency: "USD" },
+            },
+          ],
+          service_charges: [
+            {
+              name: SERVICE_FEE_LABEL,
+              percentage: SERVICE_FEE_PERCENT,
+              calculation_phase: "SUBTOTAL_PHASE",
+              taxable: false,
+            },
+          ],
         },
         checkout_options: { allow_tipping: false, redirect_url: redirectUrl, ask_for_shipping_address: false },
         pre_populated_data: {
@@ -78,6 +100,8 @@ export async function POST(request: NextRequest) {
       appointment_id: appointment.id,
       purpose,
       amount_cents: amount,
+      // amount_cents is the service amount; the 4% fee is added by Square at
+      // checkout and arrives on the order/payment records.
       square_payment_link_id: link.id,
       square_order_id: link.order_id,
       checkout_url: checkoutUrl,

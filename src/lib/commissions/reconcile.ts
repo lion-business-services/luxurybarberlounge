@@ -29,6 +29,7 @@ type SquareOrder = {
   customer_square_id?: string | null;
   total_cents?: number | null;
   tax_cents?: number | null;
+  service_charge_cents?: number | null;
   discount_cents?: number | null;
 };
 type SquarePayment = {
@@ -263,7 +264,7 @@ export async function reconcileCommissions(limit = 100) {
     if (existing?.id) { skipped += 1; continue; }
     if (!payment.square_order_id) { await exception(admin, run.id, businessId, payment.square_id, "ORDER_MISSING", "Payment has no Square order mapping."); exceptions += 1; continue; }
 
-    const { data: order } = await admin.from("square_orders").select("id,square_id,customer_square_id,total_cents,tax_cents,discount_cents").eq("business_id", businessId).eq("square_id", payment.square_order_id).maybeSingle();
+    const { data: order } = await admin.from("square_orders").select("id,square_id,customer_square_id,total_cents,tax_cents,discount_cents,service_charge_cents").eq("business_id", businessId).eq("square_id", payment.square_order_id).maybeSingle();
     if (!order?.id) { await exception(admin, run.id, businessId, payment.square_id, "ORDER_NOT_SYNCED", "The related Square order has not been synchronized."); exceptions += 1; continue; }
 
     const modern = await resolveModernAppointment(admin, businessId, order, payment);
@@ -384,7 +385,14 @@ export async function reconcileCommissions(limit = 100) {
     }
     touchedPeriodIds.add(paymentPeriodId);
 
-    const orderNetCents = Math.max(0, Number(order.total_cents ?? payment.amount_cents ?? 0) - Number(order.tax_cents ?? 0));
+    // The 4% service fee is shop revenue, NOT service revenue. Excluding it
+    // here prevents barbers earning a share of the shop's own processing fee.
+    const orderNetCents = Math.max(
+      0,
+      Number(order.total_cents ?? payment.amount_cents ?? 0)
+        - Number(order.tax_cents ?? 0)
+        - Number(order.service_charge_cents ?? 0),
+    );
     const refundResult = await admin.from("square_refunds").select("amount_cents").eq("business_id", businessId).eq("square_payment_id", payment.square_id).eq("status", "COMPLETED");
     const refunds = (refundResult.data ?? []).reduce((sum: number, row) => sum + Number(row.amount_cents ?? 0), 0);
     const result = calculateCommission({

@@ -73,10 +73,23 @@ export async function POST(request: NextRequest) {
         description: `Luxury Barber Lounge membership - ${planName}`,
         // The webhook reads this note to attach the recurring subscription.
         payment_note: `LBL_MEMBERSHIP:${plan.id}:${plan.square_catalog_id}`,
-        quick_pay: {
-          name: `${planName} - first month`.slice(0, 255),
-          price_money: { amount: Number(plan.price_cents), currency: "USD" },
+        order: {
           location_id: squareConfig.locationId,
+          line_items: [
+            {
+              name: `${planName} - first month`.slice(0, 255),
+              quantity: "1",
+              base_price_money: { amount: Number(plan.price_cents), currency: "USD" },
+            },
+          ],
+          service_charges: [
+            {
+              name: "Service fee (4%)",
+              percentage: "4.0",
+              calculation_phase: "SUBTOTAL_PHASE",
+              taxable: false,
+            },
+          ],
         },
         checkout_options: {
           allow_tipping: false,

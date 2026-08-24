@@ -37,10 +37,10 @@ export default async function BookingConfirmationPage({ params, searchParams }: 
   const depositAmount = (depositCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
   return <main className="min-h-screen bg-[var(--color-ink)] px-5 py-16 text-[var(--color-bone)] sm:px-8"><section className="mx-auto max-w-3xl border border-[var(--color-brass)]/30 bg-[var(--color-ink-soft)] p-7 sm:p-12">{awaitingDeposit ? <Clock className="h-10 w-10 text-amber-400" /> : <CheckCircle2 className="h-10 w-10 text-[var(--color-brass)]" />}<p className={`mt-6 text-[10px] tracking-[.3em] uppercase ${awaitingDeposit ? "text-amber-400" : "text-[var(--color-brass)]"}`}>{awaitingDeposit ? "Deposit required \u00b7 not yet confirmed" : "Appointment confirmed"}</p><h1 className="font-display mt-3 text-4xl sm:text-6xl">{awaitingDeposit ? "Almost there." : "Your chair is reserved."}</h1>{awaitingDeposit ? (
       <>
-        <p className="mt-5 text-sm leading-7 text-[var(--color-bone-muted)]">We are holding this time slot for you, but <strong className="text-amber-300">your appointment is not booked yet</strong>. Pay the {depositAmount} deposit below to confirm it.</p>
+        <p className="mt-5 text-sm leading-7 text-[var(--color-bone-muted)]">We are holding this time slot for you, but <strong className="text-amber-300">your appointment is not booked yet</strong>. Pay {depositAmount} below (plus a 4% service fee) to confirm it.</p>
         <div className="mt-6 flex items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4">
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
-          <p className="text-sm leading-6 text-amber-100">If the deposit is not paid, this slot is released and your barber will not be expecting you. You will not receive a confirmation until payment is complete.</p>
+          <p className="text-sm leading-6 text-amber-100">If payment is not completed, this slot is released and your barber will not be expecting you. You will not receive a confirmation until payment is complete.</p>
         </div>
         <DepositStatusWatcher awaitingDeposit={awaitingDeposit} />
       </>

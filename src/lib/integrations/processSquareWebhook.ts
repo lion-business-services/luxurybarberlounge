@@ -604,6 +604,11 @@ async function syncOrder(
         discount_cents: money(
           order.total_discount_money,
         ),
+        // Square reports the 4% fee under total_service_charge_money. Captured
+        // separately so it can be excluded from the commission basis.
+        service_charge_cents: money(
+          order.total_service_charge_money,
+        ),
         raw: order,
         synced_at:
           new Date().toISOString(),

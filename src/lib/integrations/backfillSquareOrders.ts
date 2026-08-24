@@ -16,6 +16,7 @@ type SquareOrderPayload = {
   total_money?: SquareMoney;
   total_tax_money?: SquareMoney;
   total_discount_money?: SquareMoney;
+  total_service_charge_money?: SquareMoney;
 };
 
 function cents(money: SquareMoney | undefined) {
@@ -96,6 +97,7 @@ export async function backfillMissingSquareOrders(limit = 100) {
           total_cents: cents(order.total_money),
           tax_cents: cents(order.total_tax_money),
           discount_cents: cents(order.total_discount_money),
+          service_charge_cents: cents(order.total_service_charge_money),
           raw: order,
           synced_at: new Date().toISOString(),
         },

@@ -39,7 +39,16 @@ function clientHtml(appointment: Appointment, manageToken: string) {
     const price = Number(appointment.service_price_snapshot_cents ?? 0);
     const paid = Number(appointment.deposit_required_cents ?? 0);
     const balance = Math.max(0, price - paid);
-    if (balance <= 0) return "";
+    // Fully prepaid bookings have no balance. Show a paid-in-full confirmation
+    // instead of an empty balance panel.
+    if (balance <= 0) {
+      const money0 = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+      return `<div style="margin:26px 0;padding:18px;border:1px solid #2f7d4f;background:#0d0d0d">
+        <p style="margin:0 0 6px;color:#6fcf97;letter-spacing:2px;text-transform:uppercase;font-size:11px">Paid in full</p>
+        <p style="margin:0 0 4px;color:#f4efe6;font-size:22px;font-family:Georgia,serif">${money0(paid)}</p>
+        <p style="margin:0;color:#999;font-size:13px;line-height:1.6">Your appointment with ${appointment.barber_name_snapshot} is paid in full. Nothing is due at the chair &mdash; just arrive a few minutes early.</p>
+      </div>`;
+    }
     const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
     return `<div style="margin:26px 0;padding:18px;border:1px solid #9d772e;background:#0d0d0d">
       <p style="margin:0 0 6px;color:#c99a3e;letter-spacing:2px;text-transform:uppercase;font-size:11px">Balance due at your visit</p>
