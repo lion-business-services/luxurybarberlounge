@@ -7,10 +7,11 @@ import { PageHero } from "@/components/PageHero";
 import { Reveal, Scene3D } from "@/components/motion";
 import { useLang } from "@/lib/i18n/context";
 import { barbers, copy } from "@/lib/content/site";
+import { withLiveBarberOverrides } from "@/lib/content/liveBarberOverrides";
 
 export function BarbersView() {
   const { lang } = useLang();
-  const roster = barbers.filter((barber) => barber.active);
+  const roster = barbers.filter((barber) => barber.active).map(withLiveBarberOverrides);
 
   return (
     <>
