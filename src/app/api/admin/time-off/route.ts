@@ -5,6 +5,7 @@ import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/ser
 export const dynamic = "force-dynamic";
 
 const adminRoles = new Set(["manager", "owner", "super_admin"]);
+const activeAppointmentStatuses = ["slot_held", "pending_confirmation", "confirmed", "checked_in", "assigned", "in_service"];
 
 const decisionSchema = z.object({
   id: z.string().uuid(),
@@ -12,7 +13,7 @@ const decisionSchema = z.object({
   note: z.string().trim().max(400).optional(),
 });
 
-/** All barber time off, newest first, with barber names resolved. */
+/** All barber availability exceptions, newest first, with barber names resolved. */
 export async function GET(request: NextRequest) {
   const session = await getServerAuthSession();
   if (!session.user || !session.roles.some((role) => adminRoles.has(role))) {
@@ -25,11 +26,11 @@ export async function GET(request: NextRequest) {
 
   let query = admin
     .from("barber_time_off")
-    .select("id,barber_profile_id,starts_at,ends_at,reason,status,created_at")
+    .select("id,barber_profile_id,starts_at,ends_at,reason,status,availability_kind,created_at")
     .order("starts_at", { ascending: true });
 
   if (scope === "upcoming") query = query.gte("ends_at", new Date().toISOString());
-  if (scope === "pending") query = query.eq("status", "pending");
+  if (scope === "pending") query = query.eq("status", "requested");
 
   const { data: rows } = await query.limit(300);
 
@@ -40,9 +41,7 @@ export async function GET(request: NextRequest) {
       .from("barber_profiles")
       .select("id,display_name")
       .in("id", ids);
-    for (const profile of profiles ?? []) {
-      names.set(String(profile.id), String(profile.display_name));
-    }
+    for (const profile of profiles ?? []) names.set(String(profile.id), String(profile.display_name));
   }
 
   return NextResponse.json({
@@ -54,7 +53,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-/** Approve, decline, or cancel a time-off request. */
+/** Approve, decline, or cancel a time-off request without stranding booked clients. */
 export async function POST(request: NextRequest) {
   const session = await getServerAuthSession();
   if (!session.user || !session.roles.some((role) => adminRoles.has(role))) {
@@ -68,23 +67,33 @@ export async function POST(request: NextRequest) {
 
   const { data: entry } = await admin
     .from("barber_time_off")
-    .select("id,barber_profile_id,starts_at,ends_at,status")
+    .select("id,barber_profile_id,location_id,starts_at,ends_at,status,availability_kind")
     .eq("id", parsed.data.id)
     .maybeSingle();
   if (!entry) return NextResponse.json({ ok: false, message: "Not found." }, { status: 404 });
 
-  // Approving time off that already has bookings inside it would silently
-  // strand clients, so surface the conflict instead of hiding it.
   let conflicts = 0;
-  if (parsed.data.decision === "approved") {
+  if (parsed.data.decision === "approved" && String(entry.availability_kind || "unavailable") === "unavailable") {
     const { count } = await admin
       .from("appointments")
       .select("id", { count: "exact", head: true })
       .eq("barber_profile_id", entry.barber_profile_id)
-      .gte("starts_at", entry.starts_at)
-      .lte("starts_at", entry.ends_at)
-      .in("status", ["confirmed", "pending_confirmation", "checked_in", "assigned", "in_service"]);
+      .eq("location_id", entry.location_id)
+      .lt("starts_at", entry.ends_at)
+      .gt("ends_at", entry.starts_at)
+      .in("status", activeAppointmentStatuses);
     conflicts = count ?? 0;
+    if (conflicts > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: "APPOINTMENTS_EXIST",
+          conflicts,
+          message: `${conflicts} active appointment${conflicts === 1 ? "" : "s"} overlap this period. Reschedule or cancel them before approving the unavailable time.`,
+        },
+        { status: 409 },
+      );
+    }
   }
 
   const { error } = await admin
@@ -107,11 +116,5 @@ export async function POST(request: NextRequest) {
     metadata: { conflicts, note: parsed.data.note ?? null },
   });
 
-  return NextResponse.json({
-    ok: true,
-    conflicts,
-    message: conflicts
-      ? `Approved. Warning: ${conflicts} booked appointment${conflicts === 1 ? "" : "s"} fall inside this period and need rescheduling.`
-      : "Approved.",
-  });
+  return NextResponse.json({ ok: true, conflicts, message: "Availability decision saved." });
 }
