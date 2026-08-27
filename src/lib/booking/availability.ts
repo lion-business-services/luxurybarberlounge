@@ -19,6 +19,58 @@ function overlaps(
   return start < new Date(otherEnd) && end > new Date(otherStart);
 }
 
+type ScheduleRow = {
+  barber_profile_id: string;
+  weekday: number | string;
+  starts_at: string | null;
+  ends_at: string | null;
+  effective_from: string;
+  effective_to: string | null;
+  active: boolean;
+};
+
+function scheduleWindowsForDate(
+  schedules: ScheduleRow[],
+  barberId: string,
+  weekday: number,
+  date: string,
+  shopOpen: string,
+  shopClose: string,
+) {
+  const windows = schedules.flatMap((item) => {
+    if (
+      item.barber_profile_id !== barberId ||
+      Number(item.weekday) !== weekday ||
+      item.effective_from > date ||
+      (item.effective_to && item.effective_to < date)
+    ) {
+      return [];
+    }
+
+    const startsAt = time(item.starts_at);
+    const endsAt = time(item.ends_at);
+    if (!startsAt || !endsAt) return [];
+
+    const open = startsAt > shopOpen ? startsAt : shopOpen;
+    const close = endsAt < shopClose ? endsAt : shopClose;
+    if (open >= close) return [];
+
+    return [{ open, close }];
+  });
+
+  windows.sort((a, b) => a.open.localeCompare(b.open) || a.close.localeCompare(b.close));
+
+  return windows.reduce<Array<{ open: string; close: string }>>((merged, window) => {
+    const previous = merged.at(-1);
+    if (!previous || window.open > previous.close) {
+      merged.push({ ...window });
+      return merged;
+    }
+    if (window.close > previous.close) previous.close = window.close;
+    return merged;
+  }, []);
+}
+
 /**
  * Search live Square Appointments availability.
  *
@@ -466,7 +518,7 @@ export async function searchSupabaseAvailability(input: {
     holidayHoursResult.data;
 
   const schedules =
-    schedulesResult.data;
+    (schedulesResult.data ?? []) as ScheduleRow[];
 
   const breaks =
     breaksResult.data;
@@ -554,111 +606,93 @@ export async function searchSupabaseAvailability(input: {
     }
 
     for (const barber of eligible) {
-      const schedule = (
-        schedules ?? []
-      ).find(
-        (item) =>
-          item.barber_profile_id ===
-            barber.id &&
-          Number(item.weekday) ===
-            weekday &&
-          item.effective_from <= date &&
-          (!item.effective_to ||
-            item.effective_to >= date),
+      const windows = scheduleWindowsForDate(
+        schedules,
+        barber.id,
+        weekday,
+        date,
+        shopOpen,
+        shopClose,
       );
 
-      if (!schedule) continue;
+      if (!windows.length) continue;
 
-      const scheduleStart =
-        time(schedule.starts_at)!;
-
-      const scheduleEnd =
-        time(schedule.ends_at)!;
-
-      const open =
-        scheduleStart > shopOpen
-          ? scheduleStart
-          : shopOpen;
-
-      const close =
-        scheduleEnd < shopClose
-          ? scheduleEnd
-          : shopClose;
-
-      let cursor =
-        zonedDateTimeToUtc(
-          date,
-          open,
-          catalog.location.timezone,
-        );
-
-      const closeAt =
-        zonedDateTimeToUtc(
-          date,
-          close,
-          catalog.location.timezone,
-        );
-
-      while (
-        cursor.getTime() +
-          (durationMinutes +
-            bufferMinutes) *
-            60_000 <=
-        closeAt.getTime()
-      ) {
-        const end = new Date(
-          cursor.getTime() +
-            durationMinutes * 60_000,
-        );
-
-        const occupiedEnd =
-          new Date(
-            end.getTime() +
-              bufferMinutes * 60_000,
+      for (const window of windows) {
+        let cursor =
+          zonedDateTimeToUtc(
+            date,
+            window.open,
+            catalog.location.timezone,
           );
 
-        const unavailable = [
-          ...(breaks ?? []),
-          ...(timeOff ?? []),
-          ...(appointments ?? []),
-          ...(holds ?? []),
-        ].some(
-          (item) =>
-            item.barber_profile_id ===
-              barber.id &&
-            overlaps(
-              cursor,
-              occupiedEnd,
-              item.starts_at,
-              item.ends_at,
-            ),
-        );
+        const closeAt =
+          zonedDateTimeToUtc(
+            date,
+            window.close,
+            catalog.location.timezone,
+          );
 
-        if (
-          !unavailable &&
-          cursor.getTime() >= minimum &&
-          cursor.getTime() <= maximum
-        ) {
-          slots.push({
-            id: `${barber.id}-${cursor.toISOString()}`,
-            startsAt:
-              cursor.toISOString(),
-            endsAt: end.toISOString(),
-            barberId: barber.id,
-            barberName: barber.name,
-            serviceId: service.id,
-            durationMinutes,
-            estimatedPriceCents:
-              priceCents,
-          });
-        }
-
-        cursor = new Date(
+        while (
           cursor.getTime() +
-            businessConfig
-              .slotIntervalMinutes *
-              60_000,
-        );
+            (durationMinutes +
+              bufferMinutes) *
+              60_000 <=
+          closeAt.getTime()
+        ) {
+          const end = new Date(
+            cursor.getTime() +
+              durationMinutes * 60_000,
+          );
+
+          const occupiedEnd =
+            new Date(
+              end.getTime() +
+                bufferMinutes * 60_000,
+            );
+
+          const unavailable = [
+            ...(breaks ?? []),
+            ...(timeOff ?? []),
+            ...(appointments ?? []),
+            ...(holds ?? []),
+          ].some(
+            (item) =>
+              item.barber_profile_id ===
+                barber.id &&
+              overlaps(
+                cursor,
+                occupiedEnd,
+                item.starts_at,
+                item.ends_at,
+              ),
+          );
+
+          if (
+            !unavailable &&
+            cursor.getTime() >= minimum &&
+            cursor.getTime() <= maximum
+          ) {
+            slots.push({
+              id: `${barber.id}-${cursor.toISOString()}`,
+              startsAt:
+                cursor.toISOString(),
+              endsAt: end.toISOString(),
+              barberId: barber.id,
+              barberName: barber.name,
+              serviceId: service.id,
+              durationMinutes,
+              estimatedPriceCents:
+                priceCents,
+            });
+          }
+
+          cursor = new Date(
+            cursor.getTime() +
+              businessConfig
+                .slotIntervalMinutes *
+                60_000,
+          );
+        }
       }
     }
   }
