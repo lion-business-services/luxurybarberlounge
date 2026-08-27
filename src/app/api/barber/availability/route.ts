@@ -30,6 +30,8 @@ const activeAppointmentStatuses = [
   "in_service",
 ];
 
+type AvailabilityAction = "marked_unavailable" | "added_availability" | "restored_availability" | "removed_availability";
+
 function canManageAll(roles: readonly string[]) {
   return roles.some((role) => ["manager", "owner", "super_admin"].includes(role));
 }
@@ -79,16 +81,24 @@ function formatWhen(startsAt: string, endsAt: string, timezone: string) {
   return `${format.format(new Date(startsAt))} – ${format.format(new Date(endsAt))}`;
 }
 
+function actionText(action: AvailabilityAction) {
+  if (action === "marked_unavailable") return "marked unavailable";
+  if (action === "added_availability") return "added availability";
+  if (action === "restored_availability") return "restored availability";
+  return "removed added availability";
+}
+
 async function queueAvailabilityEmails(
   ctx: NonNullable<Awaited<ReturnType<typeof context>>>,
-  input: { kind: "available" | "unavailable"; startsAt: string; endsAt: string; reason?: string },
+  input: { action: AvailabilityAction; startsAt: string; endsAt: string; reason?: string },
   eventId: string,
 ) {
   const barberName = typeof ctx.profile.display_name === "string" ? ctx.profile.display_name : "Barber";
   const when = formatWhen(input.startsAt, input.endsAt, String(ctx.location.timezone || businessConfig.timezone));
-  const action = input.kind === "unavailable" ? "marked unavailable" : "added availability";
+  const action = actionText(input.action);
   const subject = `${barberName} ${action}`;
   const body = `${barberName} ${action} for ${when}.${input.reason ? ` Note: ${input.reason}` : ""}`;
+  const eventKey = `${eventId}:${input.action}`;
   const jobs: Array<Record<string, unknown>> = [
     {
       business_id: ctx.business.id,
@@ -96,8 +106,8 @@ async function queueAvailabilityEmails(
       template_key: "barber_availability_changed",
       locale: "en",
       recipient: businessConfig.bookingEmail,
-      payload: { subject, body, transactional: true, barberProfileId: ctx.profile.id, availabilityEventId: eventId },
-      idempotency_key: `availability-admin:${eventId}`,
+      payload: { subject, body, transactional: true, barberProfileId: ctx.profile.id, availabilityEventId: eventId, action: input.action },
+      idempotency_key: `availability-admin:${eventKey}`,
       scheduled_for: new Date().toISOString(),
       status: "queued",
     },
@@ -112,8 +122,8 @@ async function queueAvailabilityEmails(
       template_key: "barber_availability_changed",
       locale: "en",
       recipient: barberEmail,
-      payload: { subject: `Availability updated: ${when}`, body, transactional: true, barberProfileId: ctx.profile.id, availabilityEventId: eventId },
-      idempotency_key: `availability-barber:${eventId}`,
+      payload: { subject: `Availability updated: ${when}`, body, transactional: true, barberProfileId: ctx.profile.id, availabilityEventId: eventId, action: input.action },
+      idempotency_key: `availability-barber:${eventKey}`,
       scheduled_for: new Date().toISOString(),
       status: "queued",
     });
@@ -231,7 +241,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error || !data?.id) return NextResponse.json({ ok: false, message: "Availability could not be updated." }, { status: 409 });
-    await queueAvailabilityEmails(ctx, { kind, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), reason }, String(data.id));
+    await queueAvailabilityEmails(ctx, { action: "marked_unavailable", startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), reason }, String(data.id));
     return NextResponse.json({ ok: true, id: data.id }, { status: 201 });
   }
 
@@ -258,7 +268,7 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error || !data?.id) return NextResponse.json({ ok: false, message: "Availability could not be updated." }, { status: 409 });
-  await queueAvailabilityEmails(ctx, { kind, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), reason }, String(data.id));
+  await queueAvailabilityEmails(ctx, { action: "added_availability", startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), reason }, String(data.id));
   return NextResponse.json({ ok: true, id: data.id }, { status: 201 });
 }
 
@@ -270,14 +280,39 @@ export async function DELETE(request: NextRequest) {
   const ctx = await context(requestedProfileId);
   if (!ctx) return NextResponse.json({ ok: false }, { status: 403 });
 
+  const timezone = String(ctx.location.timezone || businessConfig.timezone);
+
   if (parsed.data.source === "time_off") {
+    const { data: existing } = await ctx.admin
+      .from("barber_time_off")
+      .select("id,starts_at,ends_at,reason,status")
+      .eq("id", parsed.data.id)
+      .eq("barber_profile_id", ctx.profile.id)
+      .maybeSingle();
+    if (!existing?.id) return NextResponse.json({ ok: false }, { status: 404 });
+
     const { error } = await ctx.admin
       .from("barber_time_off")
       .update({ status: "cancelled", updated_at: new Date().toISOString() })
       .eq("id", parsed.data.id)
       .eq("barber_profile_id", ctx.profile.id);
     if (error) return NextResponse.json({ ok: false }, { status: 409 });
+
+    await queueAvailabilityEmails(
+      ctx,
+      { action: "restored_availability", startsAt: String(existing.starts_at), endsAt: String(existing.ends_at), reason: existing.reason ? String(existing.reason) : undefined },
+      String(existing.id),
+    );
   } else {
+    const { data: existing } = await ctx.admin
+      .from("barber_schedules")
+      .select("id,starts_at,ends_at,effective_from,effective_to")
+      .eq("id", parsed.data.id)
+      .eq("barber_profile_id", ctx.profile.id)
+      .not("effective_to", "is", null)
+      .maybeSingle();
+    if (!existing?.id || !existing.effective_from) return NextResponse.json({ ok: false }, { status: 404 });
+
     const { error } = await ctx.admin
       .from("barber_schedules")
       .update({ active: false, updated_at: new Date().toISOString() })
@@ -285,6 +320,10 @@ export async function DELETE(request: NextRequest) {
       .eq("barber_profile_id", ctx.profile.id)
       .not("effective_to", "is", null);
     if (error) return NextResponse.json({ ok: false }, { status: 409 });
+
+    const startsAt = zonedDateTimeToUtc(String(existing.effective_from), String(existing.starts_at), timezone).toISOString();
+    const endsAt = zonedDateTimeToUtc(String(existing.effective_from), String(existing.ends_at), timezone).toISOString();
+    await queueAvailabilityEmails(ctx, { action: "removed_availability", startsAt, endsAt }, String(existing.id));
   }
 
   return NextResponse.json({ ok: true });
