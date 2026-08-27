@@ -39,6 +39,7 @@ const groups: Group[] = [
     label: "Daily operations",
     items: [
       { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+      { label: "My Barber Portal", href: "/admin/my-barber", icon: Scissors, ownerOnly: true },
       { label: "Appointments", href: "/admin/appointments", icon: CalendarDays },
       { label: "Queue", href: "/admin/queue", icon: ClipboardList },
     ],
@@ -57,14 +58,9 @@ const groups: Group[] = [
     label: "Pay",
     items: [
       { label: "Commissions", href: "/admin/commissions", icon: CircleDollarSign, ownerOnly: true },
-      // Barber attribution claims land here for owner review/approval. The page
-      // already existed but was unreachable from the navigation.
       { label: "Attribution claims", href: "/admin/attribution", icon: FileText, ownerOnly: true },
     ],
   },
-  // "Systems" (Automations / Integrations) is operator tooling, not business
-  // owner surface. The routes remain reachable by direct URL for support work,
-  // but they are removed from the owner navigation.
   ...(process.env.NEXT_PUBLIC_SHOW_SYSTEM_TOOLS === "true"
     ? [
         {
