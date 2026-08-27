@@ -9,6 +9,7 @@ type AdminClient = NonNullable<ReturnType<typeof createUntypedAdminSupabase>>;
 type AppointmentChange = {
   id: string;
   business_id: string;
+  barber_profile_id: string;
   public_reference: string;
   client_name_snapshot: string;
   client_email_snapshot: string | null;
@@ -18,7 +19,6 @@ type AppointmentChange = {
   ends_at: string;
   timezone: string;
   status: string;
-  assigned_staff_user_id: string | null;
 };
 
 type ChangeEvent = "cancelled" | "rescheduled" | "time_changed" | "barber_changed" | "updated";
@@ -95,35 +95,38 @@ export async function queueAppointmentChangeNotifications(
     status: "queued",
   });
 
-  if (appointment.assigned_staff_user_id) {
-    const [{ data: authUser }, { data: profile }] = await Promise.all([
-      admin.auth.admin.getUserById(appointment.assigned_staff_user_id),
-      admin.from("barber_profiles").select("portal_email").eq("staff_user_id", appointment.assigned_staff_user_id).maybeSingle(),
-    ]);
-    const barberEmail = String(profile?.portal_email || authUser.user?.email || "").trim();
-    if (barberEmail) {
-      jobs.push({
-        business_id: appointment.business_id,
-        user_id: appointment.assigned_staff_user_id,
-        channel: "email",
-        template_key: `barber_booking_${event}`,
-        locale: "en",
-        recipient: barberEmail,
-        payload: {
-          subject: `Appointment ${action}: ${appointment.client_name_snapshot}`,
-          body: `${appointment.client_name_snapshot}'s ${appointment.service_name_snapshot} appointment ${appointment.public_reference} has been ${action}. ${formatted}.`,
-          transactional: true,
-          appointmentId: appointment.id,
-          event,
-        },
-        idempotency_key: `booking-change-barber:${appointment.id}:${eventKey}`,
-        scheduled_for: new Date().toISOString(),
-        status: "queued",
-      });
-    }
+  const { data: barberProfile } = await admin
+    .from("barber_profiles")
+    .select("staff_user_id,portal_email")
+    .eq("id", appointment.barber_profile_id)
+    .eq("business_id", appointment.business_id)
+    .maybeSingle();
+
+  const staffUserId = typeof barberProfile?.staff_user_id === "string" ? barberProfile.staff_user_id : null;
+  const authUser = staffUserId ? await admin.auth.admin.getUserById(staffUserId) : null;
+  const barberEmail = String(barberProfile?.portal_email || authUser?.data.user?.email || "").trim();
+
+  if (barberEmail) {
+    jobs.push({
+      business_id: appointment.business_id,
+      user_id: staffUserId,
+      channel: "email",
+      template_key: `barber_booking_${event}`,
+      locale: "en",
+      recipient: barberEmail,
+      payload: {
+        subject: `Appointment ${action}: ${appointment.client_name_snapshot}`,
+        body: `${appointment.client_name_snapshot}'s ${appointment.service_name_snapshot} appointment ${appointment.public_reference} has been ${action}. ${formatted}.`,
+        transactional: true,
+        appointmentId: appointment.id,
+        event,
+      },
+      idempotency_key: `booking-change-barber:${appointment.id}:${eventKey}`,
+      scheduled_for: new Date().toISOString(),
+      status: "queued",
+    });
   }
 
-  if (!jobs.length) return;
   await admin.from("notification_jobs").upsert(jobs, { onConflict: "channel,idempotency_key", ignoreDuplicates: true });
   await processNotificationJobs(admin, { appointmentId: appointment.id, limit: 12 }).catch((error) => {
     console.error("appointment-change-notification-process", error instanceof Error ? error.message : "UNKNOWN");
