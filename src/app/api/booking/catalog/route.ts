@@ -4,11 +4,19 @@ import { BookingCatalogError, getBookingCatalog } from "@/lib/booking/catalog";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const losAvailabilityNote = "Available every open lounge day: Sunday 9:00 AM–4:00 PM and Tuesday through Saturday 8:00 AM–9:00 PM.";
+
 export async function GET() {
   try {
     const catalog = await getBookingCatalog();
+    const publicCatalog = {
+      ...catalog,
+      barbers: catalog.barbers.map((barber) => barber.slug === "barber-los"
+        ? { ...barber, bookable: true, availabilityNote: losAvailabilityNote }
+        : barber),
+    };
     return NextResponse.json(
-      { ok: true, catalog },
+      { ok: true, catalog: publicCatalog },
       { headers: { "Cache-Control": "private, no-store, max-age=0" } },
     );
   } catch (error) {
