@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
+import { businessConfig } from "@/lib/config/business";
+import { processNotificationJobs } from "@/lib/notifications/process";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,12 @@ const decisionSchema = z.object({
   decision: z.enum(["approved", "declined", "cancelled"]),
   note: z.string().trim().max(400).optional(),
 });
+
+function decisionLabel(decision: "approved" | "declined" | "cancelled") {
+  if (decision === "approved") return "approved";
+  if (decision === "declined") return "declined";
+  return "cancelled";
+}
 
 /** All barber availability exceptions, newest first, with barber names resolved. */
 export async function GET(request: NextRequest) {
@@ -67,7 +75,7 @@ export async function POST(request: NextRequest) {
 
   const { data: entry } = await admin
     .from("barber_time_off")
-    .select("id,barber_profile_id,location_id,starts_at,ends_at,status,availability_kind")
+    .select("id,barber_profile_id,location_id,starts_at,ends_at,status,availability_kind,reason")
     .eq("id", parsed.data.id)
     .maybeSingle();
   if (!entry) return NextResponse.json({ ok: false, message: "Not found." }, { status: 404 });
@@ -96,12 +104,13 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const nextReason = parsed.data.note ? `${entry.status} → ${parsed.data.decision}: ${parsed.data.note}` : entry.reason;
   const { error } = await admin
     .from("barber_time_off")
     .update({
       status: parsed.data.decision,
       approved_by: session.user.id,
-      reason: parsed.data.note ? `${entry.status} → ${parsed.data.decision}: ${parsed.data.note}` : undefined,
+      reason: nextReason,
       updated_at: new Date().toISOString(),
     })
     .eq("id", entry.id);
@@ -115,6 +124,55 @@ export async function POST(request: NextRequest) {
     resource_id: entry.id,
     metadata: { conflicts, note: parsed.data.note ?? null },
   });
+
+  const { data: barber } = await admin
+    .from("barber_profiles")
+    .select("business_id,staff_user_id,display_name,portal_email")
+    .eq("id", entry.barber_profile_id)
+    .maybeSingle();
+
+  if (barber?.business_id) {
+    const timezone = businessConfig.timezone;
+    const formatter = new Intl.DateTimeFormat("en-US", { timeZone: timezone, dateStyle: "full", timeStyle: "short" });
+    const when = `${formatter.format(new Date(entry.starts_at))} – ${formatter.format(new Date(entry.ends_at))}`;
+    const barberName = String(barber.display_name || "Barber");
+    const label = decisionLabel(parsed.data.decision);
+    const body = `${barberName}'s availability request for ${when} was ${label}.${parsed.data.note ? ` Note: ${parsed.data.note}` : ""}`;
+    const jobs: Array<Record<string, unknown>> = [
+      {
+        business_id: barber.business_id,
+        channel: "email",
+        template_key: "barber_availability_admin_decision",
+        locale: "en",
+        recipient: businessConfig.bookingEmail,
+        payload: { subject: `${barberName} availability ${label}`, body, transactional: true, availabilityEventId: entry.id, decision: parsed.data.decision },
+        idempotency_key: `availability-decision-admin:${entry.id}:${parsed.data.decision}`,
+        scheduled_for: new Date().toISOString(),
+        status: "queued",
+      },
+    ];
+
+    const barberEmail = String(barber.portal_email || "").trim();
+    if (barberEmail) {
+      jobs.push({
+        business_id: barber.business_id,
+        user_id: barber.staff_user_id,
+        channel: "email",
+        template_key: "barber_availability_admin_decision",
+        locale: "en",
+        recipient: barberEmail,
+        payload: { subject: `Availability ${label}: ${when}`, body, transactional: true, availabilityEventId: entry.id, decision: parsed.data.decision },
+        idempotency_key: `availability-decision-barber:${entry.id}:${parsed.data.decision}`,
+        scheduled_for: new Date().toISOString(),
+        status: "queued",
+      });
+    }
+
+    await admin.from("notification_jobs").upsert(jobs, { onConflict: "channel,idempotency_key", ignoreDuplicates: true });
+    await processNotificationJobs(admin, { limit: 10 }).catch((notificationError) => {
+      console.error("availability-decision-notification-process", notificationError instanceof Error ? notificationError.message : "UNKNOWN");
+    });
+  }
 
   return NextResponse.json({ ok: true, conflicts, message: "Availability decision saved." });
 }
