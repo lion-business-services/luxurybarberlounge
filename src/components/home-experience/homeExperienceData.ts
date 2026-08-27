@@ -1,4 +1,7 @@
-import type { Lang } from "@/lib/content/site";
+import { barbers, type Lang } from "@/lib/content/site";
+import { applyLiveBarberOverrides } from "@/lib/content/liveBarberOverrides";
+
+applyLiveBarberOverrides(barbers);
 
 export const homeMedia = {
   thresholdPoster: "/media/home/video/lounge-entry-poster.webp",
