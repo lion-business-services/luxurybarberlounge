@@ -1,4 +1,19 @@
 import type { Metadata } from "next";
-import { BarberSectionLive } from "@/components/barber/BarberPortalLive";
-export const metadata: Metadata = { title: "Barber Portal", robots: { index: false, follow: false } };
-export default function Page() { return <BarberSectionLive slug="calendar" />; }
+import { BarberAvailabilityManager } from "@/components/barber/BarberAvailabilityManager";
+import { PortalHeader } from "@/components/portal/PortalUI";
+import { PortalShell } from "@/components/portal/PortalShell";
+
+export const metadata: Metadata = { title: "Calendar & Availability", robots: { index: false, follow: false } };
+
+export default function Page() {
+  return (
+    <PortalShell role="barber">
+      <PortalHeader
+        eyebrow="Barber workspace"
+        title="Calendar & availability"
+        copy="Your normal schedule, date-specific availability, unavailable time, and booking calendar in one place."
+      />
+      <BarberAvailabilityManager />
+    </PortalShell>
+  );
+}
