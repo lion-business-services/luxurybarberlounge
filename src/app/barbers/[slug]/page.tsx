@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { barbers, business, findBarber } from "@/lib/content/site";
+import { withLiveBarberOverrides } from "@/lib/content/liveBarberOverrides";
 import { BarberDetailView } from "./view";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -10,8 +11,9 @@ export function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const barber = findBarber((await params).slug);
-  if (!barber) return {};
+  const source = findBarber((await params).slug);
+  if (!source) return {};
+  const barber = withLiveBarberOverrides(source);
   return {
     title: barber.name,
     description: barber.bio.en,
@@ -26,8 +28,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function BarberPage({ params }: Props) {
-  const barber = findBarber((await params).slug);
-  if (!barber) notFound();
+  const source = findBarber((await params).slug);
+  if (!source) notFound();
+  const barber = withLiveBarberOverrides(source);
   const personSchema = {
     "@context": "https://schema.org",
     "@type": "Person",
