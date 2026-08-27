@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getManagedAppointment } from "@/lib/booking/manage";
 import { searchSupabaseAvailability } from "@/lib/booking/availability";
+import { queueAppointmentChangeNotifications } from "@/lib/booking/change-notifications";
 import { businessConfig } from "@/lib/config/business";
 
 const schema = z.object({ action: z.enum(["cancel", "reschedule"]), startsAt: z.string().datetime().optional() });
@@ -34,6 +35,11 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ r
       admin.from("appointment_status_history").insert({ appointment_id: appointment.id, booking_metadata_id: null, from_status: appointment.status, to_status: "cancelled_by_client", changed_by: null, reason: "Guest cancelled through secure manage link", metadata: { source: "secure_manage_link" } }),
       admin.from("audit_logs").insert({ business_id: appointment.business_id, actor_user_id: null, actor_role: "guest", action: "booking.cancelled_by_client", resource_type: "appointment", resource_id: appointment.id, reason: "Guest cancelled through secure manage link", before_data: { status: appointment.status }, after_data: { status: "cancelled_by_client" }, metadata: { reference: appointment.public_reference } }),
     ]);
+    await queueAppointmentChangeNotifications(
+      admin,
+      { ...appointment, status: "cancelled_by_client" } as Parameters<typeof queueAppointmentChangeNotifications>[1],
+      "cancelled",
+    );
     return NextResponse.json({ ok: true, status: "cancelled_by_client" });
   }
 
@@ -46,5 +52,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ r
   if (!availability.slots.some((slot) => slot.startsAt === startsAt.toISOString() && slot.barberId === appointment.barber_profile_id)) return NextResponse.json({ ok: false, code: "SLOT_TAKEN", message: "That time is no longer available." }, { status: 409 });
   const { data, error } = await admin.rpc("reschedule_appointment_atomic", { p_appointment_id: appointment.id, p_starts_at: startsAt.toISOString(), p_ends_at: endsAt.toISOString(), p_actor: null, p_actor_role: "guest", p_reason: "Guest rescheduled through secure manage link" });
   if (error || !data) return NextResponse.json({ ok: false, message: /SLOT_CONFLICT/.test(error?.message ?? "") ? "That time is no longer available." : "The appointment could not be rescheduled." }, { status: /SLOT_CONFLICT/.test(error?.message ?? "") ? 409 : 503 });
+  await queueAppointmentChangeNotifications(
+    admin,
+    { ...appointment, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString() } as Parameters<typeof queueAppointmentChangeNotifications>[1],
+    "rescheduled",
+  );
   return NextResponse.json({ ok: true, startsAt: startsAt.toISOString() });
 }
