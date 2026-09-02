@@ -162,6 +162,7 @@ export async function POST(request: NextRequest) {
       client_email: input.email.toLowerCase(),
       service_price_snapshot_cents: service.price_cents,
       walk_in_at: walkInAt.toISOString(),
+      joined_at: walkInAt.toISOString(),
       metadata: {
         ...priorMetadata,
         walkInLocalDate: input.walkInDate,
