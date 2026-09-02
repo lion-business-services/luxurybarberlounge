@@ -12,7 +12,8 @@ function ascii(value: string) {
 
 function money(cents: unknown) {
   const value = typeof cents === "number" ? cents : Number(cents ?? 0);
-  return `$${(Number.isFinite(value) ? value : 0 / 100).toFixed ? (Number.isFinite(value) ? value / 100 : 0).toFixed(2) : "0.00"}`;
+  const safe = Number.isFinite(value) ? value : 0;
+  return `$${(safe / 100).toFixed(2)}`;
 }
 
 function pct(rate: unknown) {
