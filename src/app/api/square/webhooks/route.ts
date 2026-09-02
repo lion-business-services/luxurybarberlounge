@@ -20,11 +20,7 @@ export async function POST(request: Request) {
   const { data: existing } = await admin.from("webhook_events").select("id,processing_status").eq("provider", "square").eq("provider_event_id", event.event_id).maybeSingle();
   if (existing) return NextResponse.json({ accepted: true, duplicate: true });
 
-  const { data: business } = await admin
-    .from("businesses")
-    .select("id")
-    .eq("slug", "luxury-barber-lounge")
-    .maybeSingle();
+  const { data: business } = await admin.from("businesses").select("id").eq("slug", "luxury-barber-lounge").maybeSingle();
 
   const { data: inserted, error } = await admin.from("webhook_events").insert({
     business_id: business?.id ?? null,
@@ -38,24 +34,31 @@ export async function POST(request: Request) {
   }).select("*").maybeSingle();
   if (error) return NextResponse.json({ message: "Webhook inbox is unavailable." }, { status: 503 });
 
-  // Process immediately rather than waiting for the 2-minute cron. A client who
-  // has just paid is watching the confirmation page; a two-minute lag reads as
-  // a failed payment. The cron remains as a retry net for anything that throws
-  // here, so this is an accelerator and not a single point of failure.
+  // Process immediately rather than waiting for the retry cron. Walk-in Square
+  // payments are then reconciled by their exact Square order id, which updates
+  // the receipt, queue state, revenue ledger, and commission statement in the
+  // same webhook cycle. The queue/API polling remains only a recovery net.
   if (inserted) {
     try {
       const { processSquareWebhookEvent } = await import("@/lib/integrations/processSquareWebhook");
       await processSquareWebhookEvent(inserted);
-      await admin
-        .from("webhook_events")
-        .update({ processing_status: "processed", processed_at: new Date().toISOString() })
-        .eq("id", inserted.id);
+
+      if (business?.id && event.type.startsWith("payment.")) {
+        try {
+          const [{ createUntypedAdminSupabase }, { reconcilePendingWalkInSquarePayments }] = await Promise.all([
+            import("@/lib/auth/server"),
+            import("@/lib/queue/payments"),
+          ]);
+          const untypedAdmin = createUntypedAdminSupabase();
+          if (untypedAdmin) await reconcilePendingWalkInSquarePayments(untypedAdmin, String(business.id));
+        } catch (walkInError) {
+          console.error("walk-in-square-reconciliation", walkInError);
+        }
+      }
+
+      await admin.from("webhook_events").update({ processing_status: "processed", processed_at: new Date().toISOString() }).eq("id", inserted.id);
     } catch (processingError) {
-      // Leave it as "received" so the cron retries it.
-      await admin
-        .from("webhook_events")
-        .update({ last_error: String(processingError).slice(0, 500) })
-        .eq("id", inserted.id);
+      await admin.from("webhook_events").update({ last_error: String(processingError).slice(0, 500) }).eq("id", inserted.id);
     }
   }
 
