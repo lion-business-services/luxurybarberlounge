@@ -3,6 +3,11 @@ import { Suspense } from "react";
 import { BookingFlow } from "@/components/booking/BookingFlow";
 import { businessConfig } from "@/lib/config/business";
 
+// Booking/payment UI must never be served from a stale prerender after an
+// operational or payment-rule deployment. Always render the current release.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: "Book an Appointment",
   description: "Choose a real available service, barber, date, and time at Luxury Barber Lounge in Northfield, New Jersey.",
