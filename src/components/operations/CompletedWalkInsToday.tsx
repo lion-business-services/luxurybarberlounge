@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, LoaderCircle } from "lucide-react";
+import { CheckCircle2, ExternalLink, LoaderCircle } from "lucide-react";
 
 type CompletedEntry = {
   id: string;
@@ -13,6 +13,13 @@ type CompletedEntry = {
   walkInAt: string | null;
   completedAt: string | null;
   assignedBarberName: string;
+  paymentMethod: "cash" | "square" | null;
+  paymentStatus: string | null;
+  paidAmountCents: number | null;
+  tipCents: number;
+  receiptNumber: string | null;
+  receiptUrl: string | null;
+  paidAt: string | null;
 };
 
 type ResponseBody = {
@@ -83,41 +90,40 @@ export function CompletedWalkInsToday() {
         <div>
           <p className="text-[10px] uppercase tracking-[.28em] text-[var(--color-brass)]">Today&apos;s history</p>
           <h2 className="font-display mt-2 text-3xl">Completed walk-ins</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-bone-muted)]">
-            Completed guests stay visible here for the lounge day while the public queue automatically removes them.
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--color-bone-muted)]">
+            Completed guests remain here with their payment method and Square receipt so the client, service, barber, money, and receipt stay reconciled on one record.
           </p>
         </div>
-        <span className="rounded-full border border-white/10 px-4 py-2 text-[10px] uppercase tracking-[.16em] text-[var(--color-bone-muted)]">
-          {entries.length} completed
-        </span>
+        <span className="rounded-full border border-white/10 px-4 py-2 text-[10px] uppercase tracking-[.16em] text-[var(--color-bone-muted)]">{entries.length} completed</span>
       </div>
 
       {message ? (
         <div className="rounded-xl border border-red-400/20 bg-red-400/5 p-4 text-sm text-red-100">{message}</div>
       ) : loading ? (
-        <div className="grid min-h-32 place-items-center rounded-xl border border-white/[.07]">
-          <LoaderCircle className="h-5 w-5 animate-spin text-[var(--color-brass)]" />
-        </div>
+        <div className="grid min-h-32 place-items-center rounded-xl border border-white/[.07]"><LoaderCircle className="h-5 w-5 animate-spin text-[var(--color-brass)]" /></div>
       ) : entries.length ? (
         <div className="grid gap-3">
           {entries.map((entry) => (
-            <article key={entry.id} className="grid gap-4 rounded-2xl border border-white/[.07] bg-white/[.02] p-4 lg:grid-cols-[1.25fr_1fr_1fr_auto] lg:items-center">
+            <article key={entry.id} className="grid gap-4 rounded-2xl border border-white/[.07] bg-white/[.02] p-4 xl:grid-cols-[1.25fr_.85fr_.9fr_1fr_auto] xl:items-center">
               <div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-[var(--color-brass)]" />
-                  <strong className="text-sm">{entry.clientName ?? `Guest ${entry.publicToken.slice(-4)}`}</strong>
-                </div>
-                <p className="mt-1 text-xs text-[var(--color-bone-muted)]">{entry.serviceName} · {money(entry.servicePriceCents)}</p>
+                <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-[var(--color-brass)]" /><strong className="text-sm">{entry.clientName ?? `Guest ${entry.publicToken.slice(-4)}`}</strong></div>
+                <p className="mt-1 text-xs text-[var(--color-bone-muted)]">{entry.serviceName} · {money(entry.paidAmountCents ?? entry.servicePriceCents)}</p>
+                {entry.tipCents > 0 ? <p className="mt-1 text-[10px] text-[var(--color-bone-muted)]">Tip {money(entry.tipCents)}</p> : null}
               </div>
+              <div><p className="text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Assigned barber</p><p className="mt-1 text-sm">{entry.assignedBarberName}</p></div>
+              <div><p className="text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Walk-in time</p><p className="mt-1 text-sm">{dateTime(entry.walkInAt)}</p></div>
               <div>
-                <p className="text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Assigned barber</p>
-                <p className="mt-1 text-sm">{entry.assignedBarberName}</p>
+                <p className="text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Payment reconciliation</p>
+                {entry.paymentStatus === "paid" ? (
+                  <div className="mt-1">
+                    <p className="text-sm capitalize">{entry.paymentMethod} · {money(entry.paidAmountCents)}</p>
+                    {entry.paymentMethod === "square" && entry.receiptUrl ? (
+                      <a href={entry.receiptUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[.12em] text-[var(--color-brass)]">Receipt {entry.receiptNumber ?? "Square"}<ExternalLink className="h-3 w-3" /></a>
+                    ) : entry.paymentMethod === "cash" ? <p className="mt-1 text-[10px] text-emerald-300">Cash received</p> : null}
+                  </div>
+                ) : <p className="mt-1 text-xs text-amber-200">Payment record needs review</p>}
               </div>
-              <div>
-                <p className="text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Walk-in time</p>
-                <p className="mt-1 text-sm">{dateTime(entry.walkInAt)}</p>
-              </div>
-              <div className="text-left lg:text-right">
+              <div className="text-left xl:text-right">
                 <span className="inline-flex rounded-full border border-[var(--color-brass)]/25 bg-[var(--color-brass)]/5 px-3 py-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-brass)]">Completed</span>
                 {entry.completedAt ? <p className="mt-2 text-[10px] text-[var(--color-bone-muted)]">{timeFormatter.format(new Date(entry.completedAt))}</p> : null}
               </div>
@@ -125,9 +131,7 @@ export function CompletedWalkInsToday() {
           ))}
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-[var(--color-ink-line)] p-6 text-sm text-[var(--color-bone-muted)]">
-          No completed walk-ins yet today. Completed guests will appear here automatically.
-        </div>
+        <div className="rounded-xl border border-dashed border-[var(--color-ink-line)] p-6 text-sm text-[var(--color-bone-muted)]">No completed walk-ins yet today. Completed guests will appear here automatically.</div>
       )}
     </section>
   );
