@@ -3,6 +3,7 @@ import { getServerAuthSession } from "@/lib/auth/server";
 import { dateInZone, zonedDateTimeToUtc } from "@/lib/booking/timezone";
 import { businessConfig } from "@/lib/config/business";
 import { getQueueContext } from "@/lib/queue/operations";
+import { loadWalkInPayments } from "@/lib/queue/payments";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -33,9 +34,7 @@ export async function GET() {
   }
 
   const context = await getQueueContext();
-  if (!context) {
-    return NextResponse.json({ ok: true, entries: [] });
-  }
+  if (!context) return NextResponse.json({ ok: true, entries: [] });
 
   const today = dateInZone(new Date(), businessConfig.timezone);
   const tomorrow = nextLocalDate(today);
@@ -63,17 +62,14 @@ export async function GET() {
   const entryIds = rows.map((row) => String(row.id));
   const serviceIds = [...new Set(rows.map((row) => row.service_id ? String(row.service_id) : null).filter((id): id is string => Boolean(id)))];
 
-  const [assignmentResult, servicesResult] = await Promise.all([
+  const [assignmentResult, servicesResult, payments] = await Promise.all([
     entryIds.length
-      ? context.admin
-          .from("queue_assignments")
-          .select("queue_entry_id,barber_user_id,assigned_at")
-          .in("queue_entry_id", entryIds)
-          .order("assigned_at", { ascending: false })
+      ? context.admin.from("queue_assignments").select("queue_entry_id,barber_user_id,assigned_at").in("queue_entry_id", entryIds).order("assigned_at", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
     serviceIds.length
       ? context.admin.from("services").select("id,slug,name").in("id", serviceIds)
       : Promise.resolve({ data: [], error: null }),
+    entryIds.length ? loadWalkInPayments(context.admin, context.businessId, entryIds) : Promise.resolve([]),
   ]);
 
   if (assignmentResult.error || servicesResult.error) {
@@ -83,9 +79,7 @@ export async function GET() {
   const latestAssignment = new Map<string, string>();
   for (const row of assignmentResult.data ?? []) {
     const entryId = String(row.queue_entry_id);
-    if (!latestAssignment.has(entryId) && row.barber_user_id) {
-      latestAssignment.set(entryId, String(row.barber_user_id));
-    }
+    if (!latestAssignment.has(entryId) && row.barber_user_id) latestAssignment.set(entryId, String(row.barber_user_id));
   }
 
   const barberIds = [...new Set(latestAssignment.values())];
@@ -98,30 +92,33 @@ export async function GET() {
   }
 
   const barberNames = new Map<string, string>();
-  for (const row of barberRows ?? []) {
-    barberNames.set(String(row.staff_user_id), localizedName(row.display_name, "Barber"));
-  }
+  for (const row of barberRows ?? []) barberNames.set(String(row.staff_user_id), localizedName(row.display_name, "Barber"));
 
   const serviceNames = new Map<string, string>();
-  for (const row of servicesResult.data ?? []) {
-    serviceNames.set(String(row.id), localizedName(row.name, String(row.slug ?? "Service")));
-  }
+  for (const row of servicesResult.data ?? []) serviceNames.set(String(row.id), localizedName(row.name, String(row.slug ?? "Service")));
 
+  const paymentByQueue = new Map(payments.map((payment) => [String(payment.queue_entry_id), payment]));
   const entries = rows.map((row) => {
     const id = String(row.id);
     const barberId = latestAssignment.get(id) ?? null;
+    const payment = paymentByQueue.get(id);
     return {
       id,
       publicToken: String(row.public_token ?? ""),
       clientName: typeof row.client_name === "string" ? row.client_name : null,
-      serviceName: row.service_id
-        ? serviceNames.get(String(row.service_id)) ?? String(row.service_slug ?? "Service")
-        : String(row.service_slug ?? "Service"),
+      serviceName: row.service_id ? serviceNames.get(String(row.service_id)) ?? String(row.service_slug ?? "Service") : String(row.service_slug ?? "Service"),
       servicePriceCents: typeof row.service_price_snapshot_cents === "number" ? row.service_price_snapshot_cents : null,
       status: "completed",
       walkInAt: typeof row.walk_in_at === "string" ? row.walk_in_at : typeof row.joined_at === "string" ? row.joined_at : null,
       completedAt: typeof row.completed_at === "string" ? row.completed_at : null,
       assignedBarberName: barberId ? barberNames.get(barberId) ?? "Assigned barber" : "Unassigned",
+      paymentMethod: payment?.payment_method ?? null,
+      paymentStatus: payment?.status ?? null,
+      paidAmountCents: typeof payment?.amount_cents === "number" ? payment.amount_cents : null,
+      tipCents: typeof payment?.tip_cents === "number" ? payment.tip_cents : 0,
+      receiptNumber: payment?.square_receipt_number ?? null,
+      receiptUrl: payment?.square_receipt_url ?? null,
+      paidAt: payment?.paid_at ?? null,
     };
   });
 
