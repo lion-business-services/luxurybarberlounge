@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, Loader2, MapPin, Phone, Scissors, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, Loader2, MapPin, Phone, Scissors, UserRound } from "lucide-react";
 import { businessConfig } from "@/lib/config/business";
 import type { AvailabilitySlot, BookingCatalog, BookingConfirmation } from "@/lib/booking/types";
 
@@ -196,7 +196,7 @@ export function BookingFlow() {
 function StepTitle({ number, title, copy }: { number: string; title: string; copy: string }) { return <header><p className="text-[10px] tracking-[.28em] uppercase text-[var(--color-brass)]">Step {number}</p><h2 className="font-display mt-3 text-3xl sm:text-5xl">{title}</h2><p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--color-bone-muted)]">{copy}</p></header>; }
 function ServiceStep({ catalog, draft, update }: { catalog: BookingCatalog; draft: Draft; update: <K extends keyof Draft>(key: K, value: Draft[K]) => void }) {
   return <div>
-    <StepTitle number="1" title="Choose your service" copy="Review the exact duration, price, and required 50% deposit before choosing a chair." />
+    <StepTitle number="1" title="Choose your service" copy="Review the exact duration, price, and required full payment before choosing a chair." />
     <div className="mt-7 grid gap-3 sm:grid-cols-2">
       {catalog.services.map((item) => <label key={item.id} className={draft.serviceId === item.id ? "cursor-pointer rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5 p-4" : "cursor-pointer rounded-xl border border-[var(--color-ink-line)] p-4 hover:border-[var(--color-brass)]/50"}>
         <input type="radio" name="service" value={item.id} checked={draft.serviceId === item.id} onChange={() => update("serviceId", item.id)} className="sr-only" />
@@ -205,7 +205,7 @@ function ServiceStep({ catalog, draft, update }: { catalog: BookingCatalog; draf
         <span className="mt-4 grid grid-cols-3 gap-2 text-[9px] tracking-[.12em] uppercase">
           <span>{item.durationMinutes} min</span>
           <span className="text-center text-[var(--color-brass)]">${(item.priceCents / 100).toFixed(0)}</span>
-          <span className="text-right">Deposit ${(item.depositCents / 100).toFixed(0)}</span>
+          <span className="text-right">Pay ${(item.depositCents / 100).toFixed(0)}</span>
         </span>
       </label>)}
     </div>
@@ -283,7 +283,6 @@ function setErrorForFile(input: HTMLInputElement, message: string) {
 }
 
 function ReviewStep({ draft, service, addons, barber, slot, location, duration, estimatedPrice }: { draft: Draft; service: BookingCatalog["services"][number] | undefined; addons: BookingCatalog["addons"]; barber: BookingCatalog["barbers"][number] | undefined; slot: AvailabilitySlot | undefined; location: BookingCatalog["location"]; duration: number; estimatedPrice: number }) {
-  const deposit = Math.round(estimatedPrice / 2);
   return <div>
     <StepTitle number="5" title="Review your appointment" copy="The selected time is revalidated and reserved atomically when you confirm. A success message appears only after the booking is saved." />
     <dl className="mt-7 grid gap-4 sm:grid-cols-2">
@@ -293,14 +292,13 @@ function ReviewStep({ draft, service, addons, barber, slot, location, duration, 
       <Review label="Date and time" value={slot ? new Intl.DateTimeFormat("en-US", { timeZone: location.timezone, dateStyle: "full", timeStyle: "short" }).format(new Date(slot.startsAt)) : "—"} />
       <Review label="Duration" value={`${duration} minutes`} />
       <Review label="Price" value={`$${(estimatedPrice / 100).toFixed(2)}`} />
-      <Review label="Due now to confirm" value={`$${(deposit / 100).toFixed(2)} + 4% service fee`} />
+      <Review label="Due now to confirm" value={`$${(estimatedPrice / 100).toFixed(2)} + 4% service fee`} />
       <Review label="Client" value={`${draft.firstName} ${draft.lastName}`} />
       <Review label="Contact" value={`${draft.email} · ${draft.phone}`} />
       <Review label="Preferred language" value={draft.preferredLanguage === "es" ? "Español" : "English"} />
       <Review label="Location" value={location.address} />
       <Review label="Policy" value="Acknowledged" />
     </dl>
-    <div className="mt-7 flex gap-3 rounded-xl border border-[var(--color-brass)]/25 bg-[var(--color-brass)]/5 p-4 text-xs leading-6 text-[var(--color-bone-muted)]"><ShieldCheck className="mt-1 h-4 w-4 shrink-0 text-[var(--color-brass)]" />Your booking is stored before email notifications are attempted. An email-provider interruption will not erase a successfully reserved appointment.</div>
   </div>;
 }
 function BookingSummary({ service, barber, slot, location, duration, estimatedPrice }: { service: BookingCatalog["services"][number] | undefined; barber: BookingCatalog["barbers"][number] | undefined; slot: AvailabilitySlot | undefined; location: BookingCatalog["location"]; duration: number; estimatedPrice: number }) { return <aside className="h-fit border border-[var(--color-brass)]/25 bg-black/25 p-6 lg:sticky lg:top-24"><p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">Your appointment</p><dl className="mt-6 space-y-5"><Summary icon={<Scissors className="h-4 w-4" />} label="Service" value={service?.name ?? "Choose a service"} /><Summary icon={<UserRound className="h-4 w-4" />} label="Barber" value={barber?.name ?? "Choose a barber"} /><Summary icon={<CalendarDays className="h-4 w-4" />} label="Time" value={slot ? new Intl.DateTimeFormat("en-US", { timeZone: location.timezone, dateStyle: "medium", timeStyle: "short" }).format(new Date(slot.startsAt)) : "Choose a time"} /><Summary icon={<Clock3 className="h-4 w-4" />} label="Duration" value={duration ? `${duration} minutes` : "—"} /><Summary icon={<MapPin className="h-4 w-4" />} label="Location" value={location.address} /></dl><div className="mt-7 border-t border-[var(--color-ink-line)] pt-5"><p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-bone-muted)]">Estimated total</p><p className="font-display mt-2 text-3xl text-[var(--color-brass)]">{estimatedPrice ? `$${(estimatedPrice / 100).toFixed(2)}` : "—"}</p></div><a href={businessConfig.phoneHref} onClick={() => trackClick("call_action")} className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-[var(--color-ink-line)] text-[10px] tracking-[.18em] uppercase"><Phone className="h-4 w-4" />Need help? Call</a></aside>; }
