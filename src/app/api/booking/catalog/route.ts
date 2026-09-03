@@ -4,7 +4,7 @@ import { BookingCatalogError, getBookingCatalog } from "@/lib/booking/catalog";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const losAvailabilityNote = "Available every open lounge day: Sunday 9:00 AM–4:00 PM and Tuesday through Saturday 8:00 AM–9:00 PM.";
+const losAvailabilityNote = "Friday 6:00 PM–9:00 PM · Saturday 6:00 PM–9:00 PM · Sunday 12:00 PM–4:00 PM";
 
 export async function GET() {
   try {
@@ -12,7 +12,7 @@ export async function GET() {
     const publicCatalog = {
       ...catalog,
       barbers: catalog.barbers.map((barber) => barber.slug === "barber-los"
-        ? { ...barber, bookable: true, availabilityNote: losAvailabilityNote }
+        ? { ...barber, availabilityNote: losAvailabilityNote }
         : barber),
     };
     return NextResponse.json(
