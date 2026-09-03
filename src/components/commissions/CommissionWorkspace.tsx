@@ -9,6 +9,8 @@ type Statement = {
   barber_user_id: string;
   barber_name?: string;
   period_label?: string;
+  period_starts_at?: string | null;
+  period_ends_at?: string | null;
   gross_basis_cents: number;
   tips_cents: number;
   adjustments_cents: number;
@@ -44,6 +46,7 @@ type Calculation = {
   shop_amount_cents: number;
   status: string;
   calculated_at: string;
+  transaction_at?: string | null;
 };
 
 type Dispute = {
@@ -64,8 +67,56 @@ type StatementsResponse = {
   message?: string;
 };
 
+type ShareTotals = {
+  basis: number;
+  tips: number;
+  barber: number;
+  shop: number;
+  combined: number;
+  transactions: number;
+};
+
 const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format((cents || 0) / 100);
 const percent = (rate: number) => `${Math.round(Number(rate || 0) * 100)}%`;
+const TIME_ZONE = "America/New_York";
+
+function dateKey(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  return `${year}-${month}-${day}`;
+}
+
+function displayDate(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-US", { timeZone: TIME_ZONE, month: "short", day: "numeric", year: "numeric" });
+}
+
+function summarize(lines: Calculation[]): ShareTotals {
+  const basis = lines.reduce((sum, item) => sum + Number(item.eligible_basis_cents ?? 0), 0);
+  const tips = lines.reduce((sum, item) => sum + Number(item.tip_cents ?? 0), 0);
+  const barber = lines.reduce((sum, item) => sum + Number(item.barber_amount_cents ?? 0), 0);
+  const shop = lines.reduce((sum, item) => sum + Number(item.shop_amount_cents ?? 0), 0);
+  return { basis, tips, barber, shop, combined: barber + shop, transactions: lines.length };
+}
+
+function statusLabel(status: string, paidAt?: string | null) {
+  if (paidAt || status === "paid") return "Paid";
+  if (status === "review" || status === "provisional") return "Ready to review";
+  if (status === "final") return "Final";
+  if (status === "voided") return "Voided";
+  return status.replaceAll("_", " ");
+}
 
 export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
   const [statements, setStatements] = useState<Statement[]>([]);
@@ -73,11 +124,13 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const applyResponse = useCallback((result: StatementsResponse) => {
     setStatements(result.statements ?? []);
     setCalculations(result.calculations ?? []);
     setDisputes(result.disputes ?? []);
+    setLastUpdatedAt(new Date());
   }, []);
 
   const loadRecords = useCallback(async (signal?: AbortSignal) => {
@@ -115,11 +168,28 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
     [calculations, latestKeys],
   );
 
-  const totals = useMemo(() => ({
-    barber: latestStatementsByBarber.reduce((sum, item) => sum + Number(item.final_amount_cents ?? 0), 0),
-    shop: currentLines.reduce((sum, item) => sum + Number(item.shop_amount_cents ?? 0), 0),
-    basis: currentLines.reduce((sum, item) => sum + Number(item.eligible_basis_cents ?? 0), 0),
-  }), [latestStatementsByBarber, currentLines]);
+  const todayKey = dateKey(new Date());
+  const todayLines = useMemo(
+    () => currentLines.filter((item) => dateKey(item.transaction_at ?? item.calculated_at) === todayKey),
+    [currentLines, todayKey],
+  );
+  const todayTotals = useMemo(() => summarize(todayLines), [todayLines]);
+  const weekTotals = useMemo(() => summarize(currentLines), [currentLines]);
+
+  const statementTotals = useMemo(() => {
+    const map = new Map<string, ShareTotals>();
+    for (const statement of statements) {
+      const key = `${statement.barber_user_id}:${statement.settlement_period_id}`;
+      const lines = calculations.filter((item) => `${item.barber_user_id}:${item.settlement_period_id}` === key);
+      map.set(key, summarize(lines));
+    }
+    return map;
+  }, [calculations, statements]);
+
+  const sortedCalculations = useMemo(
+    () => [...calculations].sort((a, b) => new Date(b.transaction_at ?? b.calculated_at).getTime() - new Date(a.transaction_at ?? a.calculated_at).getTime()),
+    [calculations],
+  );
 
   async function markPaid(statementId: string, amountCents: number) {
     const method = window.prompt(`Record payout of ${money(amountCents)}.\n\nHow was this barber paid? (zelle / cash / other)`, "zelle");
@@ -148,13 +218,13 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
 
   async function runReconciliation() {
     setBusy(true);
-    setMessage("Refreshing Square records and recalculating weekly barber pay...");
+    setMessage("Reconciling the latest Square and cash activity...");
     try {
       const response = await fetch("/api/commissions/statements", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "run_reconciliation" }) });
       const result = await response.json() as { ok?: boolean; message?: string; result?: { calculated?: number; exceptions?: number; statementsPrepared?: number } };
       if (!response.ok || !result.ok) throw new Error(result.message ?? "Calculated amounts could not be updated.");
       const summary = result.result;
-      setMessage(`Pay summary refreshed: ${summary?.calculated ?? 0} new line(s), ${summary?.statementsPrepared ?? 0} statement(s) prepared${summary?.exceptions ? `, ${summary.exceptions} item(s) need review` : ""}.`);
+      setMessage(`Ledger synchronized: ${summary?.calculated ?? 0} transaction line(s), ${summary?.statementsPrepared ?? 0} statement(s) refreshed${summary?.exceptions ? `, ${summary.exceptions} item(s) need review` : ""}.`);
       await loadRecords();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Calculated amounts could not be updated.");
@@ -163,13 +233,13 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
 
   function exportCsv() {
     const rows = [[
-      ...(role === "admin" ? ["Barber"] : []), "Date", "Client", "Service", "Payment", "Receipt", "Attribution", "Source", "Commission Basis", "Tips", "Barber Rate", "Barber Share", "Shop Share", "Status",
-    ], ...currentLines.map((item) => [
-      ...(role === "admin" ? [item.barber_name ?? "Unlinked barber"] : []), item.calculated_at, item.client_name ?? "Client", item.service_name ?? "Service", item.payment_method ?? "", item.receipt_number ?? item.public_reference ?? "", item.attribution_type, item.attribution_source, (item.eligible_basis_cents / 100).toFixed(2), (item.tip_cents / 100).toFixed(2), String(item.barber_rate), (item.barber_amount_cents / 100).toFixed(2), (item.shop_amount_cents / 100).toFixed(2), item.status,
+      ...(role === "admin" ? ["Barber"] : []), "Transaction Date", "Client", "Service", "Payment", "Receipt", "Attribution", "Source", "Commission Basis", "Tips", "Barber Rate", "Barber Share", "Shop Rate", "Shop Share", "Status",
+    ], ...sortedCalculations.map((item) => [
+      ...(role === "admin" ? [item.barber_name ?? "Unlinked barber"] : []), item.transaction_at ?? item.calculated_at, item.client_name ?? "Client", item.service_name ?? "Service", item.payment_method ?? "", item.receipt_number ?? item.public_reference ?? "", item.attribution_type, item.attribution_source, (item.eligible_basis_cents / 100).toFixed(2), (item.tip_cents / 100).toFixed(2), String(item.barber_rate), (item.barber_amount_cents / 100).toFixed(2), String(item.shop_rate), (item.shop_amount_cents / 100).toFixed(2), item.status,
     ])];
     const blob = new Blob([rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a"); anchor.href = url; anchor.download = "luxury-barber-lounge-weekly-pay-summary.csv"; anchor.click(); URL.revokeObjectURL(url);
+    const anchor = document.createElement("a"); anchor.href = url; anchor.download = "luxury-barber-lounge-commission-ledger.csv"; anchor.click(); URL.revokeObjectURL(url);
   }
 
   const latestOwnStatement = latestStatementsByBarber[0];
@@ -178,72 +248,117 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
     <div>
       <header className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">{role === "barber" ? "My weekly commission statement" : "Monday-ready barber payroll"}</p>
-          <h1 className="font-display mt-3 text-4xl sm:text-5xl">{role === "barber" ? "My commission statement" : "Barber pay summary"}</h1>
+          <p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">{role === "barber" ? "Live commission ledger" : "Live commission & shop-share ledger"}</p>
+          <h1 className="font-display mt-3 text-4xl sm:text-5xl">{role === "barber" ? "My commissions" : "Commissions"}</h1>
           <p className="mt-3 max-w-4xl text-sm leading-7 text-[var(--color-bone-muted)]">
-            {role === "barber"
-              ? "Every reconciled service shows the client, payment reference, commission basis, your share, and shop share. Verified existing/barber-owned clients show 100% barber share. Download your weekly PDF anytime."
-              : "Square and cash receipts feed the same weekly Monday–Sunday ledger. Review each client/service line, download PDFs, then record Ruben’s payout so paid figures are permanently locked."}
+            Square and cash activity flows into one reconciled ledger. Every transaction shows the commission basis, barber rate, barber share, shop rate, shop share, tips, payment reference, and statement status. Review statements stay continuously updated until the owner records payout, then the paid figures are locked.
+          </p>
+          <p className="mt-3 text-[10px] tracking-[.14em] uppercase text-[var(--color-bone-muted)]">
+            Auto-refresh every 15 seconds{lastUpdatedAt ? ` · Last refreshed ${lastUpdatedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}` : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {role === "admin" ? <button type="button" onClick={() => void runReconciliation()} disabled={busy} className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-4 py-2 text-[9px] uppercase text-[var(--color-ink)] disabled:opacity-50"><RefreshCw className="h-4 w-4" />Update amounts</button> : null}
+          {role === "admin" ? <button type="button" onClick={() => void runReconciliation()} disabled={busy} className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-4 py-2 text-[9px] uppercase text-[var(--color-ink)] disabled:opacity-50"><RefreshCw className="h-4 w-4" />Reconcile now</button> : null}
           <button type="button" onClick={() => void refresh()} disabled={busy} className="inline-flex items-center gap-2 rounded-full border border-[var(--color-ink-line)] px-4 py-2 text-[9px] uppercase disabled:opacity-50"><RefreshCw className="h-4 w-4" />Refresh</button>
           <button type="button" onClick={exportCsv} className="inline-flex items-center gap-2 rounded-full border border-[var(--color-ink-line)] px-4 py-2 text-[9px] uppercase"><Download className="h-4 w-4" />CSV</button>
           {role === "admin" ? (
-            <a href="/api/commissions/statements/pdf" className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-4 py-2 text-[9px] uppercase text-[var(--color-ink)]"><FileText className="h-4 w-4" />All barbers PDF</a>
+            <a href="/api/commissions/statements/pdf" className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-4 py-2 text-[9px] uppercase text-[var(--color-ink)]"><FileText className="h-4 w-4" />Current statements PDF</a>
           ) : latestOwnStatement ? (
-            <a href={`/api/commissions/statements/pdf?statementId=${encodeURIComponent(latestOwnStatement.id)}`} className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-4 py-2 text-[9px] uppercase text-[var(--color-ink)]"><FileText className="h-4 w-4" />Download my PDF</a>
+            <a href={`/api/commissions/statements/pdf?statementId=${encodeURIComponent(latestOwnStatement.id)}`} className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-4 py-2 text-[9px] uppercase text-[var(--color-ink)]"><FileText className="h-4 w-4" />Download current PDF</a>
           ) : null}
         </div>
       </header>
 
       {message ? <p role="status" className="mb-5 rounded-lg border border-[var(--color-brass)]/20 p-3 text-xs">{message}</p> : null}
 
-      <div className="portal-grid">
-        <article className="portal-card col-span-3"><p className="text-[9px] uppercase tracking-[.2em] text-[var(--color-brass)]">Current commission basis</p><p className="metric-value mt-3">{money(totals.basis)}</p></article>
-        <article className="portal-card col-span-3"><p className="text-[9px] uppercase tracking-[.2em] text-[var(--color-brass)]">Barber pay</p><p className="metric-value mt-3">{money(totals.barber)}</p></article>
-        <article className="portal-card col-span-3"><p className="text-[9px] uppercase tracking-[.2em] text-[var(--color-brass)]">Shop share</p><p className="metric-value mt-3">{money(totals.shop)}</p></article>
-      </div>
+      <section>
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div><p className="text-[9px] uppercase tracking-[.2em] text-[var(--color-brass)]">Daily shares</p><h2 className="font-display mt-2 text-2xl">Today</h2></div>
+          <p className="text-[10px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">{todayTotals.transactions} reconciled transaction{todayTotals.transactions === 1 ? "" : "s"} · Basis {money(todayTotals.basis)} · Tips {money(todayTotals.tips)}</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <ShareCard label={role === "barber" ? "My share today" : "Barber shares today"} value={todayTotals.barber} />
+          <ShareCard label="Shop share today" value={todayTotals.shop} />
+          <ShareCard label="Total allocated today" value={todayTotals.combined} />
+        </div>
+      </section>
 
       <section className="mt-8">
-        <h2 className="font-display mb-4 text-2xl">{role === "admin" ? "Latest weekly statement by barber" : "My latest weekly statement"}</h2>
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div><p className="text-[9px] uppercase tracking-[.2em] text-[var(--color-brass)]">Weekly shares</p><h2 className="font-display mt-2 text-2xl">Current Monday–Sunday period</h2></div>
+          <p className="text-[10px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">{weekTotals.transactions} reconciled transaction{weekTotals.transactions === 1 ? "" : "s"} · Basis {money(weekTotals.basis)} · Tips {money(weekTotals.tips)}</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <ShareCard label={role === "barber" ? "My share this week" : "Barber shares this week"} value={weekTotals.barber} />
+          <ShareCard label="Shop share this week" value={weekTotals.shop} />
+          <ShareCard label="Total allocated this week" value={weekTotals.combined} />
+        </div>
+      </section>
+
+      <section className="mt-10">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div><p className="text-[9px] uppercase tracking-[.2em] text-[var(--color-brass)]">Statement register</p><h2 className="font-display mt-2 text-2xl">Ready-to-review weekly statements</h2></div>
+          <p className="max-w-2xl text-right text-xs leading-5 text-[var(--color-bone-muted)]">Review statements remain live and update from reconciled transactions. A paid statement is locked and preserved as the payout record.</p>
+        </div>
         <div className="portal-table-wrap">
           <table className="portal-table">
-            <thead><tr>{role === "admin" ? <th>Barber</th> : null}<th>Period</th><th>Basis</th><th>Tips</th><th>Amount due</th><th>Status</th><th>Statement</th>{role === "admin" ? <th>Payout</th> : null}</tr></thead>
+            <thead><tr>{role === "admin" ? <th>Barber</th> : null}<th>Period</th><th>Txns</th><th>Basis</th><th>Barber share</th><th>Shop share</th><th>Tips</th><th>Adjustments</th><th>Amount due</th><th>Status</th><th>PDF</th>{role === "admin" ? <th>Payout</th> : null}</tr></thead>
             <tbody>
-              {latestStatementsByBarber.map((statement) => (
-                <tr key={statement.id}>
-                  {role === "admin" ? <td><strong>{statement.barber_name ?? "Unlinked barber"}</strong></td> : null}
-                  <td>{statement.period_label ?? "Current week"}</td><td>{money(statement.gross_basis_cents)}</td><td>{money(statement.tips_cents)}</td><td><strong>{money(statement.final_amount_cents)}</strong></td>
-                  <td>{statement.paid_at ? <span className="inline-flex rounded-full border border-emerald-400/50 bg-emerald-400/10 px-2.5 py-1 text-[9px] uppercase tracking-[.14em] text-emerald-300">Paid</span> : <span className="capitalize">{statement.status}</span>}</td>
-                  <td><a href={`/api/commissions/statements/pdf?statementId=${encodeURIComponent(statement.id)}`} className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[.12em] text-[var(--color-brass)]"><FileText className="h-3.5 w-3.5" />PDF</a></td>
-                  {role === "admin" ? <td>{statement.paid_at ? <span className="text-xs text-[var(--color-bone-muted)]">{statement.payout_method ?? "paid"} · {new Date(statement.paid_at).toLocaleDateString()}{statement.payout_reference ? ` · ${statement.payout_reference}` : ""}</span> : <button type="button" onClick={() => void markPaid(statement.id, statement.final_amount_cents)} disabled={busy} className="rounded-full border border-[var(--color-brass)] px-3 py-1.5 text-[9px] uppercase tracking-[.14em] text-[var(--color-brass)] disabled:opacity-40">Mark paid</button>}</td> : null}
-                </tr>
-              ))}
-              {!latestStatementsByBarber.length ? <tr><td colSpan={role === "admin" ? 8 : 6}>No weekly statements yet. {role === "admin" ? "Press Update amounts after the first reconciled payment." : "Your statement will appear after a reconciled service payment."}</td></tr> : null}
+              {statements.map((statement) => {
+                const key = `${statement.barber_user_id}:${statement.settlement_period_id}`;
+                const totals = statementTotals.get(key) ?? { basis: 0, tips: 0, barber: 0, shop: 0, combined: 0, transactions: 0 };
+                const label = statusLabel(statement.status, statement.paid_at);
+                return (
+                  <tr key={statement.id}>
+                    {role === "admin" ? <td><strong>{statement.barber_name ?? "Unlinked barber"}</strong></td> : null}
+                    <td><strong>{statement.period_label ?? "Weekly statement"}</strong><div className="mt-1 text-[9px] text-[var(--color-bone-muted)]">{displayDate(statement.period_starts_at)}–{displayDate(statement.period_ends_at)}</div></td>
+                    <td>{totals.transactions}</td>
+                    <td>{money(statement.gross_basis_cents)}</td>
+                    <td><strong className="text-[var(--color-bone)]">{money(totals.barber)}</strong></td>
+                    <td><strong className="text-[var(--color-bone)]">{money(totals.shop)}</strong></td>
+                    <td>{money(statement.tips_cents)}</td>
+                    <td>{money(statement.adjustments_cents)}</td>
+                    <td><strong>{money(statement.final_amount_cents)}</strong></td>
+                    <td>{statement.paid_at ? <span className="inline-flex rounded-full border border-emerald-400/50 bg-emerald-400/10 px-2.5 py-1 text-[9px] uppercase tracking-[.14em] text-emerald-300">{label}</span> : <span className="inline-flex rounded-full border border-[var(--color-brass)]/40 bg-[var(--color-brass)]/10 px-2.5 py-1 text-[9px] uppercase tracking-[.14em] text-[var(--color-brass)]">{label}</span>}</td>
+                    <td><a href={`/api/commissions/statements/pdf?statementId=${encodeURIComponent(statement.id)}`} className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[.12em] text-[var(--color-brass)]"><FileText className="h-3.5 w-3.5" />Download</a></td>
+                    {role === "admin" ? <td>{statement.paid_at ? <span className="text-xs text-[var(--color-bone-muted)]">{statement.payout_method ?? "paid"} · {displayDate(statement.paid_at)}{statement.payout_reference ? ` · ${statement.payout_reference}` : ""}</span> : <button type="button" onClick={() => void markPaid(statement.id, statement.final_amount_cents)} disabled={busy} className="rounded-full border border-[var(--color-brass)] px-3 py-1.5 text-[9px] uppercase tracking-[.14em] text-[var(--color-brass)] disabled:opacity-40">Mark paid</button>}</td> : null}
+                  </tr>
+                );
+              })}
+              {!statements.length ? <tr><td colSpan={role === "admin" ? 12 : 10}>No commission statements are available yet. The first reconciled payment will create a ready-to-review weekly statement automatically.</td></tr> : null}
             </tbody>
           </table>
         </div>
       </section>
 
-      <section className="mt-8">
-        <h2 className="font-display mb-2 text-2xl">Reconciled statement lines</h2>
-        <p className="mb-4 max-w-4xl text-xs leading-5 text-[var(--color-bone-muted)]">Client name, service, receipt, attribution, barber rate, barber share, and shop share are shown together so every dollar can be traced back to the underlying visit.</p>
+      <section className="mt-10">
+        <div className="mb-4">
+          <p className="text-[9px] uppercase tracking-[.2em] text-[var(--color-brass)]">Transaction ledger</p>
+          <h2 className="font-display mt-2 text-2xl">Reconciled commission transactions</h2>
+          <p className="mt-2 max-w-4xl text-xs leading-5 text-[var(--color-bone-muted)]">Barber and shop shares are calculated from the same commission basis and displayed side by side on every row. Receipt/payment references and attribution evidence remain attached to the transaction.</p>
+        </div>
         <div className="portal-table-wrap">
           <table className="portal-table">
-            <thead><tr>{role === "admin" ? <th>Barber</th> : null}<th>Date</th><th>Client</th><th>Service</th><th>Payment / receipt</th><th>Attribution</th><th>Basis</th><th>Rate</th><th>Barber share</th><th>Shop share</th><th>Tips</th><th>Status</th></tr></thead>
+            <thead><tr><th>Date</th>{role === "admin" ? <th>Barber</th> : null}<th>Client</th><th>Service</th><th>Payment / receipt</th><th>Basis</th><th>Barber rate</th><th>Barber share</th><th>Shop rate</th><th>Shop share</th><th>Tips</th><th>Attribution</th><th>Status</th></tr></thead>
             <tbody>
-              {currentLines.map((item) => (
+              {sortedCalculations.map((item) => (
                 <tr key={item.id}>
-                  {role === "admin" ? <td>{item.barber_name ?? "Unlinked barber"}</td> : null}
-                  <td>{new Date(item.calculated_at).toLocaleDateString()}</td><td><strong>{item.client_name ?? "Client"}</strong></td><td>{item.service_name ?? "Service"}</td>
+                  <td>{displayDate(item.transaction_at ?? item.calculated_at)}</td>
+                  {role === "admin" ? <td><strong>{item.barber_name ?? "Unlinked barber"}</strong></td> : null}
+                  <td><strong>{item.client_name ?? "Client"}</strong></td>
+                  <td>{item.service_name ?? "Service"}</td>
                   <td><span className="capitalize">{item.payment_method ?? "payment"}</span>{item.receipt_url ? <a href={item.receipt_url} target="_blank" rel="noreferrer" className="ml-2 inline-flex items-center gap-1 text-[10px] text-[var(--color-brass)]">{item.receipt_number ?? "receipt"}<ExternalLink className="h-3 w-3" /></a> : item.receipt_number || item.public_reference ? <span className="ml-2 text-[10px] text-[var(--color-bone-muted)]">{item.receipt_number ?? item.public_reference}</span> : null}</td>
+                  <td>{money(item.eligible_basis_cents)}</td>
+                  <td><strong>{percent(item.barber_rate)}</strong></td>
+                  <td><strong className="text-emerald-300">{money(item.barber_amount_cents)}</strong></td>
+                  <td>{percent(item.shop_rate)}</td>
+                  <td><strong className="text-[var(--color-brass)]">{money(item.shop_amount_cents)}</strong></td>
+                  <td>{money(item.tip_cents)}</td>
                   <td><strong>{item.attribution_type === "BARBER" ? "Existing / barber client" : "Shop / new client"}</strong><div className="mt-1 text-[9px] text-[var(--color-bone-muted)]">{item.attribution_source?.replaceAll("_", " ")}</div></td>
-                  <td>{money(item.eligible_basis_cents)}</td><td><span className={item.attribution_type === "BARBER" ? "font-semibold text-emerald-300" : ""}>{percent(item.barber_rate)}</span></td><td><strong>{money(item.barber_amount_cents)}</strong></td><td>{money(item.shop_amount_cents)}</td><td>{money(item.tip_cents)}</td><td className="capitalize">{item.status}</td>
+                  <td className="capitalize">{item.status === "provisional" ? "reconciled" : item.status}</td>
                 </tr>
               ))}
-              {!currentLines.length ? <tr><td colSpan={role === "admin" ? 12 : 11}>No reconciled transaction lines are available for the latest statement yet.</td></tr> : null}
+              {!sortedCalculations.length ? <tr><td colSpan={role === "admin" ? 13 : 12}>No reconciled commission transactions are available yet.</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -252,4 +367,8 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
       {disputes.length ? <p className="mt-5 text-xs text-[var(--color-bone-muted)]">Open commission review items: {disputes.filter((item) => !["denied", "approved", "closed", "withdrawn"].includes(item.status)).length}. Existing policy requires barber questions to be sent to the owner within 24 hours.</p> : null}
     </div>
   );
+}
+
+function ShareCard({ label, value }: { label: string; value: number }) {
+  return <article className="portal-card"><p className="text-[9px] uppercase tracking-[.2em] text-[var(--color-brass)]">{label}</p><p className="metric-value mt-3">{money(value)}</p></article>;
 }
