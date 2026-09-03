@@ -26,7 +26,7 @@
     },
     {
       "path": "/api/cron/commissions",
-      "schedule": "*/15 * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/formsubmit",
