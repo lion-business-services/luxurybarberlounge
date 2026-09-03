@@ -35,13 +35,13 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ message: "Webhook inbox is unavailable." }, { status: 503 });
 
   // Process immediately rather than waiting for the retry cron. Walk-in Square
-  // payments are then reconciled by their exact Square order id, which updates
-  // the receipt, queue state, revenue ledger, and commission statement in the
-  // same webhook cycle. The queue/API polling remains only a recovery net.
+  // payments are reconciled by exact Square order id in the same webhook cycle.
+  // The safe processor also provides request-scoped payment status to the
+  // legacy membership branch and the cron remains the retry net.
   if (inserted) {
     try {
-      const { processSquareWebhookEvent } = await import("@/lib/integrations/processSquareWebhook");
-      await processSquareWebhookEvent(inserted);
+      const { processSquareWebhookEventSafely } = await import("@/lib/integrations/squareWebhookSafeProcessor");
+      await processSquareWebhookEventSafely(inserted);
 
       if (business?.id && event.type.startsWith("payment.")) {
         try {
@@ -56,9 +56,11 @@ export async function POST(request: Request) {
         }
       }
 
-      await admin.from("webhook_events").update({ processing_status: "processed", processed_at: new Date().toISOString() }).eq("id", inserted.id);
+      await admin.from("webhook_events").update({ processing_status: "processed", processed_at: new Date().toISOString(), last_error: null }).eq("id", inserted.id);
     } catch (processingError) {
-      await admin.from("webhook_events").update({ last_error: String(processingError).slice(0, 500) }).eq("id", inserted.id);
+      // Leave a recoverable failure for the retry worker. It now selects failed
+      // events as well as received/retrying events until the five-attempt cap.
+      await admin.from("webhook_events").update({ processing_status: "failed", last_error: String(processingError).slice(0, 500) }).eq("id", inserted.id);
     }
   }
 
