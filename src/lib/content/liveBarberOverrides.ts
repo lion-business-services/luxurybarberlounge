@@ -37,6 +37,7 @@ export function withLiveBarberOverrides(barber: Barber): Barber {
   return {
     ...barber,
     name: "Signature Los",
+    initials: "SL",
     title: losTitle,
     bio: losBio,
     story: losStory,
@@ -45,6 +46,13 @@ export function withLiveBarberOverrides(barber: Barber): Barber {
     availability: losAvailability,
     workingDays: losWorkingDays,
     bookingWeekdays: [...losWeekdays],
+    image: {
+      ...barber.image,
+      alt: {
+        en: "Signature Los of Luxury Barber Lounge",
+        es: "Signature Los de Luxury Barber Lounge",
+      },
+    },
     walkIns: true,
   };
 }
