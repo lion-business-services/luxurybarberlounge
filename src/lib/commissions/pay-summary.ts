@@ -82,7 +82,7 @@ export async function loadCommissionPaySummary(viewer: CommissionViewer) {
     appointmentIds.length ? admin.from("appointments").select("id,client_name_snapshot,service_name_snapshot,public_reference").in("id", appointmentIds) : Promise.resolve({ data: [], error: null }),
     queueIds.length ? admin.from("queue_entries").select("id,client_name,service_slug,public_token").in("id", queueIds) : Promise.resolve({ data: [], error: null }),
     serviceIds.length ? admin.from("services").select("id,name,slug").in("id", serviceIds) : Promise.resolve({ data: [], error: null }),
-    squarePaymentIds.length ? admin.from("square_payments").select("square_id,raw").in("square_id", squarePaymentIds) : Promise.resolve({ data: [], error: null }),
+    squarePaymentIds.length ? admin.from("square_payments").select("square_id,created_at_square,raw").in("square_id", squarePaymentIds) : Promise.resolve({ data: [], error: null }),
   ]);
 
   const barberNames = new Map((barbersResult.data ?? []).map((row) => [String(row.staff_user_id), localized(row.display_name, "Barber")]));
@@ -90,10 +90,14 @@ export async function loadCommissionPaySummary(viewer: CommissionViewer) {
   const appointmentMap = new Map((appointmentsResult.data ?? []).map((row) => [String(row.id), row as Row]));
   const queueMap = new Map((queueResult.data ?? []).map((row) => [String(row.id), row as Row]));
   const serviceMap = new Map((servicesResult.data ?? []).map((row) => [String(row.id), localized(row.name, text(row.slug) ?? "Service")]));
-  const squareReceiptMap = new Map<string, { number: string | null; url: string | null }>();
+  const squareReceiptMap = new Map<string, { number: string | null; url: string | null; at: string | null }>();
   for (const payment of squarePaymentsResult.data ?? []) {
     const raw = payment.raw && typeof payment.raw === "object" && !Array.isArray(payment.raw) ? payment.raw as Row : {};
-    squareReceiptMap.set(String(payment.square_id), { number: text(raw.receipt_number), url: text(raw.receipt_url) });
+    squareReceiptMap.set(String(payment.square_id), {
+      number: text(raw.receipt_number),
+      url: text(raw.receipt_url),
+      at: text(payment.created_at_square) ?? text(raw.created_at) ?? text(raw.updated_at),
+    });
   }
 
   const enrichedCalculations = calculations.map((row) => {
@@ -120,6 +124,7 @@ export async function loadCommissionPaySummary(viewer: CommissionViewer) {
       receipt_number: text(metadata.receiptNumber) ?? squareReceipt?.number ?? null,
       receipt_url: text(metadata.receiptUrl) ?? squareReceipt?.url ?? null,
       public_reference: text(appointment?.public_reference) ?? text(queue?.public_token),
+      transaction_at: text(metadata.paymentRecordedAt) ?? text(metadata.paidAt) ?? text(metadata.transactionAt) ?? squareReceipt?.at ?? text(row.calculated_at),
     };
   });
 
