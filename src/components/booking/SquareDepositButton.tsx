@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CreditCard } from "lucide-react";
 
 export function SquareDepositButton({ reference, token, amountCents, status }: { reference: string; token: string; amountCents: number; status: string }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  if (amountCents <= 0 || status === "not_required") return null;
-  if (status === "paid") return <p className="mt-6 rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-4 text-sm text-emerald-100">Deposit paid.</p>;
-  async function pay() {
+  const autoStarted = useRef(false);
+
+  const pay = useCallback(async () => {
     setBusy(true); setMessage("");
     try {
       const response = await fetch("/api/booking/payment-link", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reference, token }) });
@@ -20,6 +20,24 @@ export function SquareDepositButton({ reference, token, amountCents, status }: {
     } catch {
       setMessage("Square checkout is temporarily unavailable."); setBusy(false);
     }
-  }
+  }, [reference, token]);
+
+  useEffect(() => {
+    if (amountCents <= 0 || status === "not_required" || status === "paid" || autoStarted.current) return;
+
+    // The booking form lands here immediately after reserving a pending slot.
+    // Send the client straight into Square so an unpaid hold can never look like
+    // a completed appointment. On Square's return, stay on this page while the
+    // webhook watcher reconciles the payment instead of opening checkout again.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("payment") === "return") return;
+
+    autoStarted.current = true;
+    void pay();
+  }, [amountCents, pay, status]);
+
+  if (amountCents <= 0 || status === "not_required") return null;
+  if (status === "paid") return <p className="mt-6 rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-4 text-sm text-emerald-100">Payment received. Your appointment is confirmed.</p>;
+
   return <div className="mt-6 rounded-xl border border-[var(--color-brass)]/25 bg-black/15 p-5"><p className="text-[9px] uppercase tracking-[.18em] text-[var(--color-brass)]">Amount due to confirm</p><p className="font-display mt-2 text-3xl">{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amountCents / 100)}</p><p className="mt-2 text-xs leading-6 text-[var(--color-bone-muted)]">Full payment is required to confirm your appointment. A 4% service fee is added at checkout. Nothing further is due at the chair.</p><button type="button" disabled={busy} onClick={() => void pay()} className="mt-4 inline-flex min-h-12 items-center gap-2 rounded-full bg-[var(--color-brass)] px-5 text-[10px] tracking-[.16em] uppercase text-black disabled:opacity-50"><CreditCard className="h-4 w-4" />{busy ? "Opening Square..." : "Pay with Square"}</button>{message ? <p role="status" className="mt-3 text-xs text-amber-100">{message}</p> : null}</div>;
 }
