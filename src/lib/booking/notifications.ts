@@ -58,7 +58,10 @@ export async function queueBookingNotifications(admin: AdminClient, appointment:
 
   const formatted = visit(appointment);
   const jobs: Array<Record<string, unknown>> = [];
-  if (appointment.client_email_snapshot && appointment.email_consent) {
+  // A booking confirmation is transactional, not marketing. Once payment is
+  // verified, always send it to the email the client supplied for the booking;
+  // the marketing email preference must not suppress an operational receipt.
+  if (appointment.client_email_snapshot) {
     jobs.push({ business_id: appointment.business_id, channel: "email", template_key: "booking_confirmed", locale: "en", recipient: appointment.client_email_snapshot, payload: { subject: `Confirmed: ${appointment.service_name_snapshot} at Luxury Barber Lounge`, body: `Your appointment ${appointment.public_reference} is confirmed for ${formatted} with ${appointment.barber_name_snapshot}.`, html: clientHtml(appointment, manageToken), transactional: true, appointmentId: appointment.id, appointmentField: "client_confirmation_status" }, idempotency_key: `booking-confirmed:${appointment.id}`, scheduled_for: new Date().toISOString(), status: "queued" });
     const reminder24 = new Date(new Date(appointment.starts_at).getTime() - 24 * 60 * 60 * 1000);
     if (reminder24 > new Date()) jobs.push({ business_id: appointment.business_id, channel: "email", template_key: "booking_reminder_24h", locale: "en", recipient: appointment.client_email_snapshot, payload: { subject: `Tomorrow: ${appointment.service_name_snapshot} at Luxury Barber Lounge`, body: `Reminder: ${appointment.service_name_snapshot} with ${appointment.barber_name_snapshot} is scheduled for ${formatted}. Call ${businessConfig.phone} if you need assistance.`, transactional: true, appointmentId: appointment.id }, idempotency_key: `booking-reminder-24h:${appointment.id}`, scheduled_for: reminder24.toISOString(), status: "queued" });
