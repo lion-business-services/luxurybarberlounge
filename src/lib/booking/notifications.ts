@@ -30,8 +30,6 @@ function visit(appointment: Appointment) {
 }
 
 function clientHtml(appointment: Appointment, manageToken: string) {
-  // When no raw token is available (deposit-settled confirmations), link to the
-  // client portal rather than emitting a tokenised URL that would not validate.
   const manageUrl = manageToken
     ? absoluteUrl(`/booking/confirmation/${encodeURIComponent(appointment.public_reference)}?token=${encodeURIComponent(manageToken)}`)
     : absoluteUrl(`/login?next=/client/appointments`);
@@ -39,34 +37,24 @@ function clientHtml(appointment: Appointment, manageToken: string) {
     const price = Number(appointment.service_price_snapshot_cents ?? 0);
     const paid = Number(appointment.deposit_required_cents ?? 0);
     const balance = Math.max(0, price - paid);
-    // Fully prepaid bookings have no balance. Show a paid-in-full confirmation
-    // instead of an empty balance panel.
     if (balance <= 0) {
       const money0 = (cents: number) => `$${(cents / 100).toFixed(2)}`;
-      return `<div style="margin:26px 0;padding:18px;border:1px solid #2f7d4f;background:#0d0d0d">
-        <p style="margin:0 0 6px;color:#6fcf97;letter-spacing:2px;text-transform:uppercase;font-size:11px">Paid in full</p>
-        <p style="margin:0 0 4px;color:#f4efe6;font-size:22px;font-family:Georgia,serif">${money0(paid)}</p>
-        <p style="margin:0;color:#999;font-size:13px;line-height:1.6">Your appointment with ${appointment.barber_name_snapshot} is paid in full. Nothing is due at the chair &mdash; just arrive a few minutes early.</p>
-      </div>`;
+      return `<div style="margin:26px 0;padding:18px;border:1px solid #2f7d4f;background:#0d0d0d"><p style="margin:0 0 6px;color:#6fcf97;letter-spacing:2px;text-transform:uppercase;font-size:11px">Paid in full</p><p style="margin:0 0 4px;color:#f4efe6;font-size:22px;font-family:Georgia,serif">${money0(paid)}</p><p style="margin:0;color:#999;font-size:13px;line-height:1.6">Your appointment with ${appointment.barber_name_snapshot} is paid in full. Nothing is due at the chair &mdash; just arrive a few minutes early.</p></div>`;
     }
     const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
-    return `<div style="margin:26px 0;padding:18px;border:1px solid #9d772e;background:#0d0d0d">
-      <p style="margin:0 0 6px;color:#c99a3e;letter-spacing:2px;text-transform:uppercase;font-size:11px">Balance due at your visit</p>
-      <p style="margin:0 0 4px;color:#f4efe6;font-size:22px;font-family:Georgia,serif">${money(balance)}</p>
-      <p style="margin:0 0 14px;color:#999;font-size:13px;line-height:1.6">You paid ${money(paid)} today. The remaining ${money(balance)} is due when you visit ${appointment.barber_name_snapshot}. You can settle it now to skip payment at the chair.</p>
-      <a href="${appointment.balance_token ? absoluteUrl(`/api/booking/balance/${encodeURIComponent(appointment.public_reference)}?t=${encodeURIComponent(appointment.balance_token)}`) : absoluteUrl(`/login?next=/client/appointments`)}" style="display:inline-block;background:#c99a3e;color:#090909;padding:12px 20px;text-decoration:none;text-transform:uppercase;letter-spacing:2px;font-size:12px">Pay balance now</a>
-    </div>`;
+    return `<div style="margin:26px 0;padding:18px;border:1px solid #9d772e;background:#0d0d0d"><p style="margin:0 0 6px;color:#c99a3e;letter-spacing:2px;text-transform:uppercase;font-size:11px">Balance due at your visit</p><p style="margin:0 0 4px;color:#f4efe6;font-size:22px;font-family:Georgia,serif">${money(balance)}</p><p style="margin:0 0 14px;color:#999;font-size:13px;line-height:1.6">You paid ${money(paid)} today. The remaining ${money(balance)} is due when you visit ${appointment.barber_name_snapshot}. You can settle it now to skip payment at the chair.</p><a href="${appointment.balance_token ? absoluteUrl(`/api/booking/balance/${encodeURIComponent(appointment.public_reference)}?t=${encodeURIComponent(appointment.balance_token)}`) : absoluteUrl(`/login?next=/client/appointments`)}" style="display:inline-block;background:#c99a3e;color:#090909;padding:12px 20px;text-decoration:none;text-transform:uppercase;letter-spacing:2px;font-size:12px">Pay balance now</a></div>`;
   })()}<p style="margin:26px 0"><a href="${manageUrl}" style="display:inline-block;background:#c99a3e;color:#090909;padding:14px 22px;text-decoration:none;text-transform:uppercase;letter-spacing:2px;font-size:12px">Manage appointment</a></p><p style="color:#999;font-size:13px;line-height:1.6">Questions? Call ${businessConfig.phone}.</p></div></div>`;
 }
 
 export async function queueBookingNotifications(admin: AdminClient, appointment: Appointment, manageToken: string) {
-  // Do not tell the client their appointment is confirmed while the deposit is
-  // still outstanding. These notifications are re-queued by the Square payment
-  // webhook once the deposit settles.
-  const depositOutstanding =
-    Number(appointment.deposit_required_cents ?? 0) > 0 &&
-    appointment.deposit_status !== "paid";
-  if (depositOutstanding) return;
+  // Client/admin "confirmed" notifications are permitted only when the stored
+  // appointment is actually confirmed AND the required website prepayment is
+  // marked paid. This closes a subtle webhook race where a partial historical
+  // payment could match the update query but a DB trigger correctly kept the
+  // appointment pending; callers must never override that authoritative state.
+  const paymentRequired = Number(appointment.deposit_required_cents ?? 0) > 0;
+  const paymentVerified = !paymentRequired || appointment.deposit_status === "paid";
+  if (appointment.status !== "confirmed" || !paymentVerified) return;
 
   const formatted = visit(appointment);
   const jobs: Array<Record<string, unknown>> = [];
@@ -76,7 +64,7 @@ export async function queueBookingNotifications(admin: AdminClient, appointment:
     if (reminder24 > new Date()) jobs.push({ business_id: appointment.business_id, channel: "email", template_key: "booking_reminder_24h", locale: "en", recipient: appointment.client_email_snapshot, payload: { subject: `Tomorrow: ${appointment.service_name_snapshot} at Luxury Barber Lounge`, body: `Reminder: ${appointment.service_name_snapshot} with ${appointment.barber_name_snapshot} is scheduled for ${formatted}. Call ${businessConfig.phone} if you need assistance.`, transactional: true, appointmentId: appointment.id }, idempotency_key: `booking-reminder-24h:${appointment.id}`, scheduled_for: reminder24.toISOString(), status: "queued" });
   }
   if (appointment.client_phone_snapshot && appointment.sms_consent) jobs.push({ business_id: appointment.business_id, channel: "sms", template_key: "booking_confirmed_sms", locale: "en", recipient: appointment.client_phone_snapshot, payload: { body: `Luxury Barber Lounge: ${appointment.public_reference} is confirmed for ${formatted} with ${appointment.barber_name_snapshot}. ${businessConfig.phone}`, transactional: true, appointmentId: appointment.id }, idempotency_key: `booking-confirmed-sms:${appointment.id}`, scheduled_for: new Date().toISOString(), status: "queued" });
-  if (process.env.RESEND_API_KEY || process.env.EMAIL_PROVIDER_API_KEY) jobs.push({ business_id: appointment.business_id, channel: "email", template_key: "booking_admin_fallback", locale: "en", recipient: businessConfig.bookingEmail, payload: { subject: `Booking saved: ${appointment.client_name_snapshot} • ${appointment.service_name_snapshot}`, body: `Booking ${appointment.public_reference} was saved for ${formatted} with ${appointment.barber_name_snapshot}. Open ${absoluteUrl(`/admin/appointments?reference=${appointment.public_reference}`)}.`, transactional: true, appointmentId: appointment.id }, idempotency_key: `booking-admin-fallback:${appointment.id}`, scheduled_for: new Date().toISOString(), status: "queued" });
+  if (process.env.RESEND_API_KEY || process.env.EMAIL_PROVIDER_API_KEY) jobs.push({ business_id: appointment.business_id, channel: "email", template_key: "booking_admin_fallback", locale: "en", recipient: businessConfig.bookingEmail, payload: { subject: `Paid & confirmed: ${appointment.client_name_snapshot} • ${appointment.service_name_snapshot}`, body: `Booking ${appointment.public_reference} is paid in full and confirmed for ${formatted} with ${appointment.barber_name_snapshot}. Open ${absoluteUrl(`/admin/appointments?reference=${appointment.public_reference}`)}.`, transactional: true, appointmentId: appointment.id }, idempotency_key: `booking-admin-fallback:${appointment.id}`, scheduled_for: new Date().toISOString(), status: "queued" });
   if (appointment.assigned_staff_user_id) {
     const { data } = await admin.auth.admin.getUserById(appointment.assigned_staff_user_id);
     const barberEmail = data.user?.email;
