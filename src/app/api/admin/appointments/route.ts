@@ -9,6 +9,7 @@ import { businessConfig } from "@/lib/config/business";
 import { sendFormSubmitBooking } from "@/lib/email/formsubmit";
 
 const operatingRoles = ["receptionist", "manager", "owner", "super_admin"] as const;
+const adminVisibleStatuses = ["confirmed", "checked_in", "assigned", "in_service", "completed", "cancelled_by_client", "cancelled_by_business", "no_show", "rescheduled"] as const;
 type OperationalAppointmentRecord = {
   id: string;
   business_id: string;
@@ -62,6 +63,13 @@ export async function GET(request: NextRequest) {
     .from("appointments")
     .select("id,public_reference,client_id,auth_user_id,service_id,barber_profile_id,assigned_staff_user_id,service_name_snapshot,service_price_snapshot_cents,service_duration_snapshot_minutes,addon_snapshot,barber_name_snapshot,client_name_snapshot,client_email_snapshot,client_phone_snapshot,starts_at,ends_at,timezone,status,client_declared_status,booking_source,campaign_source,referral_source,deposit_required_cents,deposit_status,client_notes,internal_notes,formsubmit_status,client_confirmation_status,barber_notification_status,sync_status,created_at,updated_at")
     .eq("business_id", value.businessId)
+    // The operational Appointments workspace is the paid schedule, not the
+    // checkout-hold inbox. Unpaid/pending website bookings remain in the
+    // database for Square reconciliation, but are deliberately invisible here
+    // until the payment webhook has verified the full service principal and
+    // promoted the appointment to a confirmed lifecycle state.
+    .eq("deposit_status", "paid")
+    .in("status", [...adminVisibleStatuses])
     .order("starts_at", { ascending: true })
     .limit(300);
   if (status && status !== "all") query = query.eq("status", status);
@@ -98,6 +106,23 @@ export async function PATCH(request: NextRequest) {
   const input = parsed.data;
   const { data: appointment } = await value.admin.from("appointments").select("*").eq("business_id", value.businessId).eq("id", input.appointmentId).maybeSingle();
   if (!appointment?.id) return NextResponse.json({ ok: false, message: "Appointment not found." }, { status: 404 });
+
+  if (input.action === "confirm") {
+    const requiredPrincipal = Math.max(0, Number(appointment.service_price_snapshot_cents ?? 0));
+    if (requiredPrincipal > 0) {
+      const { data: paidLinks, error: paidLinksError } = await value.admin
+        .from("appointment_payment_links")
+        .select("amount_cents")
+        .eq("appointment_id", appointment.id)
+        .eq("status", "paid")
+        .in("purpose", ["deposit", "balance"]);
+      if (paidLinksError) return NextResponse.json({ ok: false, message: "Payment verification is temporarily unavailable." }, { status: 503 });
+      const paidPrincipal = (paidLinks ?? []).reduce((sum, link) => sum + Math.max(0, Number(link.amount_cents ?? 0)), 0);
+      if (appointment.deposit_status !== "paid" || paidPrincipal < requiredPrincipal) {
+        return NextResponse.json({ ok: false, message: "This booking cannot be confirmed until the client has paid the full service amount." }, { status: 409 });
+      }
+    }
+  }
 
   if (input.action === "note") {
     if (!input.note) return NextResponse.json({ ok: false, message: "Write a note first." }, { status: 422 });
