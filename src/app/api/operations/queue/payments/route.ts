@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getServerAuthSession } from "@/lib/auth/server";
 import { activeQueueStatuses, getQueueContext } from "@/lib/queue/operations";
+import { setManualWalkInPaymentStatus } from "@/lib/queue/manualWalkInPayment";
 import {
   loadWalkInPayments,
   prepareSquareWalkInPayment,
@@ -79,6 +80,8 @@ export async function POST(request: NextRequest) {
     queueEntryId?: string;
     amountCents?: number;
     tipCents?: number;
+    status?: "paid" | "unpaid";
+    paymentMethod?: "cash" | "square";
   } | null;
 
   if (!body?.action) {
@@ -106,17 +109,52 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, message: "Walk-in was not found." }, { status: 404 });
   }
 
-  if (entry.status !== "in_service") {
-    return NextResponse.json(
-      { ok: false, message: "Set the walk-in to In service before recording payment." },
-      { status: 409 },
-    );
-  }
-
   const amountCents = cents(body.amountCents);
   const tipCents = cents(body.tipCents);
 
   try {
+    // This is the primary walk-in payment control. Reception/Admin may mark
+    // an active walk-in Paid or Unpaid at any queue stage. The public queue
+    // board reads this same durable record, so it cannot show Paid until an
+    // authorized operator makes this change.
+    if (body.action === "set_manual_status") {
+      if (body.status !== "paid" && body.status !== "unpaid") {
+        return NextResponse.json({ ok: false, message: "Choose Paid or Unpaid." }, { status: 422 });
+      }
+
+      const payment = await setManualWalkInPaymentStatus(context.admin, {
+        businessId: context.businessId,
+        locationId: context.locationId,
+        queueEntryId: body.queueEntryId,
+        actorUserId: session.user.id,
+        status: body.status,
+        paymentMethod: body.paymentMethod,
+        amountCents: amountCents ?? undefined,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        payment: payment ? {
+          id: payment.id,
+          status: payment.status,
+          paymentMethod: payment.payment_method,
+          amountCents: payment.amount_cents,
+          tipCents: payment.tip_cents,
+          paidAt: payment.paid_at,
+        } : null,
+      });
+    }
+
+    // Legacy explicit checkout actions remain supported for compatibility,
+    // but the Queue UI no longer requires In service before the operator can
+    // set the manual Paid/Unpaid state above.
+    if (entry.status !== "in_service") {
+      return NextResponse.json(
+        { ok: false, message: "Set the walk-in to In service before starting a checkout flow." },
+        { status: 409 },
+      );
+    }
+
     if (body.action === "prepare_square") {
       const payment = await prepareSquareWalkInPayment(context.admin, {
         businessId: context.businessId,
