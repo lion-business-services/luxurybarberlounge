@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3, RefreshCw, Search, UserRound, WalletCards } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, RefreshCw, Search, UserRound, WalletCards } from "lucide-react";
+import { zonedDateTimeToUtc } from "@/lib/booking/timezone";
+
+const SHOP_TIME_ZONE = "America/New_York";
 
 type Appointment = {
   id: string;
@@ -40,7 +43,7 @@ type CalendarPayload = { ok: boolean; generatedAt?: string; timezone: string; lo
 type PatchResponse = { ok?: boolean; message?: string; status?: string };
 
 function localDate(value = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(value);
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: SHOP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(value);
   const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
@@ -56,7 +59,7 @@ function appointmentDate(value: string) {
 }
 
 function time(value: string) {
-  return new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-US", { timeZone: SHOP_TIME_ZONE, hour: "numeric", minute: "2-digit" }).format(new Date(value));
 }
 
 function dayLabel(date: string) {
@@ -77,6 +80,14 @@ function scheduleTime(value: string) {
   return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", hour: "numeric", minute: "2-digit" }).format(date);
 }
 
+function localInputToUtc(value: string) {
+  const [date, clock] = value.split("T");
+  if (!date || !clock) return null;
+  const normalizedClock = clock.length === 5 ? `${clock}:00` : clock;
+  const instant = zonedDateTimeToUtc(date, normalizedClock, SHOP_TIME_ZONE);
+  return Number.isNaN(instant.getTime()) ? null : instant.toISOString();
+}
+
 export function AdminAppointmentsWorkspace() {
   const [startDate, setStartDate] = useState(() => localDate());
   const [payload, setPayload] = useState<CalendarPayload | null>(null);
@@ -87,6 +98,7 @@ export function AdminAppointmentsWorkspace() {
   const [message, setMessage] = useState("");
   const [rescheduleAt, setRescheduleAt] = useState("");
   const [reassignBarber, setReassignBarber] = useState("");
+  const [internalNote, setInternalNote] = useState("");
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/admin/calendar?start=${encodeURIComponent(startDate)}&days=7`, { cache: "no-store" }).catch(() => null);
@@ -109,7 +121,8 @@ export function AdminAppointmentsWorkspace() {
   useEffect(() => {
     if (!selected) return;
     setReassignBarber(selected.barber_profile_id);
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(selected.starts_at));
+    setInternalNote("");
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: SHOP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(selected.starts_at));
     const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
     setRescheduleAt(`${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`);
   }, [selected]);
@@ -129,7 +142,10 @@ export function AdminAppointmentsWorkspace() {
     const response = await fetch("/api/admin/appointments", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ appointmentId: selected.id, action, reason: `Calendar: ${action.replaceAll("_", " ")}`, ...extra }) }).catch(() => null);
     const result = response ? await response.json().catch(() => null) as PatchResponse | null : null;
     setMessage(result?.message ?? (result?.ok ? "Appointment updated." : "The appointment could not be updated."));
-    if (result?.ok) await load();
+    if (result?.ok) {
+      if (action === "note") setInternalNote("");
+      await load();
+    }
     setBusy(null);
   }
 
@@ -170,8 +186,8 @@ export function AdminAppointmentsWorkspace() {
     </section>
 
     {selected ? <section className="grid gap-4 rounded-2xl border border-[var(--color-brass)]/25 bg-[var(--color-brass)]/[.035] p-5 xl:grid-cols-[1.15fr_.85fr]">
-      <div><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]">{selected.public_reference}</p><h2 className="font-display mt-2 text-3xl">{selected.client_name_snapshot}</h2><p className="mt-2 text-sm text-[var(--color-bone-muted)]">{selected.service_name_snapshot} with {selected.barber_name_snapshot}</p></div><span className="rounded-full border border-emerald-400/25 px-3 py-2 text-[10px] uppercase tracking-[.12em] text-emerald-300">Paid · {pretty(selected.status)}</span></div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Info label="Appointment" value={`${dayLabel(appointmentDate(selected.starts_at))} · ${time(selected.starts_at)}`} /><Info label="Duration" value={`${selected.service_duration_snapshot_minutes} minutes`} /><Info label="Service total" value={money(selected.service_price_snapshot_cents)} /><Info label="Phone" value={selected.client_phone_snapshot ?? "Not provided"} /><Info label="Email" value={selected.client_email_snapshot ?? "Not provided"} /><Info label="Source" value={pretty(selected.booking_source)} /></div></div>
-      <div className="grid gap-4"><div><p className="text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Appointment actions</p><div className="mt-3 grid grid-cols-2 gap-2"><Action label="Check in" disabled={busy !== null || selected.status !== "confirmed"} onClick={() => void act("check_in")} /><Action label="Start service" disabled={busy !== null || !["checked_in", "assigned"].includes(selected.status)} onClick={() => void act("in_service")} /><Action label="Complete" disabled={busy !== null || selected.status !== "in_service"} onClick={() => void act("complete")} /><Action label="No show" disabled={busy !== null || !["confirmed", "checked_in", "assigned"].includes(selected.status)} onClick={() => void act("no_show")} /><Action label="Cancel" disabled={busy !== null || ["completed", "cancelled_by_client", "cancelled_by_business", "no_show"].includes(selected.status)} onClick={() => void act("cancel")} /></div></div><label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Reassign barber<select value={reassignBarber} onChange={(event) => setReassignBarber(event.target.value)} className="min-h-11 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal">{payload.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select></label><button type="button" disabled={busy !== null || reassignBarber === selected.barber_profile_id} onClick={() => void act("reassign", { barberProfileId: reassignBarber })} className="min-h-11 rounded-full border border-[var(--color-ink-line)] px-4 text-[9px] uppercase tracking-[.14em] disabled:opacity-40">Save barber</button><label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Reschedule<input type="datetime-local" value={rescheduleAt} onChange={(event) => setRescheduleAt(event.target.value)} className="min-h-11 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal" /></label><button type="button" disabled={busy !== null || !rescheduleAt} onClick={() => void act("reschedule", { startsAt: new Date(`${rescheduleAt}:00-04:00`).toISOString() })} className="min-h-11 rounded-full border border-[var(--color-ink-line)] px-4 text-[9px] uppercase tracking-[.14em] disabled:opacity-40">Save new time</button></div>
+      <div><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]">{selected.public_reference}</p><h2 className="font-display mt-2 text-3xl">{selected.client_name_snapshot}</h2><p className="mt-2 text-sm text-[var(--color-bone-muted)]">{selected.service_name_snapshot} with {selected.barber_name_snapshot}</p></div><span className="rounded-full border border-emerald-400/25 px-3 py-2 text-[10px] uppercase tracking-[.12em] text-emerald-300">Paid · {pretty(selected.status)}</span></div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Info label="Appointment" value={`${dayLabel(appointmentDate(selected.starts_at))} · ${time(selected.starts_at)}`} /><Info label="Duration" value={`${selected.service_duration_snapshot_minutes} minutes`} /><Info label="Service total" value={money(selected.service_price_snapshot_cents)} /><Info label="Status" value={pretty(selected.status)} /><Info label="Phone" value={selected.client_phone_snapshot ?? "Not provided"} /><Info label="Email" value={selected.client_email_snapshot ?? "Not provided"} /><Info label="Source" value={pretty(selected.booking_source)} /></div></div>
+      <div className="grid gap-4"><div><p className="text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Appointment actions</p><div className="mt-3 grid grid-cols-2 gap-2"><Action label="Check in" disabled={busy !== null || selected.status !== "confirmed"} onClick={() => void act("check_in")} /><Action label="Start service" disabled={busy !== null || !["checked_in", "assigned"].includes(selected.status)} onClick={() => void act("in_service")} /><Action label="Complete" disabled={busy !== null || selected.status !== "in_service"} onClick={() => void act("complete")} /><Action label="No show" disabled={busy !== null || !["confirmed", "checked_in", "assigned"].includes(selected.status)} onClick={() => void act("no_show")} /><Action label="Cancel" disabled={busy !== null || ["completed", "cancelled_by_client", "cancelled_by_business", "no_show"].includes(selected.status)} onClick={() => void act("cancel")} /></div></div><label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Reassign barber<select value={reassignBarber} onChange={(event) => setReassignBarber(event.target.value)} className="min-h-11 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal">{payload.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select></label><button type="button" disabled={busy !== null || reassignBarber === selected.barber_profile_id} onClick={() => void act("reassign", { barberProfileId: reassignBarber })} className="min-h-11 rounded-full border border-[var(--color-ink-line)] px-4 text-[9px] uppercase tracking-[.14em] disabled:opacity-40">Save barber</button><label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Reschedule<input type="datetime-local" value={rescheduleAt} onChange={(event) => setRescheduleAt(event.target.value)} className="min-h-11 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal" /></label><button type="button" disabled={busy !== null || !rescheduleAt} onClick={() => { const startsAt = localInputToUtc(rescheduleAt); if (!startsAt) { setMessage("Choose a valid appointment date and time."); return; } void act("reschedule", { startsAt }); }} className="min-h-11 rounded-full border border-[var(--color-ink-line)] px-4 text-[9px] uppercase tracking-[.14em] disabled:opacity-40">Save new time</button><label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Internal note<textarea value={internalNote} onChange={(event) => setInternalNote(event.target.value)} rows={3} className="rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 py-3 text-sm normal-case tracking-normal" placeholder="Private note for the shop team" /></label><button type="button" disabled={busy !== null || !internalNote.trim()} onClick={() => void act("note", { note: internalNote.trim(), clientVisible: false })} className="min-h-11 rounded-full border border-[var(--color-ink-line)] px-4 text-[9px] uppercase tracking-[.14em] disabled:opacity-40">Save note</button></div>
     </section> : null}
   </div>;
 }
@@ -182,8 +198,8 @@ function BarberCalendarRow({ barber, days, schedules, timeOff, appointments, sel
     {days.map((day) => {
       const weekday = new Date(`${day}T12:00:00Z`).getUTCDay();
       const daySchedules = schedules.filter((schedule) => schedule.barber_profile_id === barber.id && schedule.weekday === weekday && (!schedule.effective_from || schedule.effective_from <= day) && (!schedule.effective_to || schedule.effective_to >= day));
-      const dayStart = new Date(`${day}T00:00:00-04:00`).getTime();
-      const dayEnd = new Date(`${shiftDate(day, 1)}T00:00:00-04:00`).getTime();
+      const dayStart = zonedDateTimeToUtc(day, "00:00:00", SHOP_TIME_ZONE).getTime();
+      const dayEnd = zonedDateTimeToUtc(shiftDate(day, 1), "00:00:00", SHOP_TIME_ZONE).getTime();
       const dayOff = timeOff.filter((block) => block.barber_profile_id === barber.id && new Date(block.starts_at).getTime() < dayEnd && new Date(block.ends_at).getTime() > dayStart);
       const dayAppointments = appointments.filter((item) => appointmentDate(item.starts_at) === day);
       return <div key={day} className={`min-h-[190px] border-l border-[var(--color-ink-line)] p-2.5 ${day === localDate() ? "bg-[var(--color-brass)]/[.025]" : ""}`}>
