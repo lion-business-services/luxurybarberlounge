@@ -34,6 +34,12 @@ type BaseQueueResponse = {
   [key: string]: unknown;
 };
 
+function metadataRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 export async function POST(request: NextRequest) {
   const raw = await request.json().catch(() => null);
   const parsed = enrichedQueueSchema.safeParse(raw);
@@ -112,7 +118,7 @@ export async function POST(request: NextRequest) {
 
   const { data: entry, error: entryError } = await context.admin
     .from("queue_entries")
-    .select("id,service_id,service_slug,metadata")
+    .select("id,service_id,service_slug,metadata,client_email,service_price_snapshot_cents,walk_in_at")
     .eq("location_id", context.locationId)
     .eq("public_token", basePayload.token)
     .maybeSingle();
@@ -125,6 +131,30 @@ export async function POST(request: NextRequest) {
         code: "WALK_IN_ENRICHMENT_LOOKUP_FAILED",
       },
       { status: 503 },
+    );
+  }
+
+  // A duplicate response means /api/queue intentionally returned the guest's
+  // existing active row. Never rewrite that row with a second form submission.
+  // Previously, duplicate submissions could overwrite walk-in time/email on an
+  // older queue record, which made the new guest appear missing in Admin Queue.
+  if (basePayload.duplicate === true) {
+    const storedMetadata = metadataRecord(entry.metadata);
+    const storedPrice = typeof entry.service_price_snapshot_cents === "number"
+      ? entry.service_price_snapshot_cents
+      : null;
+    const storedWalkInAt = typeof entry.walk_in_at === "string" ? entry.walk_in_at : null;
+    const storedEmail = typeof entry.client_email === "string" ? entry.client_email : null;
+
+    return NextResponse.json(
+      {
+        ...basePayload,
+        clientEmail: storedEmail,
+        walkInAt: storedWalkInAt,
+        serviceTotalCents: storedPrice,
+        serviceStartingPrice: storedMetadata.serviceStartingPrice === true,
+      },
+      { status: baseResponse.status },
     );
   }
 
@@ -151,10 +181,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const priorMetadata =
-    entry.metadata && typeof entry.metadata === "object" && !Array.isArray(entry.metadata)
-      ? (entry.metadata as Record<string, unknown>)
-      : {};
+  const priorMetadata = metadataRecord(entry.metadata);
 
   const { error: updateError } = await context.admin
     .from("queue_entries")
