@@ -58,7 +58,8 @@ export async function GET() {
     const entries = live.entries.map((entry) => {
       const raw = rawById.get(entry.id);
       const walkInPayment = paymentById.get(entry.id) ?? null;
-      const appointment = raw?.appointment_id ? appointmentById.get(String(raw.appointment_id)) : null;
+      const appointmentId = raw?.appointment_id ? String(raw.appointment_id) : null;
+      const appointment = appointmentId ? appointmentById.get(appointmentId) : null;
       const scheduledAt = appointment?.starts_at && typeof appointment.starts_at === "string"
         ? appointment.starts_at
         : typeof raw?.walk_in_at === "string"
@@ -98,8 +99,8 @@ export async function GET() {
           squareReceiptNumber: walkInPayment.square_receipt_number,
           squareReceiptUrl: walkInPayment.square_receipt_url,
           paidAt: walkInPayment.paid_at,
-        } : appointmentPaid ? {
-          id: `appointment-${appointment.id}`,
+        } : appointmentPaid && appointmentId ? {
+          id: `appointment-${appointmentId}`,
           status: "paid",
           paymentMethod: "square",
           amountCents: appointmentAmount,
