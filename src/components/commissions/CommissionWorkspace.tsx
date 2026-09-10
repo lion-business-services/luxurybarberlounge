@@ -251,7 +251,7 @@ export function CommissionWorkspace({ role }: { role: "barber" | "admin" }) {
           <p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">{role === "barber" ? "Live commission ledger" : "Live commission & shop-share ledger"}</p>
           <h1 className="font-display mt-3 text-4xl sm:text-5xl">{role === "barber" ? "My commissions" : "Commissions"}</h1>
           <p className="mt-3 max-w-4xl text-sm leading-7 text-[var(--color-bone-muted)]">
-            Square and cash activity flows into one reconciled ledger. Every transaction shows the commission basis, barber rate, barber share, shop rate, shop share, tips, payment reference, and statement status. Review statements stay continuously updated until the owner records payout, then the paid figures are locked.
+            Square and cash activity flows into one reconciled ledger. Every transaction shows the commission basis, barber rate, barber share, shop rate, shop share, tips, payment reference, and statement status. Review statements stay continuously updated until the owner records payout, then the paid figures are locked. Statements report amounts only and do not move funds.
           </p>
           <p className="mt-3 text-[10px] tracking-[.14em] uppercase text-[var(--color-bone-muted)]">
             Auto-refresh every 15 seconds{lastUpdatedAt ? ` · Last refreshed ${lastUpdatedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}` : ""}
