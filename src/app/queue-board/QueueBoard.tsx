@@ -149,7 +149,7 @@ export function QueueBoard() {
         </article>
       </section>
 
-      <footer className="mt-7 flex flex-col gap-2 border-t border-white/[.07] pt-5 text-xs text-[#81796f] sm:flex-row sm:items-center sm:justify-between"><p>Wait times are live estimates and may change as services progress.</p><p>{updatedAt ? `Updated ${updatedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}` : "Connecting…"}</p></footer>
+      <footer className="mt-7 flex flex-col gap-3 border-t border-white/[.07] pt-5 text-xs text-[#81796f] sm:flex-row sm:items-end sm:justify-between"><div><p>Wait times are live estimates and may change as services progress.</p><p className="mt-1">Names appear only when the guest has chosen to share.</p></div><p>{updatedAt ? `Updated ${updatedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}` : "Connecting…"}</p></footer>
     </main>
   );
 }
