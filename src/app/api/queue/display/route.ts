@@ -21,7 +21,13 @@ export async function GET(request: NextRequest) {
   if (!context) return NextResponse.json({ ok: false, location: "Northfield", entries: [] }, { status: 503 });
 
   try {
-    const entries = await loadUnifiedQueueDisplay(context);
+    // The shop Queue Board is the live walk-in queue, not the appointment
+    // calendar. Standalone appointments previously appeared here and were
+    // labelled Paid · Square, which made an appointment look like a walk-in
+    // that reception had already marked paid. Only true walk-in queue rows
+    // belong on this board; appointment payments remain in Payment Tracking
+    // and appointments remain in the appointment calendar.
+    const entries = (await loadUnifiedQueueDisplay(context)).filter((entry) => entry.kind === "walk_in");
     const sourceIds = [...new Set(entries.map((entry) => entry.sourceId))];
     const queueTiming = new Map<string, QueueTiming>();
     const paymentByQueue = new Map<string, { status: string; method: string | null }>();
@@ -68,8 +74,7 @@ export async function GET(request: NextRequest) {
       const scheduledWalkIn = Boolean(timing?.walkInAt && Number.isFinite(scheduledMs) && Number.isFinite(createdMs) && scheduledMs > createdMs + 60_000);
       const scheduledTimeIsFuture = Number.isFinite(scheduledMs) && scheduledMs > now;
       const countdownMinutes = Number.isFinite(scheduledMs) ? Math.max(0, Math.ceil((scheduledMs - now) / 60_000)) : null;
-      const appointmentOnly = entry.kind === "appointment" && !isLiveQueueEntry;
-      const remainingMinutes = appointmentOnly || (scheduledWalkIn && scheduledTimeIsFuture)
+      const remainingMinutes = scheduledWalkIn && scheduledTimeIsFuture
         ? countdownMinutes
         : entry.estimatedWaitMinutes;
       const expectedServiceAt = remainingMinutes == null ? null : new Date(now + remainingMinutes * 60_000).toISOString();
@@ -80,8 +85,8 @@ export async function GET(request: NextRequest) {
         scheduledAt,
         estimatedWaitMinutes: remainingMinutes,
         expectedServiceAt,
-        paymentStatus: entry.kind === "appointment" ? "paid" : payment?.status ?? "unpaid",
-        paymentMethod: entry.kind === "appointment" ? "square" : payment?.method ?? null,
+        paymentStatus: payment?.status ?? "unpaid",
+        paymentMethod: payment?.method ?? null,
       }];
     });
 
