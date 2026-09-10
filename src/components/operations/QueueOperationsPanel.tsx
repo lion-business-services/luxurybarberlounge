@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CreditCard, ExternalLink, LoaderCircle, Plus, RefreshCw, Sparkles, TimerReset, WalletCards } from "lucide-react";
+import { ExternalLink, LoaderCircle, Plus, RefreshCw, Sparkles, TimerReset, WalletCards } from "lucide-react";
 
 type Payment = {
   id: string;
@@ -53,13 +53,14 @@ type QueueResponse = {
 type PaymentResponse = {
   ok?: boolean;
   message?: string;
-  payment?: { squarePaymentUrl?: string | null };
 };
 
 const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 const time = (value: string | null) => value ? new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(new Date(value)) : "Pending";
 const dateTime = (value: string) => new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
 const pretty = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+type PaymentSelection = "unpaid" | "paid_cash" | "paid_square";
 
 export function QueueOperationsPanel() {
   const [entries, setEntries] = useState<QueueEntry[]>([]);
@@ -116,38 +117,60 @@ export function QueueOperationsPanel() {
     return amountOverrides[entry.id] ?? (cents > 0 ? (cents / 100).toFixed(2) : "");
   }
 
-  async function paymentAction(entry: QueueEntry, method: "cash" | "square") {
-    if (entry.payment?.status === "paid") return;
-    if (entry.status !== "in_service") {
-      setMessage("Move the walk-in to In service before recording payment.");
-      return;
-    }
-    const dollars = Number(amountFor(entry));
-    if (!Number.isFinite(dollars) || dollars <= 0) {
-      setMessage("Enter the final service amount before recording payment.");
-      return;
-    }
-    const amountCents = Math.round(dollars * 100);
-    if (method === "cash" && !window.confirm(`Confirm ${money(amountCents)} cash received from ${entry.clientName ?? "this walk-in"}?`)) return;
+  function paymentSelection(entry: QueueEntry): PaymentSelection {
+    if (entry.payment?.status !== "paid") return "unpaid";
+    return entry.payment.paymentMethod === "square" ? "paid_square" : "paid_cash";
+  }
 
-    setPaymentBusyId(entry.id); setMessage(method === "square" ? "Preparing Square checkout…" : "Recording cash payment…");
+  async function setPaymentStatus(entry: QueueEntry, selection: PaymentSelection) {
+    const currentlyPaid = entry.payment?.status === "paid";
+    const status = selection === "unpaid" ? "unpaid" : "paid";
+    const paymentMethod = selection === "paid_square" ? "square" : selection === "paid_cash" ? "cash" : undefined;
+
+    let amountCents: number | undefined;
+    if (status === "paid") {
+      const dollars = Number(amountFor(entry));
+      if (!Number.isFinite(dollars) || dollars <= 0) {
+        setMessage("Enter the final service amount before marking this walk-in paid.");
+        await loadQueue();
+        return;
+      }
+      amountCents = Math.round(dollars * 100);
+      const methodLabel = paymentMethod === "square" ? "Square" : "cash";
+      if (!window.confirm(`Mark ${entry.clientName ?? "this walk-in"} PAID by ${methodLabel} for ${money(amountCents)}?`)) {
+        await loadQueue();
+        return;
+      }
+    } else if (currentlyPaid) {
+      if (!window.confirm(`Change ${entry.clientName ?? "this walk-in"} back to UNPAID? This also removes any provisional commission created from this payment.`)) {
+        await loadQueue();
+        return;
+      }
+    }
+
+    setPaymentBusyId(entry.id);
+    setMessage(status === "paid" ? "Saving paid status…" : "Saving unpaid status…");
     try {
       const response = await fetch("/api/operations/queue/payments", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: method === "square" ? "prepare_square" : "record_cash", queueEntryId: entry.id, amountCents }),
+        body: JSON.stringify({
+          action: "set_manual_status",
+          queueEntryId: entry.id,
+          status,
+          paymentMethod,
+          amountCents,
+        }),
       });
       const result = await response.json() as PaymentResponse;
-      if (!response.ok || !result.ok) throw new Error(result.message ?? "Payment could not be updated.");
-      if (method === "square" && result.payment?.squarePaymentUrl) {
-        window.open(result.payment.squarePaymentUrl, "_blank", "noopener,noreferrer");
-        setMessage("Square checkout opened. Payment status will reconcile automatically after completion.");
-      } else {
-        setMessage("Payment recorded. Payment Tracking and the live queue are now updated.");
-      }
+      if (!response.ok || !result.ok) throw new Error(result.message ?? "Payment status could not be updated.");
+      setMessage(status === "paid"
+        ? `Marked PAID${paymentMethod ? ` · ${paymentMethod === "square" ? "Square" : "Cash"}` : ""}. The live Queue Board will update automatically.`
+        : "Marked UNPAID. The live Queue Board will update automatically.");
       await loadQueue();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Payment could not be updated.");
+      setMessage(error instanceof Error ? error.message : "Payment status could not be updated.");
+      await loadQueue().catch(() => undefined);
     } finally {
       setPaymentBusyId(null);
     }
@@ -184,7 +207,6 @@ export function QueueOperationsPanel() {
           {entries.map((entry, index) => {
             const payment = entry.payment;
             const isPaid = payment?.status === "paid";
-            const squarePending = payment?.paymentMethod === "square" && payment.status === "pending";
             return (
               <article key={entry.id} className="rounded-2xl border border-white/[.07] bg-white/[.025] p-5">
                 <div className="grid gap-5 xl:grid-cols-[auto_1.35fr_1fr_1fr_1fr_1.15fr] xl:items-center">
@@ -206,13 +228,14 @@ export function QueueOperationsPanel() {
                     <span className="form-label">Payment</span>
                     <div className="grid grid-cols-[.85fr_1.15fr] gap-2">
                       <input aria-label={`Amount for ${entry.clientName ?? "walk-in"}`} inputMode="decimal" value={amountFor(entry)} onChange={(event) => setAmountOverrides((current) => ({ ...current, [entry.id]: event.target.value }))} disabled={isPaid || paymentBusyId === entry.id} className="form-control text-xs" placeholder="0.00" />
-                      <select aria-label={`Payment method for ${entry.clientName ?? "walk-in"}`} value={isPaid || squarePending ? payment?.paymentMethod ?? "" : ""} disabled={isPaid || paymentBusyId === entry.id || entry.status !== "in_service"} onChange={(event) => { const value = event.target.value; if (value === "cash" || value === "square") void paymentAction(entry, value); }} className="form-control text-xs"><option value="">Unpaid</option><option value="cash">Cash — mark paid</option><option value="square">Square checkout</option></select>
+                      <select aria-label={`Payment status for ${entry.clientName ?? "walk-in"}`} value={paymentSelection(entry)} disabled={paymentBusyId === entry.id} onChange={(event) => void setPaymentStatus(entry, event.target.value as PaymentSelection)} className="form-control text-xs"><option value="unpaid">Unpaid</option><option value="paid_cash">Paid — Cash</option><option value="paid_square">Paid — Square</option></select>
                     </div>
-                    <p className={`mt-2 text-[10px] uppercase tracking-[.12em] ${isPaid ? "text-emerald-300" : squarePending ? "text-[var(--color-brass)]" : "text-[var(--color-bone-muted)]"}`}>{isPaid ? `Paid ${payment?.paymentMethod} · ${money(payment?.amountCents ?? 0)}` : squarePending ? "Square payment pending" : "Unpaid"}</p>
+                    <p className={`mt-2 text-[10px] uppercase tracking-[.12em] ${isPaid ? "text-emerald-300" : "text-[var(--color-bone-muted)]"}`}>{isPaid ? `Paid · ${payment?.paymentMethod === "square" ? "Square" : "Cash"} · ${money(payment?.amountCents ?? 0)}` : "Unpaid"}</p>
+                    <p className="mt-1 text-[9px] text-[var(--color-bone-muted)]">Admin controls this status. The Queue Board mirrors it automatically.</p>
                     {paymentBusyId === entry.id ? <p className="mt-1 text-[9px] text-[var(--color-bone-muted)]">Updating payment…</p> : null}
                   </div>
                 </div>
-                {(squarePending && payment?.squarePaymentUrl) || (isPaid && payment?.squareReceiptUrl) ? <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-white/[.06] pt-4">{squarePending && payment?.squarePaymentUrl ? <a href={payment.squarePaymentUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border border-[var(--color-brass)] px-3 py-2 text-[9px] uppercase tracking-[.12em] text-[var(--color-brass)]"><CreditCard className="h-3 w-3" />Open Square</a> : null}{isPaid && payment?.squareReceiptUrl ? <a href={payment.squareReceiptUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 px-3 py-2 text-[9px] uppercase tracking-[.12em] text-emerald-300"><ExternalLink className="h-3 w-3" />Receipt {payment.squareReceiptNumber ?? "Square"}</a> : null}</div> : null}
+                {isPaid && payment?.squareReceiptUrl ? <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-white/[.06] pt-4"><a href={payment.squareReceiptUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 px-3 py-2 text-[9px] uppercase tracking-[.12em] text-emerald-300"><ExternalLink className="h-3 w-3" />Receipt {payment.squareReceiptNumber ?? "Square"}</a></div> : null}
               </article>
             );
           })}

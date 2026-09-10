@@ -79,14 +79,18 @@ export async function GET(request: NextRequest) {
         : entry.estimatedWaitMinutes;
       const expectedServiceAt = remainingMinutes == null ? null : new Date(now + remainingMinutes * 60_000).toISOString();
       const payment = paymentByQueue.get(entry.sourceId);
+      const isPaid = payment?.status === "paid";
 
       return [{
         ...entry,
         scheduledAt,
         estimatedWaitMinutes: remainingMinutes,
         expectedServiceAt,
-        paymentStatus: payment?.status ?? "unpaid",
-        paymentMethod: payment?.method ?? null,
+        // Public status is intentionally binary. Pending, voided, unmatched,
+        // or missing payment records all display as UNPAID. Only the durable
+        // admin-confirmed paid state displays as PAID.
+        paymentStatus: isPaid ? "paid" : "unpaid",
+        paymentMethod: isPaid ? payment?.method ?? null : null,
       }];
     });
 

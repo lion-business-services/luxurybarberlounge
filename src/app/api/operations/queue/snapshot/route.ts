@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerAuthSession } from "@/lib/auth/server";
 import { getQueueContext, recalculateQueueWaits } from "@/lib/queue/operations";
-import { loadWalkInPayments } from "@/lib/queue/payments";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -27,91 +26,79 @@ export async function GET() {
     const live = await recalculateQueueWaits(context);
     const ids = live.entries.map((entry) => entry.id);
 
-    const [{ data: rawRows, error: rawError }, payments] = await Promise.all([
-      ids.length
-        ? context.admin
-            .from("queue_entries")
-            .select("id,appointment_id,client_email,client_phone,walk_in_at,joined_at,service_price_snapshot_cents,created_at")
-            .in("id", ids)
-        : Promise.resolve({ data: [], error: null }),
-      ids.length ? loadWalkInPayments(context.admin, context.businessId, ids) : Promise.resolve([]),
-    ]);
+    const { data: rawRows, error: rawError } = ids.length
+      ? await context.admin
+          .from("queue_entries")
+          .select("id,appointment_id,client_email,client_phone,walk_in_at,joined_at,service_price_snapshot_cents,created_at")
+          .in("id", ids)
+      : { data: [], error: null };
 
     if (rawError) throw rawError;
 
-    const appointmentIds = [...new Set((rawRows ?? [])
-      .map((row) => row.appointment_id ? String(row.appointment_id) : null)
-      .filter((id): id is string => Boolean(id)))];
-    const { data: appointmentRows, error: appointmentError } = appointmentIds.length
+    // Admin Queue is the walk-in operational workspace. Scheduled appointment
+    // queue records are intentionally excluded so their payment state can never
+    // masquerade as a walk-in payment.
+    const walkInRows = (rawRows ?? []).filter((row) => !row.appointment_id);
+    const walkInIds = walkInRows.map((row) => String(row.id));
+
+    const { data: payments, error: paymentError } = walkInIds.length
       ? await context.admin
-          .from("appointments")
-          .select("id,deposit_status,deposit_required_cents,service_price_snapshot_cents,starts_at")
-          .in("id", appointmentIds)
+          .from("walk_in_payments")
+          .select("id,queue_entry_id,payment_method,status,amount_cents,tip_cents,square_payment_url,square_receipt_number,square_receipt_url,paid_at,updated_at")
+          .eq("business_id", context.businessId)
+          .in("queue_entry_id", walkInIds)
+          .order("updated_at", { ascending: false })
       : { data: [], error: null };
-    if (appointmentError) throw appointmentError;
 
-    const rawById = new Map((rawRows ?? []).map((row) => [String(row.id), row]));
-    const appointmentById = new Map((appointmentRows ?? []).map((row) => [String(row.id), row]));
-    const paymentById = new Map(payments.map((payment) => [String(payment.queue_entry_id), payment]));
+    if (paymentError) throw paymentError;
+
+    const rawById = new Map(walkInRows.map((row) => [String(row.id), row]));
+    const paymentById = new Map<string, Record<string, unknown>>();
+    for (const payment of payments ?? []) {
+      const queueEntryId = String(payment.queue_entry_id);
+      if (!paymentById.has(queueEntryId)) paymentById.set(queueEntryId, payment as Record<string, unknown>);
+    }
+
     const now = Date.now();
+    const entries = live.entries
+      .filter((entry) => rawById.has(entry.id))
+      .map((entry) => {
+        const raw = rawById.get(entry.id);
+        const payment = paymentById.get(entry.id) ?? null;
+        const scheduledAt = typeof raw?.walk_in_at === "string" ? raw.walk_in_at : entry.joinedAt;
+        const scheduledMs = new Date(scheduledAt).getTime();
+        const scheduledDelay = Number.isFinite(scheduledMs) && scheduledMs > now
+          ? Math.ceil((scheduledMs - now) / 60_000)
+          : 0;
+        const engineWait = typeof entry.estimatedWaitMinutes === "number" ? entry.estimatedWaitMinutes : null;
+        const remainingMinutes = engineWait == null ? (scheduledDelay || null) : Math.max(engineWait, scheduledDelay);
+        const expectedServiceAt = remainingMinutes == null
+          ? null
+          : new Date(now + remainingMinutes * 60_000).toISOString();
 
-    const entries = live.entries.map((entry) => {
-      const raw = rawById.get(entry.id);
-      const walkInPayment = paymentById.get(entry.id) ?? null;
-      const appointmentId = raw?.appointment_id ? String(raw.appointment_id) : null;
-      const appointment = appointmentId ? appointmentById.get(appointmentId) : null;
-      const scheduledAt = appointment?.starts_at && typeof appointment.starts_at === "string"
-        ? appointment.starts_at
-        : typeof raw?.walk_in_at === "string"
-          ? raw.walk_in_at
-          : entry.joinedAt;
-      const scheduledMs = new Date(scheduledAt).getTime();
-      const scheduledDelay = Number.isFinite(scheduledMs) && scheduledMs > now
-        ? Math.ceil((scheduledMs - now) / 60_000)
-        : 0;
-      const engineWait = typeof entry.estimatedWaitMinutes === "number" ? entry.estimatedWaitMinutes : null;
-      const remainingMinutes = engineWait == null ? (scheduledDelay || null) : Math.max(engineWait, scheduledDelay);
-      const expectedServiceAt = remainingMinutes == null
-        ? null
-        : new Date(now + remainingMinutes * 60_000).toISOString();
-      const appointmentPaid = Boolean(appointment && appointment.deposit_status === "paid");
-      const appointmentAmount = Number(appointment?.deposit_required_cents ?? appointment?.service_price_snapshot_cents ?? 0);
-
-      return {
-        ...entry,
-        clientEmail: typeof raw?.client_email === "string" ? raw.client_email : null,
-        clientPhone: typeof raw?.client_phone === "string" ? raw.client_phone : entry.clientPhone,
-        walkInAt: scheduledAt,
-        expectedServiceAt,
-        remainingMinutes,
-        servicePriceCents: typeof raw?.service_price_snapshot_cents === "number"
-          ? raw.service_price_snapshot_cents
-          : typeof appointment?.service_price_snapshot_cents === "number"
-            ? appointment.service_price_snapshot_cents
+        return {
+          ...entry,
+          clientEmail: typeof raw?.client_email === "string" ? raw.client_email : null,
+          clientPhone: typeof raw?.client_phone === "string" ? raw.client_phone : entry.clientPhone,
+          walkInAt: scheduledAt,
+          expectedServiceAt,
+          remainingMinutes,
+          servicePriceCents: typeof raw?.service_price_snapshot_cents === "number"
+            ? raw.service_price_snapshot_cents
             : null,
-        payment: walkInPayment ? {
-          id: walkInPayment.id,
-          status: walkInPayment.status,
-          paymentMethod: walkInPayment.payment_method,
-          amountCents: walkInPayment.amount_cents,
-          tipCents: walkInPayment.tip_cents,
-          squarePaymentUrl: walkInPayment.square_payment_url,
-          squareReceiptNumber: walkInPayment.square_receipt_number,
-          squareReceiptUrl: walkInPayment.square_receipt_url,
-          paidAt: walkInPayment.paid_at,
-        } : appointmentPaid && appointmentId ? {
-          id: `appointment-${appointmentId}`,
-          status: "paid",
-          paymentMethod: "square",
-          amountCents: appointmentAmount,
-          tipCents: 0,
-          squarePaymentUrl: null,
-          squareReceiptNumber: null,
-          squareReceiptUrl: null,
-          paidAt: null,
-        } : null,
-      };
-    });
+          payment: payment ? {
+            id: String(payment.id),
+            status: String(payment.status),
+            paymentMethod: String(payment.payment_method),
+            amountCents: Number(payment.amount_cents ?? 0),
+            tipCents: Number(payment.tip_cents ?? 0),
+            squarePaymentUrl: typeof payment.square_payment_url === "string" ? payment.square_payment_url : null,
+            squareReceiptNumber: typeof payment.square_receipt_number === "string" ? payment.square_receipt_number : null,
+            squareReceiptUrl: typeof payment.square_receipt_url === "string" ? payment.square_receipt_url : null,
+            paidAt: typeof payment.paid_at === "string" ? payment.paid_at : null,
+          } : null,
+        };
+      });
 
     const response = NextResponse.json({ ok: true, live: true, entries, barbers: live.barbers, generatedAt: new Date().toISOString() });
     response.headers.set("Cache-Control", "private, no-store, max-age=0");
