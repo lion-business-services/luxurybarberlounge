@@ -83,20 +83,25 @@ export async function GET(request: NextRequest) {
         : null;
       const scheduledAt = entry.scheduledAt ?? linkedAppointmentStart ?? timing?.walkInAt ?? null;
       const scheduledMs = scheduledAt ? new Date(scheduledAt).getTime() : Number.NaN;
+      const isLiveQueueEntry = Boolean(timing);
 
-      // The public board is deliberately an UPCOMING board. As soon as the
-      // scheduled walk-in/appointment time is reached, that name disappears.
-      // Terminal queue statuses are already excluded by loadUnifiedQueueDisplay.
-      if (Number.isFinite(scheduledMs) && scheduledMs <= now) return [];
+      // Any row that is still an active queue entry must stay visible on the
+      // shop board until its queue status becomes terminal. Previously the
+      // board removed a walk-in as soon as walk_in_at was reached, which made
+      // newly checked-in guests disappear immediately when they used the
+      // current time. Appointment-only rows can still be treated as upcoming.
+      if (!isLiveQueueEntry && Number.isFinite(scheduledMs) && scheduledMs <= now) return [];
 
       const createdMs = timing?.createdAt ? new Date(timing.createdAt).getTime() : Number.NaN;
       const scheduledWalkIn = Boolean(
         timing?.walkInAt && Number.isFinite(scheduledMs) && Number.isFinite(createdMs) && scheduledMs > createdMs + 60_000,
       );
+      const scheduledTimeIsFuture = Number.isFinite(scheduledMs) && scheduledMs > now;
       const countdownMinutes = Number.isFinite(scheduledMs)
         ? Math.max(0, Math.ceil((scheduledMs - now) / 60_000))
         : null;
-      const remainingMinutes = entry.kind === "appointment" || scheduledWalkIn
+      const appointmentOnly = entry.kind === "appointment" && !isLiveQueueEntry;
+      const remainingMinutes = appointmentOnly || (scheduledWalkIn && scheduledTimeIsFuture)
         ? countdownMinutes
         : entry.estimatedWaitMinutes;
       const timeLabel = scheduledAt && Number.isFinite(scheduledMs)
