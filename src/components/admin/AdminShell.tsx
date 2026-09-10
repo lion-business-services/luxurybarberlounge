@@ -16,10 +16,8 @@ import {
   ListChecks,
   LogOut,
   Menu,
-  PlugZap,
   Scissors,
   WalletCards,
-  WandSparkles,
   X,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -63,17 +61,6 @@ const groups: Group[] = [
       { label: "Attribution claims", href: "/admin/attribution", icon: FileText, ownerOnly: true },
     ],
   },
-  ...(process.env.NEXT_PUBLIC_SHOW_SYSTEM_TOOLS === "true"
-    ? [
-        {
-          label: "Systems",
-          items: [
-            { label: "Automations", href: "/admin/automations", icon: WandSparkles, ownerOnly: true },
-            { label: "Integrations", href: "/admin/integrations", icon: PlugZap, ownerOnly: true },
-          ],
-        },
-      ]
-    : []),
 ];
 
 function active(pathname: string, href: string) {
