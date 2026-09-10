@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
   const paymentLinks = (paymentLinksResult.data ?? []) as Array<Record<string, unknown>>;
   const squareOrderIds = [...new Set(paymentLinks.map((row) => text(row.square_order_id)).filter((id): id is string => Boolean(id)))];
   const { data: squarePayments, error: squarePaymentError } = squareOrderIds.length
-    ? await admin.from("square_payments").select("square_id,square_order_id,status,amount_cents,tip_cents,processing_fee_cents,card_brand,created_at_square,updated_at_square,raw").eq("business_id", business.id).in("square_order_id", squareOrderIds).in("status", ["COMPLETED", "APPROVED"]).order("created_at_square", { ascending: false })
+    ? await admin.from("square_payments").select("square_id,square_order_id,status,amount_cents,tip_cents,processing_fee_cents,card_brand,created_at_square,raw").eq("business_id", business.id).in("square_order_id", squareOrderIds).in("status", ["COMPLETED", "APPROVED"]).order("created_at_square", { ascending: false })
     : { data: [], error: null };
   if (squarePaymentError) console.error("admin-calendar-square-enrichment-partial", squarePaymentError);
 
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
     const receiptRaw = receiptRow?.raw && typeof receiptRow.raw === "object" && !Array.isArray(receiptRow.raw) ? receiptRow.raw as Record<string, unknown> : {};
     const paidAtCandidates = [
       ...paidLinks.map((row) => text(row.paid_at)),
-      ...squareRows.map((row) => text(row.updated_at_square) ?? text(row.created_at_square)),
+      ...squareRows.map((row) => text(row.created_at_square)),
     ].filter((value): value is string => Boolean(value));
     const paidAt = paidAtCandidates.sort().at(-1) ?? null;
 
