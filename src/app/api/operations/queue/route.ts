@@ -55,6 +55,26 @@ export async function POST(request: NextRequest) {
     }
     const { data: current } = await context.admin.from("queue_entries").select("id,status,client_id,client_phone,estimated_wait_minutes,metadata,appointment_id").eq("id", body.entryId).eq("business_id", context.businessId).maybeSingle();
     if (!current) return NextResponse.json({ ok: false, message: "Queue entry not found." }, { status: 404 });
+
+    // Scheduled appointments have already passed the website full-prepayment
+    // gate before they can enter this operational queue. A true walk-in does
+    // not: reception records the payment while the guest is in service. Do not
+    // allow a walk-in to be closed out until a durable paid payment record is
+    // present. This keeps Queue, Payment Tracking and Commissions consistent.
+    if (body.status === "completed" && !current.appointment_id) {
+      const { data: paidPayment, error: paymentError } = await context.admin
+        .from("walk_in_payments")
+        .select("id,status")
+        .eq("business_id", context.businessId)
+        .eq("queue_entry_id", body.entryId)
+        .eq("status", "paid")
+        .order("paid_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (paymentError) return NextResponse.json({ ok: false, message: "Payment verification is temporarily unavailable. Please retry." }, { status: 503 });
+      if (!paidPayment?.id) return NextResponse.json({ ok: false, message: "Record this walk-in as paid before completing the service." }, { status: 409 });
+    }
+
     const terminal = terminalQueueStatuses.includes(body.status as (typeof terminalQueueStatuses)[number]);
     const update = {
       status: body.status,
