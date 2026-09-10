@@ -31,7 +31,7 @@ export async function GET() {
       ids.length
         ? context.admin
             .from("queue_entries")
-            .select("id,client_email,client_phone,walk_in_at,joined_at,service_price_snapshot_cents,created_at")
+            .select("id,appointment_id,client_email,client_phone,walk_in_at,joined_at,service_price_snapshot_cents,created_at")
             .in("id", ids)
         : Promise.resolve({ data: [], error: null }),
       ids.length ? loadWalkInPayments(context.admin, context.businessId, ids) : Promise.resolve([]),
@@ -39,42 +39,75 @@ export async function GET() {
 
     if (rawError) throw rawError;
 
+    const appointmentIds = [...new Set((rawRows ?? [])
+      .map((row) => row.appointment_id ? String(row.appointment_id) : null)
+      .filter((id): id is string => Boolean(id)))];
+    const { data: appointmentRows, error: appointmentError } = appointmentIds.length
+      ? await context.admin
+          .from("appointments")
+          .select("id,deposit_status,deposit_required_cents,service_price_snapshot_cents,starts_at")
+          .in("id", appointmentIds)
+      : { data: [], error: null };
+    if (appointmentError) throw appointmentError;
+
     const rawById = new Map((rawRows ?? []).map((row) => [String(row.id), row]));
+    const appointmentById = new Map((appointmentRows ?? []).map((row) => [String(row.id), row]));
     const paymentById = new Map(payments.map((payment) => [String(payment.queue_entry_id), payment]));
     const now = Date.now();
 
     const entries = live.entries.map((entry) => {
       const raw = rawById.get(entry.id);
-      const payment = paymentById.get(entry.id) ?? null;
-      const walkInAt = typeof raw?.walk_in_at === "string" ? raw.walk_in_at : entry.joinedAt;
-      const walkInMs = new Date(walkInAt).getTime();
-      const scheduledDelay = Number.isFinite(walkInMs) && walkInMs > now
-        ? Math.ceil((walkInMs - now) / 60_000)
+      const walkInPayment = paymentById.get(entry.id) ?? null;
+      const appointment = raw?.appointment_id ? appointmentById.get(String(raw.appointment_id)) : null;
+      const scheduledAt = appointment?.starts_at && typeof appointment.starts_at === "string"
+        ? appointment.starts_at
+        : typeof raw?.walk_in_at === "string"
+          ? raw.walk_in_at
+          : entry.joinedAt;
+      const scheduledMs = new Date(scheduledAt).getTime();
+      const scheduledDelay = Number.isFinite(scheduledMs) && scheduledMs > now
+        ? Math.ceil((scheduledMs - now) / 60_000)
         : 0;
       const engineWait = typeof entry.estimatedWaitMinutes === "number" ? entry.estimatedWaitMinutes : null;
       const remainingMinutes = engineWait == null ? (scheduledDelay || null) : Math.max(engineWait, scheduledDelay);
       const expectedServiceAt = remainingMinutes == null
         ? null
         : new Date(now + remainingMinutes * 60_000).toISOString();
+      const appointmentPaid = Boolean(appointment && appointment.deposit_status === "paid");
+      const appointmentAmount = Number(appointment?.deposit_required_cents ?? appointment?.service_price_snapshot_cents ?? 0);
 
       return {
         ...entry,
         clientEmail: typeof raw?.client_email === "string" ? raw.client_email : null,
         clientPhone: typeof raw?.client_phone === "string" ? raw.client_phone : entry.clientPhone,
-        walkInAt,
+        walkInAt: scheduledAt,
         expectedServiceAt,
         remainingMinutes,
-        servicePriceCents: typeof raw?.service_price_snapshot_cents === "number" ? raw.service_price_snapshot_cents : null,
-        payment: payment ? {
-          id: payment.id,
-          status: payment.status,
-          paymentMethod: payment.payment_method,
-          amountCents: payment.amount_cents,
-          tipCents: payment.tip_cents,
-          squarePaymentUrl: payment.square_payment_url,
-          squareReceiptNumber: payment.square_receipt_number,
-          squareReceiptUrl: payment.square_receipt_url,
-          paidAt: payment.paid_at,
+        servicePriceCents: typeof raw?.service_price_snapshot_cents === "number"
+          ? raw.service_price_snapshot_cents
+          : typeof appointment?.service_price_snapshot_cents === "number"
+            ? appointment.service_price_snapshot_cents
+            : null,
+        payment: walkInPayment ? {
+          id: walkInPayment.id,
+          status: walkInPayment.status,
+          paymentMethod: walkInPayment.payment_method,
+          amountCents: walkInPayment.amount_cents,
+          tipCents: walkInPayment.tip_cents,
+          squarePaymentUrl: walkInPayment.square_payment_url,
+          squareReceiptNumber: walkInPayment.square_receipt_number,
+          squareReceiptUrl: walkInPayment.square_receipt_url,
+          paidAt: walkInPayment.paid_at,
+        } : appointmentPaid ? {
+          id: `appointment-${appointment.id}`,
+          status: "paid",
+          paymentMethod: "square",
+          amountCents: appointmentAmount,
+          tipCents: 0,
+          squarePaymentUrl: null,
+          squareReceiptNumber: null,
+          squareReceiptUrl: null,
+          paidAt: null,
         } : null,
       };
     });
