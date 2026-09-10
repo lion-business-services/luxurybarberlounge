@@ -61,7 +61,7 @@ export async function AdminClientsPage() {
 
 export async function AdminClientDetail({ id }: { id: string }) {
   const client = await loadAdminClientDetail(id);
-  return <AdminPageHeader eyebrow="Client management" title={client?.name ?? "Client record"} copy={client ? "Review this client’s contact details, visits, membership, and notes." : "This client record is not available.">
+  return <AdminPageHeader eyebrow="Client management" title={client?.name ?? "Client record"} copy={client ? "Review this client’s contact details, visits, membership, and notes." : "This client record is not available."}>
     {client ? <div className="grid gap-4">
       <section className={styles.metricGrid}>{Object.entries(client.totals).map(([label,value]) => <article key={label} className={styles.metric}><p className="text-[8px] tracking-[.17em] uppercase text-[var(--color-bone-muted)]">{titleCase(label)}</p><p className={styles.metricValue}>{value}</p></article>)}</section>
       <div className="grid gap-4 xl:grid-cols-3"><section className={styles.card}><h2 className="font-display text-2xl">Profile</h2><div className="mt-5 grid gap-4"><Field label="Email" value={client.email ?? "Not provided"} /><Field label="Phone" value={client.phone ?? "Not provided"} /><Field label="Language" value={client.language.toUpperCase()} /><Field label="Account status" value={titleCase(client.status)} /><Field label="Marketing" value={titleCase(client.marketing)} /></div>{client.tags.length ? <div className="mt-5 flex flex-wrap gap-2">{client.tags.map((tag) => <span key={tag} className="rounded-full bg-white/[.05] px-3 py-1 text-[9px] uppercase tracking-[.12em] text-[var(--color-brass)]">{tag}</span>)}</div> : null}</section>
@@ -150,29 +150,17 @@ export function AdminSettingsHub() {
       <section className={styles.card}>
         <p className="text-[9px] tracking-[.18em] uppercase text-[var(--color-brass)]">Shop</p>
         <h2 className="font-display mt-2 text-2xl">Services & sales</h2>
-        <div className="mt-5 grid gap-2">
-          <ModuleLink href="/admin/services" title="Services" />
-          <ModuleLink href="/admin/memberships" title="Memberships" />
-          <ModuleLink href="/admin/orders" title="Orders" />
-        </div>
+        <div className="mt-5 grid gap-2"><ModuleLink href="/admin/services" title="Services" /><ModuleLink href="/admin/memberships" title="Memberships" /><ModuleLink href="/admin/orders" title="Orders" /></div>
       </section>
       <section className={styles.card}>
         <p className="text-[9px] tracking-[.18em] uppercase text-[var(--color-brass)]">Team</p>
         <h2 className="font-display mt-2 text-2xl">Access</h2>
-        <div className="mt-5 grid gap-2">
-          <ModuleLink href="/admin/users" title="Users & invitations" />
-          <ModuleLink href="/admin/roles" title="Roles & permissions" />
-          <ModuleLink href="/admin/security" title="Account security" />
-        </div>
+        <div className="mt-5 grid gap-2"><ModuleLink href="/admin/users" title="Users & invitations" /><ModuleLink href="/admin/roles" title="Roles & permissions" /><ModuleLink href="/admin/security" title="Account security" /></div>
       </section>
       <section className={styles.card}>
         <p className="text-[9px] tracking-[.18em] uppercase text-[var(--color-brass)]">Operations</p>
         <h2 className="font-display mt-2 text-2xl">Daily setup</h2>
-        <div className="mt-5 grid gap-2">
-          <ModuleLink href="/admin/time-off" title="Availability" />
-          <ModuleLink href="/admin/payments" title="Payment tracking" />
-          <ModuleLink href="/admin/commissions" title="Commissions" />
-        </div>
+        <div className="mt-5 grid gap-2"><ModuleLink href="/admin/time-off" title="Availability" /><ModuleLink href="/admin/payments" title="Payment tracking" /><ModuleLink href="/admin/commissions" title="Commissions" /></div>
       </section>
     </div>
   </AdminPageHeader>;
