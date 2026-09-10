@@ -5,19 +5,20 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
+  BadgeCheck,
   CalendarDays,
   CalendarOff,
   CircleDollarSign,
-  FileText,
   ClipboardList,
   ContactRound,
+  FileText,
   LayoutDashboard,
+  ListChecks,
   LogOut,
   Menu,
-  Scissors,
-  BadgeCheck,
-  ListChecks,
   PlugZap,
+  Scissors,
+  WalletCards,
   WandSparkles,
   X,
 } from "lucide-react";
@@ -57,6 +58,7 @@ const groups: Group[] = [
   {
     label: "Pay",
     items: [
+      { label: "Payment Tracking", href: "/admin/payments", icon: WalletCards },
       { label: "Commissions", href: "/admin/commissions", icon: CircleDollarSign, ownerOnly: true },
       { label: "Attribution claims", href: "/admin/attribution", icon: FileText, ownerOnly: true },
     ],
@@ -92,13 +94,7 @@ function Navigation({ pathname, owner, onNavigate }: { pathname: string; owner: 
               {items.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={onNavigate}
-                    data-active={active(pathname, item.href)}
-                    className={styles.navLink}
-                  >
+                  <Link key={item.href} href={item.href} onClick={onNavigate} data-active={active(pathname, item.href)} className={styles.navLink}>
                     <Icon className="h-4 w-4 shrink-0" />
                     <span>{item.label}</span>
                   </Link>
@@ -130,9 +126,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         }
       })
       .catch(() => undefined);
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [pathname]);
 
   const owner = useMemo(() => roles.includes("owner") || roles.includes("super_admin"), [roles]);
@@ -154,37 +148,21 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <p className="mt-1 truncate text-[10px] text-[var(--color-bone-muted)]">{email ?? "Secure operations"}</p>
         </div>
         <Navigation pathname={pathname} owner={owner} />
-        <div className="mt-5 px-1">
-          <LanguageToggle className="w-full justify-center" />
-        </div>
-        <button type="button" onClick={logout} className={`${styles.navLink} mt-3 w-full`}>
-          <LogOut className="h-4 w-4" /> Sign out
-        </button>
+        <div className="mt-5 px-1"><LanguageToggle className="w-full justify-center" /></div>
+        <button type="button" onClick={logout} className={`${styles.navLink} mt-3 w-full`}><LogOut className="h-4 w-4" /> Sign out</button>
       </aside>
 
       <div className={styles.mobileBar}>
-        <div>
-          <p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">{workspaceLabel}</p>
-          <p className="max-w-[13rem] truncate text-xs text-[var(--color-bone-muted)]">{email ?? "Secure operations"}</p>
-        </div>
-        <button type="button" onClick={() => setOpen(true)} className="grid h-10 w-10 place-items-center rounded-full border border-[var(--color-ink-line)]" aria-label="Open operations navigation">
-          <Menu className="h-4 w-4" />
-        </button>
+        <div><p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">{workspaceLabel}</p><p className="max-w-[13rem] truncate text-xs text-[var(--color-bone-muted)]">{email ?? "Secure operations"}</p></div>
+        <button type="button" onClick={() => setOpen(true)} className="grid h-10 w-10 place-items-center rounded-full border border-[var(--color-ink-line)]" aria-label="Open operations navigation"><Menu className="h-4 w-4" /></button>
       </div>
 
       {open ? (
         <div className={styles.drawer} role="dialog" aria-modal="true" aria-label="Operations navigation">
           <div className={styles.drawerPanel}>
-            <div className="flex items-center justify-between">
-              <Logo compact />
-              <button type="button" onClick={() => setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-[var(--color-ink-line)]" aria-label="Close navigation">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+            <div className="flex items-center justify-between"><Logo compact /><button type="button" onClick={() => setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-[var(--color-ink-line)]" aria-label="Close navigation"><X className="h-4 w-4" /></button></div>
             <Navigation pathname={pathname} owner={owner} onNavigate={() => setOpen(false)} />
-            <button type="button" onClick={logout} className={`${styles.navLink} mt-5 w-full`}>
-              <LogOut className="h-4 w-4" /> Sign out
-            </button>
+            <button type="button" onClick={logout} className={`${styles.navLink} mt-5 w-full`}><LogOut className="h-4 w-4" /> Sign out</button>
           </div>
           <button type="button" className={styles.drawerBackdrop} onClick={() => setOpen(false)} aria-label="Close navigation" />
         </div>
