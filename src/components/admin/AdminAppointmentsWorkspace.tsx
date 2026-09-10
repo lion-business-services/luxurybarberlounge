@@ -152,7 +152,6 @@ type CalendarPayload = {
   appointments: Appointment[];
   schedules: Schedule[];
   timeOff: TimeOff[];
-  enrichmentComplete?: boolean;
   message?: string;
 };
 
@@ -253,7 +252,7 @@ export function AdminAppointmentsWorkspace() {
     const response = await fetch(`/api/admin/calendar?start=${encodeURIComponent(startDate)}&days=7`, { cache: "no-store" }).catch(() => null);
     const result = response ? await response.json().catch(() => null) as CalendarPayload | null : null;
     if (!response?.ok || !result?.ok) {
-      setMessage(result?.message ?? "The appointment calendar could not be loaded.");
+      setMessage("The appointment calendar could not be loaded. Please refresh and try again.");
       return;
     }
     setPayload(result);
@@ -312,7 +311,7 @@ export function AdminAppointmentsWorkspace() {
       body: JSON.stringify({ appointmentId: selected.id, action, reason: `Calendar: ${action.replaceAll("_", " ")}`, ...extra }),
     }).catch(() => null);
     const result = response ? await response.json().catch(() => null) as PatchResponse | null : null;
-    setMessage(result?.message ?? (result?.ok ? "Appointment updated." : "The appointment could not be updated."));
+    setMessage(result?.ok ? (result.message ?? "Appointment updated.") : "The appointment could not be updated. Please try again.");
     if (result?.ok) {
       if (action === "note") setInternalNote("");
       await load();
@@ -357,7 +356,6 @@ export function AdminAppointmentsWorkspace() {
     </section>
 
     {message ? <div className="rounded-xl border border-[var(--color-brass)]/25 bg-[var(--color-brass)]/5 p-4 text-sm">{message}</div> : null}
-    {payload.enrichmentComplete === false ? <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-4 text-xs text-amber-100">The chair calendar is live, but one non-critical detail source is temporarily unavailable. Refresh to retry the full appointment inspector.</div> : null}
 
     <section className="overflow-x-auto rounded-2xl border border-[var(--color-ink-line)] bg-[#0a0a0a]">
       <div className="min-w-[1540px]">
@@ -411,7 +409,7 @@ function AppointmentInspector({ appointment, barbers, busy, rescheduleAt, reassi
       <div className="sticky top-0 z-10 border-b border-[var(--color-ink-line)] bg-[#090909]/95 px-5 py-4 backdrop-blur-xl sm:px-7">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[9px] uppercase tracking-[.18em] text-[var(--color-brass)]">Appointment inspector · {appointment.public_reference}</p>
+            <p className="text-[9px] uppercase tracking-[.18em] text-[var(--color-brass)]">Appointment details · {appointment.public_reference}</p>
             <h2 className="font-display mt-2 text-3xl sm:text-4xl">{appointment.client_name_snapshot}</h2>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/25 px-3 py-1.5 text-[9px] uppercase tracking-[.12em] text-emerald-300"><BadgeCheck className="h-3.5 w-3.5" />{paidInFull ? "Paid in full" : pretty(appointment.deposit_status)}</span>
@@ -450,7 +448,7 @@ function AppointmentInspector({ appointment, barbers, busy, rescheduleAt, reassi
 
         <section className="rounded-2xl border border-[var(--color-ink-line)] bg-white/[.02] p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]">Client intelligence</p><h3 className="font-display mt-2 text-2xl">{clientTypeLabel(client.type)}</h3></div>
+            <div><p className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]">Client details</p><h3 className="font-display mt-2 text-2xl">{clientTypeLabel(client.type)}</h3></div>
             {client.clientProfileId ? <Link href={`/admin/clients/${client.clientProfileId}`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[var(--color-brass)]/25 px-4 text-[9px] uppercase tracking-[.12em] text-[var(--color-brass)]"><UserCheck className="h-3.5 w-3.5" />Open client profile</Link> : null}
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -493,12 +491,11 @@ function AppointmentInspector({ appointment, barbers, busy, rescheduleAt, reassi
         </section>
 
         <section className="rounded-2xl border border-[var(--color-ink-line)] bg-white/[.02] p-5">
-          <p className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]">Automation health</p>
+          <p className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]">Booking communications</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Health label="Admin notification" value={appointment.automationHealth.adminEmail} />
+            <Health label="Shop confirmation" value={appointment.automationHealth.adminEmail} />
             <Health label="Client confirmation" value={appointment.automationHealth.clientConfirmation} />
-            <Health label="Barber notification" value={appointment.automationHealth.barberNotification} />
-            <Health label="Booking sync" value={appointment.automationHealth.sync} />
+            <Health label="Barber confirmation" value={appointment.automationHealth.barberNotification} />
           </div>
         </section>
 
