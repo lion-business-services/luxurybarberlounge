@@ -357,19 +357,6 @@ async function upsertCommissionForPayment(admin: AdminClient, payment: Json) {
   await refreshStatement(admin, String(queue.business_id), periodId, assignment.barberUserId);
 }
 
-async function completePaidWalkIn(admin: AdminClient, queueEntryId: string, actorUserId: string | null) {
-  const { data: queue } = await admin.from("queue_entries").select("id,business_id,status").eq("id", queueEntryId).maybeSingle();
-  if (!queue?.id || queue.status !== "in_service") return;
-  const completedAt = new Date().toISOString();
-  const { error } = await admin.from("queue_entries").update({ status: "completed", completed_at: completedAt, estimated_wait_minutes: 0 }).eq("id", queueEntryId).eq("status", "in_service");
-  if (error) return;
-  await Promise.all([
-    admin.from("queue_assignments").update({ active: false, released_at: completedAt }).eq("queue_entry_id", queueEntryId).eq("active", true),
-    admin.from("queue_status_history").insert({ queue_entry_id: queueEntryId, from_status: "in_service", to_status: "completed", changed_by: actorUserId, note: "Automatically completed after payment" }),
-    admin.from("audit_logs").insert({ business_id: queue.business_id, actor_user_id: actorUserId, action: "walk_in_auto_completed_after_payment", resource_type: "queue_entry", resource_id: queueEntryId, metadata: {} }),
-  ]);
-}
-
 export async function prepareSquareWalkInPayment(admin: AdminClient, input: { businessId: string; locationId: string; queueEntryId: string; actorUserId: string; amountCents?: number }) {
   if (!squareConfig.locationId || !squareConfig.accessToken) throw new Error("Square is not configured.");
   const { data: queue, error } = await admin.from("queue_entries")
@@ -479,7 +466,6 @@ export async function recordCashWalkInPayment(admin: AdminClient, input: { busin
   }, { onConflict: "queue_entry_id" }).select("*").single();
   if (paymentError || !payment?.id) throw paymentError ?? new Error("Cash payment could not be recorded.");
   await upsertCommissionForPayment(admin, payment as Json);
-  await completePaidWalkIn(admin, String(queue.id), input.actorUserId);
   return payment;
 }
 
@@ -512,7 +498,6 @@ export async function reconcilePendingWalkInSquarePayments(admin: AdminClient, b
     }).eq("id", pendingPayment.id).eq("status", "pending").select("*").maybeSingle();
     if (error || !updated?.id) continue;
     await upsertCommissionForPayment(admin, updated as Json);
-    await completePaidWalkIn(admin, String(updated.queue_entry_id), text(updated.recorded_by));
     matched += 1;
   }
   return { matched };

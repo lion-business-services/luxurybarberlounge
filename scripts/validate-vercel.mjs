@@ -13,7 +13,7 @@ const expected = new Map([
   ["/api/cron/notifications", "*/5 * * * *"],
   ["/api/cron/appointments", "*/15 * * * *"],
   ["/api/cron/queue", "*/5 * * * *"],
-  ["/api/cron/commissions", "*/15 * * * *"],
+  ["/api/cron/commissions", "*/5 * * * *"],
   ["/api/cron/formsubmit", "*/10 * * * *"],
 ]);
 for (const cron of config.crons ?? []) {
