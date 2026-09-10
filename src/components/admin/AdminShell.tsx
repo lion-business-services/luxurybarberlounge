@@ -58,7 +58,7 @@ const groups: Group[] = [
     items: [
       { label: "Payment Tracking", href: "/admin/payments", icon: WalletCards },
       { label: "Commissions", href: "/admin/commissions", icon: CircleDollarSign, ownerOnly: true },
-      { label: "Attribution claims", href: "/admin/attribution", icon: FileText, ownerOnly: true },
+      { label: "Referral Credit", href: "/admin/attribution", icon: FileText, ownerOnly: true },
     ],
   },
 ];
