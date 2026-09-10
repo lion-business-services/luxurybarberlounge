@@ -52,7 +52,7 @@ const expectedServices = new Map([
 ]);
 
 assert.equal(business.name, "Luxury Barber Lounge");
-assert.equal(business.street, "801 Tilton Road, Suite 106");
+assert.equal(business.street, "801 Tilton Road, Suite 106A");
 assert.equal(business.city, "Northfield");
 assert.equal(business.state, "NJ");
 assert.equal(business.postalCode, "08225");
