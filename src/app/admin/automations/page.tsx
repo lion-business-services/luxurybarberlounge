@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AdminAutomationsPage } from "@/components/admin/AdminPages";
 
 export const metadata: Metadata = {
-  title: "Automations",
+  title: "Automatic Messages",
   robots: { index: false, follow: false },
 };
 

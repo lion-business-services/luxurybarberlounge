@@ -90,25 +90,13 @@ type Appointment = {
   client_declared_status: string | null;
   client_notes: string | null;
   internal_notes: string | null;
-  policy_version: string | null;
-  policy_accepted_at: string | null;
   email_consent: boolean;
   sms_consent: boolean;
-  formsubmit_status: string | null;
-  client_confirmation_status: string | null;
-  barber_notification_status: string | null;
-  sync_status: string | null;
   created_at: string;
   updated_at: string;
   payment: PaymentDetail;
   clientInsights: ClientInsights;
   notes: AppointmentNote[];
-  automationHealth: {
-    adminEmail: string | null;
-    clientConfirmation: string | null;
-    barberNotification: string | null;
-    sync: string | null;
-  };
 };
 
 type Barber = {
@@ -218,9 +206,8 @@ function localInputToUtc(value: string) {
 
 function clientTypeLabel(value: ClientInsights["type"]) {
   if (value === "new") return "New client";
-  if (value === "returning") return "Returning client";
-  if (value === "returning_declared") return "Returning · client declared";
-  return "Client history not established";
+  if (value === "returning" || value === "returning_declared") return "Returning client";
+  return "Client";
 }
 
 function addonSummary(value: unknown) {
@@ -319,14 +306,14 @@ export function AdminAppointmentsWorkspace() {
     setBusy(null);
   }
 
-  if (!payload) return <div className="rounded-2xl border border-[var(--color-ink-line)] p-8 text-sm text-[var(--color-bone-muted)]">Loading the live appointment calendar…</div>;
+  if (!payload) return <div className="rounded-2xl border border-[var(--color-ink-line)] p-8 text-sm text-[var(--color-bone-muted)]">Loading the appointment calendar…</div>;
 
   return <div className="grid gap-6">
     <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
       <div>
         <p className="text-[10px] uppercase tracking-[.24em] text-[var(--color-brass)]">Paid & confirmed schedule</p>
         <h1 className="font-display mt-2 text-4xl sm:text-5xl">Appointments Calendar</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--color-bone-muted)]">A live seven-day chair calendar showing paid appointments, barber working hours and approved unavailability. Click any appointment for the full client, payment, visit-history and operational record.</p>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--color-bone-muted)]">A seven-day chair calendar showing paid appointments, barber working hours and approved unavailability. Click any appointment to review the client, service, payment and visit details.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         <Link href="/book" target="_blank" className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-5 py-3 text-[10px] uppercase tracking-[.14em] text-black"><CalendarDays className="h-4 w-4" />New booking</Link>
@@ -431,18 +418,18 @@ function AppointmentInspector({ appointment, barbers, busy, rescheduleAt, reassi
 
         <section className="rounded-2xl border border-emerald-400/15 bg-emerald-400/[.025] p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="text-[9px] uppercase tracking-[.16em] text-emerald-300">Payment record</p><h3 className="font-display mt-2 text-2xl">Paid appointment</h3></div>
-            {payment.receiptUrl ? <a href={payment.receiptUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-emerald-400/25 px-4 text-[9px] uppercase tracking-[.12em] text-emerald-300"><ExternalLink className="h-3.5 w-3.5" />Open Square receipt</a> : null}
+            <div><p className="text-[9px] uppercase tracking-[.16em] text-emerald-300">Payment</p><h3 className="font-display mt-2 text-2xl">Paid in full</h3></div>
+            {payment.receiptUrl ? <a href={payment.receiptUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-emerald-400/25 px-4 text-[9px] uppercase tracking-[.12em] text-emerald-300"><ExternalLink className="h-3.5 w-3.5" />Open receipt</a> : null}
           </div>
           <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Info label="Paid toward service" value={money(payment.paidPrincipalCents)} />
-            <Info label="Square collected" value={money(payment.squareCollectedCents)} />
+            <Info label="Service payment" value={money(payment.paidPrincipalCents)} />
+            <Info label="Total charged" value={money(payment.squareCollectedCents)} />
             <Info label="Amount due" value={money(payment.amountDueCents)} />
             <Info label="Payment method" value={paymentMethod} />
             <Info label="Paid at" value={dateTime(payment.paidAt)} />
-            <Info label="Receipt" value={payment.receiptNumber ?? payment.squarePaymentId ?? "Recorded in Square"} />
+            <Info label="Receipt" value={payment.receiptNumber ?? payment.squarePaymentId ?? "Recorded"} />
             {payment.tipCents > 0 ? <Info label="Tip" value={money(payment.tipCents)} /> : null}
-            {payment.processingFeeCents > 0 ? <Info label="Merchant processing fee" value={money(payment.processingFeeCents)} /> : null}
+            {payment.processingFeeCents > 0 ? <Info label="Processing fee" value={money(payment.processingFeeCents)} /> : null}
           </dl>
         </section>
 
@@ -456,15 +443,14 @@ function AppointmentInspector({ appointment, barbers, busy, rescheduleAt, reassi
             <DetailCard icon={<Mail className="h-4 w-4" />} label="Email" value={appointment.client_email_snapshot ?? "Not provided"} />
           </div>
           <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Info label="Client type" value={clientTypeLabel(client.type)} />
-            <Info label="Client declared" value={pretty(client.declaredStatus)} />
-            <Info label="Previous tracked visits" value={String(client.previousVisitCount)} />
-            <Info label="Last tracked visit" value={dateTime(client.lastTrackedVisitAt)} />
+            <Info label="Client status" value={pretty(client.declaredStatus)} />
+            <Info label="Previous visits" value={String(client.previousVisitCount)} />
+            <Info label="Last visit" value={dateTime(client.lastTrackedVisitAt)} />
             <Info label="Client since" value={dateTime(client.clientSince)} />
             <Info label="Language" value={client.preferredLanguage ? client.preferredLanguage.toUpperCase() : "Not recorded"} />
-            <Info label="Acquisition" value={pretty(client.acquisitionSource ?? appointment.booking_source)} />
+            <Info label="How they found us" value={pretty(client.acquisitionSource ?? appointment.booking_source)} />
             <Info label="Referral" value={pretty(client.referralSource ?? appointment.referral_source)} />
-            <Info label="Profile status" value={pretty(client.profileStatus)} />
+            <Info label="Account status" value={pretty(client.profileStatus)} />
           </dl>
         </section>
 
@@ -472,11 +458,8 @@ function AppointmentInspector({ appointment, barbers, busy, rescheduleAt, reassi
           <p className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]">Booking details</p>
           <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Info label="Booking source" value={pretty(appointment.booking_source)} />
-            <Info label="Campaign" value={campaign} />
-            <Info label="Policy version" value={appointment.policy_version ?? "Not recorded"} />
-            <Info label="Policy accepted" value={dateTime(appointment.policy_accepted_at)} />
+            <Info label="Marketing source" value={campaign} />
             <Info label="Booked at" value={dateTime(appointment.created_at)} />
-            <Info label="Last updated" value={dateTime(appointment.updated_at)} />
           </dl>
         </section>
 
@@ -484,18 +467,9 @@ function AppointmentInspector({ appointment, barbers, busy, rescheduleAt, reassi
           <div className="flex items-center gap-2"><History className="h-4 w-4 text-[var(--color-brass)]" /><p className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]">Notes & history</p></div>
           <div className="mt-4 grid gap-3">
             {appointment.client_notes ? <NoteCard label="Client note" text={appointment.client_notes} /> : null}
-            {appointment.internal_notes ? <NoteCard label="Internal appointment note" text={appointment.internal_notes} /> : null}
-            {appointment.notes.map((note) => <NoteCard key={note.id} label={note.clientVisible ? "Client-visible note" : "Private shop note"} text={note.note} meta={dateTime(note.createdAt)} />)}
+            {appointment.internal_notes ? <NoteCard label="Shop note" text={appointment.internal_notes} /> : null}
+            {appointment.notes.map((note) => <NoteCard key={note.id} label={note.clientVisible ? "Client note" : "Shop note"} text={note.note} meta={dateTime(note.createdAt)} />)}
             {!appointment.client_notes && !appointment.internal_notes && appointment.notes.length === 0 ? <p className="text-sm text-[var(--color-bone-muted)]">No notes have been recorded for this appointment.</p> : null}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-[var(--color-ink-line)] bg-white/[.02] p-5">
-          <p className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]">Booking communications</p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Health label="Shop confirmation" value={appointment.automationHealth.adminEmail} />
-            <Health label="Client confirmation" value={appointment.automationHealth.clientConfirmation} />
-            <Health label="Barber confirmation" value={appointment.automationHealth.barberNotification} />
           </div>
         </section>
 
@@ -521,7 +495,7 @@ function AppointmentInspector({ appointment, barbers, busy, rescheduleAt, reassi
           </div>
 
           <div className="mt-5 grid gap-2">
-            <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Internal note<textarea value={internalNote} onChange={(event) => onNoteChange(event.target.value)} rows={3} className="rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 py-3 text-sm normal-case tracking-normal" placeholder="Private note for the shop team" /></label>
+            <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Shop note<textarea value={internalNote} onChange={(event) => onNoteChange(event.target.value)} rows={3} className="rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 py-3 text-sm normal-case tracking-normal" placeholder="Private note for the shop team" /></label>
             <button type="button" disabled={busy !== null || !internalNote.trim()} onClick={() => void onAct("note", { note: internalNote.trim(), clientVisible: false })} className="min-h-11 rounded-full border border-[var(--color-ink-line)] px-4 text-[9px] uppercase tracking-[.14em] disabled:opacity-40">Save note</button>
           </div>
         </section>
@@ -558,7 +532,7 @@ function BarberCalendarRow({ barber, days, schedules, timeOff, appointments, sel
             <div className="flex items-center justify-between gap-2"><strong className="text-xs">{time(item.starts_at)}</strong><span className="text-[8px] uppercase tracking-[.1em] text-emerald-300">Paid {money(item.payment.paidPrincipalCents)}</span></div>
             <p className="mt-2 truncate text-sm font-medium">{item.client_name_snapshot}</p>
             <p className="mt-1 text-[10px] leading-4 text-[var(--color-bone-muted)]">{item.service_name_snapshot}</p>
-            <div className="mt-2 flex items-center justify-between gap-2"><span className="text-[8px] uppercase tracking-[.1em] text-[var(--color-brass)]">{pretty(item.status)}</span><span className="text-[8px] uppercase tracking-[.1em] text-[var(--color-bone-muted)]">{item.clientInsights.type === "new" ? "New" : item.clientInsights.type.startsWith("returning") ? "Returning" : "History ?"}</span></div>
+            <div className="mt-2 flex items-center justify-between gap-2"><span className="text-[8px] uppercase tracking-[.1em] text-[var(--color-brass)]">{pretty(item.status)}</span><span className="text-[8px] uppercase tracking-[.1em] text-[var(--color-bone-muted)]">{item.clientInsights.type === "new" ? "New" : item.clientInsights.type.startsWith("returning") ? "Returning" : "Client"}</span></div>
           </button>)}
         </div>
       </div>;
@@ -580,12 +554,6 @@ function Info({ label, value }: { label: string; value: string }) {
 
 function NoteCard({ label, text, meta }: { label: string; text: string; meta?: string }) {
   return <article className="rounded-xl border border-[var(--color-ink-line)] bg-black/20 p-4"><div className="flex items-center justify-between gap-3"><span className="text-[8px] uppercase tracking-[.12em] text-[var(--color-brass)]">{label}</span>{meta ? <span className="text-[9px] text-[var(--color-bone-muted)]">{meta}</span> : null}</div><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--color-bone-muted)]">{text}</p></article>;
-}
-
-function Health({ label, value }: { label: string; value: string | null }) {
-  const normalized = String(value ?? "unknown").toLowerCase();
-  const healthy = ["sent", "delivered", "synced", "success", "completed", "processed"].includes(normalized);
-  return <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--color-ink-line)] p-3"><span className="text-xs text-[var(--color-bone-muted)]">{label}</span><span className={`text-[9px] uppercase tracking-[.12em] ${healthy ? "text-emerald-300" : "text-[var(--color-brass)]"}`}>{pretty(value)}</span></div>;
 }
 
 function Action({ label, disabled, onClick }: { label: string; disabled: boolean; onClick: () => void }) {
