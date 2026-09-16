@@ -30,6 +30,13 @@ const activeAppointmentStatuses = [
   "in_service",
 ];
 
+const operationalAppointmentStatuses = new Set([
+  "confirmed",
+  "checked_in",
+  "assigned",
+  "in_service",
+]);
+
 type AvailabilityAction = "marked_unavailable" | "added_availability" | "restored_availability" | "removed_availability";
 
 function canManageAll(roles: readonly string[]) {
@@ -210,19 +217,48 @@ export async function POST(request: NextRequest) {
     : zonedDateTimeToUtc(date, endTime, timezone);
 
   if (kind === "unavailable") {
-    const { count } = await ctx.admin
+    const { data: overlappingAppointments, error: overlappingError } = await ctx.admin
       .from("appointments")
-      .select("id", { count: "exact", head: true })
+      .select("id,status,deposit_status")
       .eq("barber_profile_id", ctx.profile.id)
       .lt("starts_at", endsAt.toISOString())
       .gt("ends_at", startsAt.toISOString())
       .in("status", activeAppointmentStatuses);
 
-    if ((count ?? 0) > 0) {
+    if (overlappingError) {
+      return NextResponse.json({ ok: false, message: "Existing appointments could not be verified." }, { status: 503 });
+    }
+
+    const overlaps = overlappingAppointments ?? [];
+    const operationalConflict = overlaps.some(
+      (appointment) => operationalAppointmentStatuses.has(String(appointment.status)) || appointment.deposit_status === "paid",
+    );
+
+    if (operationalConflict) {
       return NextResponse.json(
-        { ok: false, code: "APPOINTMENTS_EXIST", message: "This time contains an active appointment. Reschedule or cancel that appointment before marking the time unavailable." },
+        { ok: false, code: "APPOINTMENTS_EXIST", message: "This time contains a paid or confirmed appointment. Reschedule or cancel that appointment before marking the time unavailable." },
         { status: 409 },
       );
+    }
+
+    const pendingIds = overlaps.map((appointment) => String(appointment.id));
+    if (pendingIds.length) {
+      const { count: checkoutCount, error: checkoutError } = await ctx.admin
+        .from("appointment_payment_links")
+        .select("id", { count: "exact", head: true })
+        .in("appointment_id", pendingIds)
+        .in("status", ["created", "paid"]);
+
+      if (checkoutError) {
+        return NextResponse.json({ ok: false, message: "Existing checkout links could not be verified." }, { status: 503 });
+      }
+
+      if ((checkoutCount ?? 0) > 0) {
+        return NextResponse.json(
+          { ok: false, code: "CHECKOUT_IN_PROGRESS", message: "A client has an active checkout for this time. Cancel or move that checkout before marking the time unavailable." },
+          { status: 409 },
+        );
+      }
     }
 
     const { data, error } = await ctx.admin
