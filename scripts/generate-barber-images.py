@@ -26,6 +26,7 @@ FOCAL = {
     "alfredo-hernandez-pollo": (0.50, 0.18),
     "russ-hawkins": (0.50, 0.20),
     "daniel-penalo": (0.50, 0.16),
+    "luis-rivera": (0.50, 0.18),
 }
 
 OUTPUTS = {
@@ -52,14 +53,14 @@ def render(source: Image.Image, size: tuple[int, int], focal: tuple[float, float
 def main() -> None:
     ARCHIVE.mkdir(parents=True, exist_ok=True)
     manifest: dict[str, object] = {
-        "version": "2026-08-06-ruben-release",
+        "version": "2026-09-22-luis-release",
         "method": "authentic-source focal crop, Lanczos resize, subtle sharpening; no generative enhancement",
         "aspectRatio": "4:5",
         "outputs": OUTPUTS,
         "barbers": [],
     }
     framing: dict[str, object] = {
-        "version": "2026-08-06-ruben-release",
+        "version": "2026-09-22-luis-release",
         "method": "EXIF orientation, authentic-source 4:5 focal crop, Lanczos resize, subtle sharpening",
         "faceChangesAllowed": False,
         "outputs": {
