@@ -110,6 +110,10 @@ test("availability accounts for schedules, breaks, time off, bookings, holds, an
   assert.match(availability, /default_buffer_minutes/);
   assert.match(availability, /minimumLeadMinutes/);
   assert.match(availability, /maximumAdvanceDays/);
+  assert.match(availability, /existingOccupiedEnd/);
+  assert.match(availability, /bufferMinutes \* 60_000/);
+  assert.match(availability, /locallyBookable/);
+  assert.match(availability, /searchSupabaseAvailability/);
 });
 
 test("admin appointment workspace provides operational filters and status actions", async () => {

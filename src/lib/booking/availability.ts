@@ -278,9 +278,28 @@ export async function searchSquareBookingAvailability(input: {
       ];
     });
 
+  // Square availability must also satisfy the lounge's local operational
+  // rules (barber schedules, breaks, time off, existing appointments,
+  // active holds, and the configured post-appointment buffer). This keeps
+  // the public slot list identical to what the final Supabase booking guard
+  // will accept instead of making clients discover a conflict at checkout.
+  const localAvailability = await searchSupabaseAvailability({
+    ...input,
+  });
+  const locallyBookable = new Set(
+    localAvailability.slots.map(
+      (slot) => `${slot.barberId}:${slot.startsAt}`,
+    ),
+  );
+
   return {
     source: "square" as const,
     slots: slots
+      .filter((slot) =>
+        locallyBookable.has(
+          `${slot.barberId}:${slot.startsAt}`,
+        ),
+      )
       .sort(
         (a, b) =>
           a.startsAt.localeCompare(b.startsAt) ||
@@ -650,11 +669,15 @@ export async function searchSupabaseAvailability(input: {
                 bufferMinutes * 60_000,
             );
 
-          const unavailable = [
+          // Breaks and approved time off block their exact windows.
+          // Appointments and active holds additionally reserve the configured
+          // post-service buffer. Both sides of an appointment are therefore
+          // evaluated consistently with the database trigger: a 12:30-1:30
+          // appointment with a 10-minute buffer makes 1:40 the earliest next
+          // start, never 1:30.
+          const blockedByCalendar = [
             ...(breaks ?? []),
             ...(timeOff ?? []),
-            ...(appointments ?? []),
-            ...(holds ?? []),
           ].some(
             (item) =>
               item.barber_profile_id ===
@@ -666,6 +689,37 @@ export async function searchSupabaseAvailability(input: {
                 item.ends_at,
               ),
           );
+
+          const blockedByBooking = [
+            ...(appointments ?? []),
+            ...(holds ?? []),
+          ].some((item) => {
+            if (
+              item.barber_profile_id !==
+              barber.id
+            ) {
+              return false;
+            }
+
+            const existingOccupiedEnd =
+              new Date(
+                new Date(
+                  item.ends_at,
+                ).getTime() +
+                  bufferMinutes * 60_000,
+              );
+
+            return overlaps(
+              cursor,
+              occupiedEnd,
+              item.starts_at,
+              existingOccupiedEnd.toISOString(),
+            );
+          });
+
+          const unavailable =
+            blockedByCalendar ||
+            blockedByBooking;
 
           if (
             !unavailable &&
