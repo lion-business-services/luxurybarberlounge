@@ -616,7 +616,7 @@ export const barbers: Barber[] = [
     languages: "EN",
     languageCodes: ["en"],
     serviceSlugs: allStandardServices,
-    image: createBarberImage("luis-rivera", { en: "Luis Rivera of Luxury Barber Lounge", es: "Luis Rivera de Luxury Barber Lounge" }, { card: "50% 18%", profile: "50% 18%", mobile: "50% 18%", booking: "50% 18%" }),
+    image: (() => { const image = createBarberImage("luis-rivera", { en: "Luis Rivera of Luxury Barber Lounge", es: "Luis Rivera de Luxury Barber Lounge" }, { card: "50% 18%", profile: "50% 18%", mobile: "50% 18%", booking: "50% 18%" }); const original = "/media/barbers/originals/luis-rivera.jpeg"; return { ...image, card: original, cardAvif: original, cardJpeg: original, profile: original, profileAvif: original, profileJpeg: original, booking: original, bookingAvif: original, bookingJpeg: original, mobile: original, mobileAvif: original, mobileJpeg: original, tablet: original, tabletAvif: original, tabletJpeg: original, desktop: original, desktopAvif: original, desktopJpeg: original }; })(),
     identityStatus: "verified",
     availability: { en: "Tuesday through Friday 5:00 PM-9:00 PM; Saturday and Sunday 9:00 AM-9:00 PM.", es: "Martes a viernes 5:00 PM-9:00 PM; sábado y domingo 9:00 AM-9:00 PM." },
     workingDays: { en: "Tuesday-Friday: 5 PM-9 PM · Saturday-Sunday: 9 AM-9 PM", es: "Martes-viernes: 5 PM-9 PM · Sábado-domingo: 9 AM-9 PM" },
