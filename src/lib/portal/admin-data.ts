@@ -1,6 +1,7 @@
 import "server-only";
 import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
 import { localizedName } from "./format";
+import { dateInZone, zonedDateTimeToUtc } from "@/lib/booking/timezone";
 
 export type AdminMetric = { label: string; value: string; source: "Supabase-derived" | "Square-derived" | "Calculated" | "Estimated"; note: string };
 export type AdminPortalData = {
@@ -40,16 +41,18 @@ export async function loadAdminPortalData(): Promise<AdminPortalData> {
   const businessId = s((business as Record<string, unknown> | null)?.id);
   if (!businessId) return empty;
 
-  const start = new Date(); start.setHours(0, 0, 0, 0);
-  const end = new Date(start); end.setDate(end.getDate() + 1);
+  const loungeDate = dateInZone(new Date(), "America/New_York");
+  const start = zonedDateTimeToUtc(loungeDate, "00:00:00", "America/New_York");
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  const operationalAppointmentStatuses = ["confirmed", "rescheduled", "checked_in", "assigned", "in_service", "completed"];
   const [bookings, queueCount, clientCount, membershipCount, failedWebhooks, failedNotifications, queueRows, clientRows, orderRows, membershipRows, membershipPlanRows, membershipRequestRows, barberRows, integrations, syncFailures, payments] = await Promise.all([
-    supabase.from("appointments").select("id", { count: "exact", head: true }).eq("business_id", businessId).gte("starts_at", start.toISOString()).lt("starts_at", end.toISOString()),
-    supabase.from("queue_entries").select("id", { count: "exact", head: true }).eq("business_id", businessId).in("status", ["waiting", "confirmed", "checked_in", "assigned", "called", "ready", "in_service"]),
+    supabase.from("appointments").select("id", { count: "exact", head: true }).eq("business_id", businessId).gte("starts_at", start.toISOString()).lt("starts_at", end.toISOString()).in("status", operationalAppointmentStatuses),
+    supabase.from("queue_entries").select("id", { count: "exact", head: true }).eq("business_id", businessId).is("appointment_id", null).in("status", ["waiting", "confirmed", "checked_in", "assigned", "called", "ready", "in_service"]),
     supabase.from("clients").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("status", "active"),
     supabase.from("memberships").select("id", { count: "exact", head: true }).eq("business_id", businessId).in("status", ["trial", "active", "past_due", "paused"]),
     supabase.from("webhook_events").select("id", { count: "exact", head: true }).eq("business_id", businessId).in("processing_status", ["failed", "dead_letter"]),
     supabase.from("notification_jobs").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("status", "failed"),
-    supabase.from("queue_entries").select("id,client_name,service_slug,status,estimated_wait_minutes,joined_at,public_token").eq("business_id", businessId).in("status", ["waiting", "confirmed", "checked_in", "assigned", "called", "ready", "in_service"]).order("manual_priority", { ascending: true }).order("joined_at", { ascending: true }).limit(20),
+    supabase.from("queue_entries").select("id,client_name,service_slug,status,estimated_wait_minutes,joined_at,public_token").eq("business_id", businessId).is("appointment_id", null).in("status", ["waiting", "confirmed", "checked_in", "assigned", "called", "ready", "in_service"]).order("manual_priority", { ascending: true }).order("joined_at", { ascending: true }).limit(20),
     supabase.from("clients").select("id,auth_user_id,first_name,last_name,email,phone,preferred_language,communication_preferences,status,created_at").eq("business_id", businessId).neq("status", "merged").order("created_at", { ascending: false }).limit(50),
     supabase.from("square_orders").select("id,square_id,state,total_cents,synced_at").eq("business_id", businessId).order("synced_at", { ascending: false }).limit(30),
     supabase.from("memberships").select("id,status,renews_at,client_user_id,membership_plans(name)").eq("business_id", businessId).order("created_at", { ascending: false }).limit(30),
@@ -82,8 +85,8 @@ export async function loadAdminPortalData(): Promise<AdminPortalData> {
     configured: true,
     businessId,
     metrics: [
-      { label: "Appointments today", value: String(countValue(bookings)), source: "Supabase-derived", note: "Confirmed booking records scheduled today" },
-      { label: "Active queue", value: String(countValue(queueCount)), source: "Supabase-derived", note: "Waiting through in-service queue records" },
+      { label: "Appointments today", value: String(countValue(bookings)), source: "Supabase-derived", note: "Confirmed through completed appointments on the Northfield business day" },
+      { label: "Active walk-ins", value: String(countValue(queueCount)), source: "Supabase-derived", note: "True walk-ins only; appointments stay in the appointment calendar" },
       { label: "Clients", value: String(countValue(clientCount)), source: "Supabase-derived", note: "Active client records" },
       { label: "Active memberships", value: String(countValue(membershipCount)), source: "Supabase-derived", note: "Trial, active, paused, or past due" },
       { label: "Service revenue today", value: new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(revenue / 100), source: "Square-derived", note: "Synced payments only" },
