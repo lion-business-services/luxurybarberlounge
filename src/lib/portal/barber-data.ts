@@ -17,6 +17,8 @@ export type BarberPortalAppointment = {
   service: string;
   serviceValueCents: number;
   depositStatus: string;
+  bufferMinutes: number;
+  bufferEndsAt: string;
 };
 
 export type BarberPortalData = {
@@ -127,6 +129,19 @@ export async function loadBarberPortalData(): Promise<BarberPortalData> {
     ? await appointmentQuery.eq("barber_profile_id", profileId)
     : await appointmentQuery.eq("assigned_staff_user_id", session.user.id);
 
+  const locationId = staff?.location_id ? String(staff.location_id) : null;
+  const { data: locationSettings } = locationId
+    ? await admin
+        .from("location_settings")
+        .select("default_buffer_minutes")
+        .eq("location_id", locationId)
+        .maybeSingle()
+    : { data: null };
+  const bufferMinutes = Math.max(
+    0,
+    number(locationSettings?.default_buffer_minutes),
+  );
+
   const appointments: BarberPortalAppointment[] = (appointmentsResult.data ?? []).map((row) => ({
     id: String(row.id),
     reference: String(row.public_reference),
@@ -138,6 +153,11 @@ export async function loadBarberPortalData(): Promise<BarberPortalData> {
     service: String(row.service_name_snapshot ?? "Service"),
     serviceValueCents: number(row.service_price_snapshot_cents),
     depositStatus: String(row.deposit_status ?? "not_required"),
+    bufferMinutes,
+    bufferEndsAt: new Date(
+      new Date(String(row.ends_at)).getTime() +
+        bufferMinutes * 60_000,
+    ).toISOString(),
   }));
 
   let scheduleRows: Array<Record<string, unknown>> = [];
