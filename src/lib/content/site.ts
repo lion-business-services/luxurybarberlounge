@@ -604,6 +604,31 @@ export const barbers: Barber[] = [
     sortOrder: 8,
     contentStatus: "confirmed",
   },
+  {
+    slug: "luis-rivera",
+    name: "Luis Rivera",
+    initials: "LR",
+    title: { en: "Barber · Specialized Grooming", es: "Barbero · Grooming Especializado" },
+    bio: { en: "Patient, compassionate grooming for children, including sensory-inclusive and special-needs haircuts.", es: "Servicio paciente y compasivo para niños, incluidos cortes sensorialmente inclusivos y para necesidades especiales." },
+    story: { en: "Luis provides child-friendly grooming with a patient, flexible, calm approach designed to help young clients and their families feel comfortable and supported.", es: "Luis ofrece grooming infantil con un enfoque paciente, flexible y tranquilo para que los clientes jóvenes y sus familias se sientan cómodos y apoyados." },
+    specialties: { en: "Children's haircuts · Special-needs & sensory-inclusive haircuts", es: "Cortes infantiles · Cortes inclusivos para necesidades especiales y sensibilidad sensorial" },
+    specialtyTags: ["children's haircuts", "special-needs haircuts", "sensory-inclusive haircuts", "autism-friendly grooming"],
+    languages: "EN",
+    languageCodes: ["en"],
+    serviceSlugs: allStandardServices,
+    image: createBarberImage("luis-rivera", { en: "Luis Rivera of Luxury Barber Lounge", es: "Luis Rivera de Luxury Barber Lounge" }, { card: "50% 18%", profile: "50% 18%", mobile: "50% 18%", booking: "50% 18%" }),
+    identityStatus: "verified",
+    availability: { en: "Tuesday through Friday from opening to 5:00 PM; Saturday and Sunday from opening to close.", es: "Martes a viernes desde apertura hasta las 5:00 PM; sábado y domingo desde apertura hasta cierre." },
+    workingDays: { en: "Tuesday-Friday: open-5 PM · Saturday-Sunday: open-close", es: "Martes-viernes: apertura-5 PM · Sábado-domingo: apertura-cierre" },
+    bookingWeekdays: [2, 3, 4, 5, 6, 0],
+    walkIns: true,
+    photoProvided: true,
+    socialStatus: "not-provided",
+    active: true,
+    sortOrder: 9,
+    contentStatus: "confirmed",
+  },
+
 ];
 
 export type Tier = {
