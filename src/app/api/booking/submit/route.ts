@@ -486,12 +486,57 @@ export async function POST(request: NextRequest) {
     };
 
     if (clientId) {
-      const { error } = await admin
+      // A returning guest may later sign in with the same email while the
+      // historical client row is not yet linked to that auth profile. Do not
+      // let that optional profile-linking write prevent a valid appointment.
+      // The booking only requires the stable local client id; identity linking
+      // can be reconciled independently.
+      const { auth_user_id: requestedAuthUserId, ...safeClientPayload } =
+        clientPayload;
+      const existingAuthUserId =
+        emailMatch?.auth_user_id ??
+        phoneMatch?.auth_user_id ??
+        null;
+
+      const updatePayload = {
+        ...safeClientPayload,
+        auth_user_id:
+          existingAuthUserId ??
+          requestedAuthUserId ??
+          null,
+      };
+
+      let { error } = await admin
         .from("clients")
-        .update(clientPayload)
+        .update(updatePayload)
         .eq("id", clientId);
 
+      // If a newly authenticated identity cannot be linked (for example,
+      // because the profile record has not been materialized yet), retry the
+      // operational client update without changing auth ownership. Booking
+      // must not fail for a non-essential CRM/profile synchronization issue.
+      if (
+        error &&
+        !existingAuthUserId &&
+        requestedAuthUserId
+      ) {
+        const { error: retryError } = await admin
+          .from("clients")
+          .update({
+            ...safeClientPayload,
+            auth_user_id: null,
+          })
+          .eq("id", clientId);
+        error = retryError;
+      }
+
       if (error) {
+        console.error("booking-submit", {
+          code: "CLIENT_UPDATE_FAILED",
+          clientId,
+          dbCode: error.code,
+          dbMessage: error.message,
+        });
         throw new Error("CLIENT_UPDATE_FAILED");
       }
     } else {
