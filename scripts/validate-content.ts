@@ -23,7 +23,6 @@ const expectedBarbers = [
   "Hommy Rivera",
   "Barber Lo's",
   "Jose",
-  "Elvis",
   "Alfredo Hernandez (Pollo)",
   "Russ Hawkins",
   "Daniel Penalo",

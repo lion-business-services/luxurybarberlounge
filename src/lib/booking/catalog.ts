@@ -37,7 +37,6 @@ const LEGACY_BARBER_SLUGS: Record<string, string> = {
   "adrian-cole": "hommy-rivera",
   "mateo-cruz": "barber-los",
   "julian-vega": "jose",
-  "elias-moreno": "elvis",
   "nico-santos": "alfredo-hernandez-pollo",
   "marcus-bennett": "russ-hawkins",
   "andre-silva": "daniel-penalo",

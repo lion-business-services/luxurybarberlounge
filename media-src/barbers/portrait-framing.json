@@ -128,23 +128,6 @@
       }
     },
     {
-      "slug": "elvis",
-      "source": "public/media/barbers/originals/elvis.jpeg",
-      "sourceWidth": 684,
-      "sourceHeight": 1024,
-      "safeFocalPoint": {
-        "x": 0.5,
-        "y": 0.16
-      },
-      "objectPosition": {
-        "card": "50% 16%",
-        "mobile": "50% 16%",
-        "booking": "50% 16%",
-        "profile": "50% 16%",
-        "desktop": "50% 16%"
-      }
-    },
-    {
       "slug": "hommy-rivera",
       "source": "public/media/barbers/originals/hommy-rivera.jpeg",
       "sourceWidth": 1600,

@@ -15,7 +15,7 @@ Confirmed business data:
 - Senior price minimum age: 55
 - Color: not offered and not bookable
 
-The active public roster is Rubén Diaz, Jr., Angelica Aquino, Hommy Rivera, Barber Lo's, Jose, Elvis, Alfredo Hernandez (Pollo), Russ Hawkins, and Daniel Penalo. Ruben is both the founder/owner and a barber, but those concepts remain separate in authorization. His public barber record never grants owner access.
+The active public roster is Rubén Diaz, Jr., Angelica Aquino, Hommy Rivera, Barber Lo's, Jose, Alfredo Hernandez (Pollo), Russ Hawkins, and Daniel Penalo. Ruben is both the founder/owner and a barber, but those concepts remain separate in authorization. His public barber record never grants owner access.
 
 Ruben is eligible for the standard service menu and appears in the barber selector. He is disabled for appointment selection until an owner-managed schedule is published. His languages, walk-in setting, and public social link remain pending rather than being invented.
 

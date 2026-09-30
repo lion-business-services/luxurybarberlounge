@@ -1,0 +1,24 @@
+Delete these 22 Elvis image files from your repository (IN: File Explorer, inside your repo folder), then commit in GitHub Desktop:
+
+media-src/barbers/normalized/elvis.png
+media-src/barbers/originals/elvis.jpeg
+media-src/barbers/uploaded-square/07-elvis.png
+public/media/barbers/booking/elvis.avif
+public/media/barbers/booking/elvis.jpg
+public/media/barbers/booking/elvis.webp
+public/media/barbers/cards/elvis.avif
+public/media/barbers/cards/elvis.jpg
+public/media/barbers/cards/elvis.webp
+public/media/barbers/desktop/elvis.avif
+public/media/barbers/desktop/elvis.jpg
+public/media/barbers/desktop/elvis.webp
+public/media/barbers/mobile/elvis.avif
+public/media/barbers/mobile/elvis.jpg
+public/media/barbers/mobile/elvis.webp
+public/media/barbers/originals/elvis.jpeg
+public/media/barbers/profiles/elvis.avif
+public/media/barbers/profiles/elvis.jpg
+public/media/barbers/profiles/elvis.webp
+public/media/barbers/tablet/elvis.avif
+public/media/barbers/tablet/elvis.jpg
+public/media/barbers/tablet/elvis.webp

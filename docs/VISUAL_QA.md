@@ -22,9 +22,8 @@ The nine active barber portraits are maintained as one mapped set after Ruben in
 3. Hommy Rivera
 4. Barber Lo's
 5. Jose
-6. Elvis
-7. Alfredo Hernandez (Pollo)
-8. Russ Hawkins
-9. Daniel Penalo
+6. Alfredo Hernandez (Pollo)
+7. Russ Hawkins
+8. Daniel Penalo
 
 Browser-level comparison at every requested viewport requires a dependency-complete local or Vercel Preview build. The packaged source includes fixed geometry, focal metadata, responsive assets, and automated file/dimension validation for that rendered pass.

@@ -22,7 +22,6 @@ FOCAL = {
     "hommy-rivera": (0.50, 0.24),
     "barber-los": (0.50, 0.18),
     "jose": (0.50, 0.18),
-    "elvis": (0.50, 0.16),
     "alfredo-hernandez-pollo": (0.50, 0.18),
     "russ-hawkins": (0.50, 0.20),
     "daniel-penalo": (0.50, 0.16),

@@ -6,17 +6,16 @@ The approved cinematic black, charcoal, ivory, brass, and bronze public design i
 
 ## Final client content
 
-The public roster contains nine barber profiles, with the original photograph-to-person relationship preserved:
+The public roster contains eight barber profiles, with the original photograph-to-person relationship preserved:
 
 1. Rubén Diaz, Jr.
 2. Angelica Aquino
 3. Hommy Rivera
 4. Barber Lo's
 5. Jose
-6. Elvis
-7. Alfredo Hernandez (Pollo)
-8. Russ Hawkins
-9. Daniel Penalo
+6. Alfredo Hernandez (Pollo)
+7. Russ Hawkins
+8. Daniel Penalo
 
 Rubén Diaz, Jr. is represented once as the owner/founder and as a public barber profile. His public profile does not grant administrative access. The verified owner account receives separate server-assigned `owner` and `barber` roles, and Ruben becomes selectable only after an owner-managed schedule is published.
 

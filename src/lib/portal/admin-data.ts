@@ -58,7 +58,7 @@ export async function loadAdminPortalData(): Promise<AdminPortalData> {
     supabase.from("memberships").select("id,status,renews_at,client_user_id,membership_plans(name)").eq("business_id", businessId).order("created_at", { ascending: false }).limit(30),
     supabase.from("membership_plans").select("id,name,price_cents,billing_interval,square_catalog_id,active,status").eq("business_id", businessId).order("created_at", { ascending: false }).limit(50),
     supabase.from("membership_requests").select("id,client_user_id,request_type,requested_plan_id,status,reason,review_note,created_at").eq("business_id", businessId).order("created_at", { ascending: false }).limit(50),
-    supabase.from("barber_profiles").select("id,slug,display_name,professional_title,active,status").eq("business_id", businessId).order("sort_order", { ascending: true }).limit(50),
+    supabase.from("barber_profiles").select("id,slug,display_name,professional_title,active,status").eq("business_id", businessId).neq("status", "archived").order("sort_order", { ascending: true }).limit(50),
     supabase.from("integrations").select("provider,status,environment,last_success_at,last_error_at").eq("business_id", businessId).order("provider"),
     supabase.from("sync_failures").select("id,provider,resource_type,message,created_at").eq("business_id", businessId).order("created_at", { ascending: false }).limit(10),
     supabase.from("square_payments").select("amount_cents,tip_cents,created_at_square").eq("business_id", businessId).gte("created_at_square", start.toISOString()).lt("created_at_square", end.toISOString()),

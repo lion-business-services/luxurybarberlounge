@@ -8,10 +8,9 @@ The platform is intentionally conservative where the client intake or owner prof
 4. Barber Lo's: years cutting, working days, and Instagram. No online schedule is created until working days are confirmed.
 5. Alfredo Hernandez (Pollo): confirm exact Instagram punctuation before activating the social link.
 6. Russ Hawkins: confirm Instagram handle before activation.
-7. Elvis: confirm Instagram handle before activation.
-8. Jose: confirm Instagram handle before activation.
-9. Confirm final cancellation, no-show, refund, reschedule, and membership legal terms and effective date.
-10. Provide production Supabase, Resend, FormSubmit activation, Square, cron, and optional SMS credentials.
-11. Verify Square location, service catalog, team-member, customer, and webhook mappings before enabling Square as the canonical booking provider.
+7. Jose: confirm Instagram handle before activation.
+8. Confirm final cancellation, no-show, refund, reschedule, and membership legal terms and effective date.
+9. Provide production Supabase, Resend, FormSubmit activation, Square, cron, and optional SMS credentials.
+10. Verify Square location, service catalog, team-member, customer, and webhook mappings before enabling Square as the canonical booking provider.
 
 No uncertain social URL, unsupported schedule, invented credential, or unsupported biography detail is published as confirmed data.

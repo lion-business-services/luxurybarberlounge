@@ -9,7 +9,6 @@ The original eight-card order and photograph association are preserved while rep
 | Second portrait | Hommy Rivera | `hommy-rivera` |
 | Third portrait | Barber Lo's | `barber-los` |
 | Fourth portrait | Jose | `jose` |
-| Fifth portrait | Elvis | `elvis` |
 | Sixth portrait | Alfredo Hernandez (Pollo) | `alfredo-hernandez-pollo` |
 | Seventh portrait | Russ Hawkins | `russ-hawkins` |
 | Eighth portrait | Daniel Penalo | `daniel-penalo` |

@@ -30,7 +30,6 @@ const barberSlugs = [
   "hommy-rivera",
   "barber-los",
   "jose",
-  "elvis",
   "alfredo-hernandez-pollo",
   "russ-hawkins",
   "daniel-penalo",

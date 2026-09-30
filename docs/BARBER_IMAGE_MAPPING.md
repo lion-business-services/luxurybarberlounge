@@ -9,7 +9,6 @@ The order and identity mapping below are authoritative for the public roster. Ex
 | Hommy Rivera | `hommy-rivera` | `originals/hommy-rivera.jpeg` | centralized metadata | centralized metadata |
 | Barber Lo's | `barber-los` | `originals/barber-los.jpeg` | centralized metadata | centralized metadata |
 | Jose | `jose` | `originals/jose.jpeg` | centralized metadata | centralized metadata |
-| Elvis | `elvis` | `originals/elvis.jpeg` | centralized metadata | centralized metadata |
 | Alfredo Hernandez (Pollo) | `alfredo-hernandez-pollo` | `originals/alfredo-hernandez-pollo.jpeg` | centralized metadata | centralized metadata |
 | Russ Hawkins | `russ-hawkins` | `originals/russ-hawkins.jpeg` | centralized metadata | centralized metadata |
 | Daniel Penalo | `daniel-penalo` | `originals/daniel-penalo.jpeg` | centralized metadata | centralized metadata |
