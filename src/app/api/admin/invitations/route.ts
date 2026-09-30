@@ -65,10 +65,13 @@ export async function POST(request: NextRequest) {
   if (parsed.data.role === "barber" && !barberProfileId) {
     const { data: mappedProfile } = await context.admin
       .from("barber_profiles")
-      .select("id")
+      .select("id,status")
       .eq("business_id", context.businessId)
       .eq("portal_email", email)
       .maybeSingle();
+    if (mappedProfile?.id && mappedProfile.status === "archived") {
+      return NextResponse.json({ ok: false, message: "This email belongs to a barber who was removed. Portal access cannot be restored from an invitation." }, { status: 422 });
+    }
     barberProfileId = typeof mappedProfile?.id === "string" ? mappedProfile.id : null;
   }
   if (barberProfileId) {
@@ -77,6 +80,7 @@ export async function POST(request: NextRequest) {
       .select("id")
       .eq("business_id", context.businessId)
       .eq("id", barberProfileId)
+      .neq("status", "archived")
       .maybeSingle();
     if (!validProfile?.id) return NextResponse.json({ ok: false, message: "The selected barber profile is not available." }, { status: 422 });
   }

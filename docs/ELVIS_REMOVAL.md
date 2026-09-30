@@ -15,6 +15,7 @@
 
 - Removed Elvis from the public roster (`src/lib/content/site.ts`) and the legacy slug map (`src/lib/booking/catalog.ts`).
 - Admin barber list now hides archived barbers (`src/lib/portal/admin-data.ts`).
+- Staff invitations refuse archived barbers, so a re-sent invite cannot restore Elvis's portal access (`src/app/api/admin/invitations/route.ts`).
 - Deleted all Elvis portrait files from `public/media/barbers` and `media-src/barbers`, and their manifest entries.
 - Removed Elvis from the development seed, content validator, tests, README, and roster docs.
 - Historical migrations were not edited, because they already ran in production.
@@ -23,3 +24,7 @@
 
 Past appointments reference his profile, so the database blocks a hard delete, and deleting them would erase payment and commission history.
 Archived barbers do not appear on the website, in booking, in the walk-in queue, in Square sync, or in the admin barber list.
+
+## Square
+
+If Elvis is set up as a team member in Square, deactivate him there too (IN: Square Dashboard > Staff > Team). The website does not use Square Bookings for public booking, but this keeps Square and the website consistent.
