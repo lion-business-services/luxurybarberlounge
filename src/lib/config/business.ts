@@ -19,12 +19,12 @@ export const businessConfig = {
   bookingPath: "/book",
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? siteBusiness.domain,
   mapsUrl: siteBusiness.mapsUrl,
-  minimumLeadMinutes: 60,
+  minimumLeadMinutes: 0,
   maximumAdvanceDays: 90,
   slotIntervalMinutes: 15,
-  defaultBufferMinutes: 10,
+  defaultBufferMinutes: 0,
   cancellationCutoffHours: 4,
-  bookingPolicyVersion: "booking-policy-2026-08-06",
+  bookingPolicyVersion: "booking-policy-2026-10-01",
   hours: siteHours,
 } as const;
 
