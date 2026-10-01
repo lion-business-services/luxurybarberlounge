@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
   const [{ data: barbers, error: barberError }, { data: appointments, error: appointmentError }, { data: schedules, error: scheduleError }, { data: timeOff, error: timeOffError }] = await Promise.all([
     admin.from("barber_profiles").select("id,staff_user_id,display_name,availability_status,accepting_walk_ins,active,status,sort_order").eq("business_id", business.id).eq("active", true).neq("status", "archived").order("sort_order"),
-    admin.from("appointments").select("id,public_reference,client_id,auth_user_id,client_name_snapshot,client_email_snapshot,client_phone_snapshot,service_name_snapshot,service_price_snapshot_cents,service_duration_snapshot_minutes,addon_snapshot,barber_profile_id,barber_name_snapshot,starts_at,ends_at,timezone,status,deposit_status,deposit_required_cents,booking_source,campaign_source,campaign_medium,campaign_name,referral_source,client_declared_status,client_notes,internal_notes,policy_version,policy_accepted_at,email_consent,sms_consent,formsubmit_status,client_confirmation_status,barber_notification_status,sync_status,created_at,updated_at").eq("business_id", business.id).eq("location_id", location.id).eq("deposit_status", "paid").in("status", visibleStatuses).gte("starts_at", rangeStart).lt("starts_at", rangeEnd).order("starts_at"),
+    admin.from("appointments").select("id,public_reference,client_id,auth_user_id,client_name_snapshot,client_email_snapshot,client_phone_snapshot,service_name_snapshot,service_price_snapshot_cents,service_duration_snapshot_minutes,addon_snapshot,barber_profile_id,barber_name_snapshot,starts_at,ends_at,timezone,status,deposit_status,deposit_required_cents,booking_source,campaign_source,campaign_medium,campaign_name,referral_source,client_declared_status,client_notes,internal_notes,created_at,updated_at").eq("business_id", business.id).eq("location_id", location.id).eq("deposit_status", "paid").in("status", visibleStatuses).gte("starts_at", rangeStart).lt("starts_at", rangeEnd).order("starts_at"),
     admin.from("barber_schedules").select("id,barber_profile_id,barber_user_id,weekday,starts_at,ends_at,effective_from,effective_to,active").eq("location_id", location.id).eq("active", true),
     admin.from("barber_time_off").select("id,barber_profile_id,starts_at,ends_at,reason,status,availability_kind").eq("location_id", location.id).eq("status", "approved").lt("starts_at", rangeEnd).gt("ends_at", rangeStart).order("starts_at"),
   ]);
@@ -196,12 +196,6 @@ export async function GET(request: NextRequest) {
         clientVisible: Boolean(row.client_visible),
         createdAt: text(row.created_at),
       })),
-      automationHealth: {
-        adminEmail: text(appointment.formsubmit_status),
-        clientConfirmation: text(appointment.client_confirmation_status),
-        barberNotification: text(appointment.barber_notification_status),
-        sync: text(appointment.sync_status),
-      },
     };
   });
 
@@ -217,7 +211,6 @@ export async function GET(request: NextRequest) {
     appointments: enrichedAppointments,
     schedules: schedules ?? [],
     timeOff: timeOff ?? [],
-    enrichmentComplete: enrichmentErrors.length === 0 && !squarePaymentError,
   });
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
   return response;

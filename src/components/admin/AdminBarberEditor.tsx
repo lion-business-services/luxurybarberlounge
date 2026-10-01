@@ -91,7 +91,7 @@ export function AdminBarberEditor({ barber, owner }: { barber: BarberEditorValue
       }),
     });
     const body = await response.json().catch(() => null) as { ok?: boolean; message?: string } | null;
-    setStatus(response.ok && body?.ok ? "Barber profile and service eligibility updated." : body?.message || "The barber profile could not be updated.");
+    setStatus(response.ok && body?.ok ? "Barber profile, schedule, and services updated." : "The barber profile could not be updated. Please try again.");
     if (response.ok) router.refresh();
     setBusy(false);
   }
@@ -101,107 +101,30 @@ export function AdminBarberEditor({ barber, owner }: { barber: BarberEditorValue
       <p className="text-[9px] tracking-[.18em] uppercase text-[var(--color-brass)]">Barber setup</p>
       <h2 className="font-display mt-2 text-2xl">Profile, availability, and services</h2>
       <div className="mt-5 grid gap-4 md:grid-cols-2">
-        <label>
-          <span className="form-label">Display name</span>
-          <input className="form-control" value={name} onChange={(event) => setName(event.target.value)} />
-        </label>
-        <label>
-          <span className="form-label">Professional title</span>
-          <input className="form-control" value={title} onChange={(event) => setTitle(event.target.value)} />
-        </label>
-        <label className="md:col-span-2">
-          <span className="form-label">Short introduction</span>
-          <textarea className="form-control min-h-24" value={intro} onChange={(event) => setIntro(event.target.value)} />
-        </label>
-        <label className="md:col-span-2">
-          <span className="form-label">Biography</span>
-          <textarea className="form-control min-h-36" value={bio} onChange={(event) => setBio(event.target.value)} />
-        </label>
-        <label>
-          <span className="form-label">Specialties, one per line</span>
-          <textarea className="form-control min-h-28" value={specialties} onChange={(event) => setSpecialties(event.target.value)} />
-        </label>
-        <label>
-          <span className="form-label">Languages, comma separated</span>
-          <textarea className="form-control min-h-28" value={languages} onChange={(event) => setLanguages(event.target.value)} />
-        </label>
-        <label>
-          <span className="form-label">Profile status</span>
-          <select className="form-control" value={profileStatus} onChange={(event) => setProfileStatus(event.target.value)}>
-            <option value="draft">Draft</option>
-            <option value="in_review">In review</option>
-            <option value="approved">Approved</option>
-            <option value="published">Published</option>
-            <option value="archived">Archived</option>
-          </select>
-        </label>
-        <label>
-          <span className="form-label">Today’s availability</span>
-          <select className="form-control" value={availabilityStatus} onChange={(event) => setAvailabilityStatus(event.target.value)}>
-            <option value="available">Available</option>
-            <option value="busy">Busy</option>
-            <option value="break">On break</option>
-            <option value="off_duty">Off duty</option>
-            <option value="unavailable">Unavailable</option>
-          </select>
-        </label>
-        <label className="flex items-center gap-3 text-sm">
-          <input type="checkbox" checked={acceptingWalkIns} onChange={(event) => setAcceptingWalkIns(event.target.checked)} />
-          Accepting walk-ins
-        </label>
-        {owner ? (
-          <>
-            <label>
-              <span className="form-label">Square team member ID</span>
-              <input className="form-control" value={squareId} onChange={(event) => setSquareId(event.target.value)} />
-            </label>
-            <label>
-              <span className="form-label">Private portal email</span>
-              <input type="email" className="form-control" value={portalEmail} onChange={(event) => setPortalEmail(event.target.value)} />
-            </label>
-          </>
-        ) : null}
-        <label className="flex items-center gap-3 text-sm">
-          <input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} disabled={!owner && !active} />
-          Active account
-        </label>
-        <label className="flex items-center gap-3 text-sm">
-          <input type="checkbox" checked={featured} onChange={(event) => setFeatured(event.target.checked)} />
-          Featured publicly
-        </label>
+        <label><span className="form-label">Display name</span><input className="form-control" value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <label><span className="form-label">Professional title</span><input className="form-control" value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+        <label className="md:col-span-2"><span className="form-label">Short introduction</span><textarea className="form-control min-h-24" value={intro} onChange={(event) => setIntro(event.target.value)} /></label>
+        <label className="md:col-span-2"><span className="form-label">Biography</span><textarea className="form-control min-h-36" value={bio} onChange={(event) => setBio(event.target.value)} /></label>
+        <label><span className="form-label">Specialties, one per line</span><textarea className="form-control min-h-28" value={specialties} onChange={(event) => setSpecialties(event.target.value)} /></label>
+        <label><span className="form-label">Languages, comma separated</span><textarea className="form-control min-h-28" value={languages} onChange={(event) => setLanguages(event.target.value)} /></label>
+        <label><span className="form-label">Profile status</span><select className="form-control" value={profileStatus} onChange={(event) => setProfileStatus(event.target.value)}><option value="draft">Draft</option><option value="in_review">In review</option><option value="approved">Approved</option><option value="published">Published</option><option value="archived">Archived</option></select></label>
+        <label><span className="form-label">Today’s availability</span><select className="form-control" value={availabilityStatus} onChange={(event) => setAvailabilityStatus(event.target.value)}><option value="available">Available</option><option value="busy">Busy</option><option value="break">On break</option><option value="off_duty">Off duty</option><option value="unavailable">Unavailable</option></select></label>
+        <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={acceptingWalkIns} onChange={(event) => setAcceptingWalkIns(event.target.checked)} />Accepting walk-ins</label>
+        {owner ? <><label><span className="form-label">Online booking ID</span><input className="form-control" value={squareId} onChange={(event) => setSquareId(event.target.value)} /></label><label><span className="form-label">Barber login email</span><input type="email" className="form-control" value={portalEmail} onChange={(event) => setPortalEmail(event.target.value)} /></label></> : null}
+        <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} disabled={!owner && !active} />Active account</label>
+        <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={featured} onChange={(event) => setFeatured(event.target.checked)} />Featured publicly</label>
 
         <fieldset className="md:col-span-2 rounded-xl border border-white/[.07] p-4">
           <legend className="px-2 text-[9px] uppercase tracking-[.18em] text-[var(--color-brass)]">Weekly working schedule</legend>
-          <div className="mt-2 grid gap-2">
-            {schedules.map((row) => (
-              <div key={row.weekday} className="grid gap-3 rounded-lg border border-white/[.05] p-3 sm:grid-cols-[9rem_1fr_1fr] sm:items-center">
-                <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={row.active} onChange={(event) => updateSchedule(row.weekday, { active: event.target.checked })} /><span>{weekdayLabels[row.weekday]}</span></label>
-                <label><span className="form-label">Start</span><input type="time" className="form-control" value={row.start} disabled={!row.active} onChange={(event) => updateSchedule(row.weekday, { start: event.target.value })} /></label>
-                <label><span className="form-label">End</span><input type="time" className="form-control" value={row.end} disabled={!row.active} onChange={(event) => updateSchedule(row.weekday, { end: event.target.value })} /></label>
-              </div>
-            ))}
-          </div>
+          <div className="mt-2 grid gap-2">{schedules.map((row) => <div key={row.weekday} className="grid gap-3 rounded-lg border border-white/[.05] p-3 sm:grid-cols-[9rem_1fr_1fr] sm:items-center"><label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={row.active} onChange={(event) => updateSchedule(row.weekday, { active: event.target.checked })} /><span>{weekdayLabels[row.weekday]}</span></label><label><span className="form-label">Start</span><input type="time" className="form-control" value={row.start} disabled={!row.active} onChange={(event) => updateSchedule(row.weekday, { start: event.target.value })} /></label><label><span className="form-label">End</span><input type="time" className="form-control" value={row.end} disabled={!row.active} onChange={(event) => updateSchedule(row.weekday, { end: event.target.value })} /></label></div>)}</div>
         </fieldset>
 
         <fieldset className="md:col-span-2 rounded-xl border border-white/[.07] p-4" disabled={!barber.staffUserId}>
           <legend className="px-2 text-[9px] uppercase tracking-[.18em] text-[var(--color-brass)]">Services this barber can perform</legend>
-          {barber.staffUserId ? (
-            barber.availableServices.length ? (
-              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {barber.availableServices.map((service) => (
-                  <label key={service.id} className="flex items-center gap-3 rounded-lg border border-white/[.06] p-3 text-sm">
-                    <input type="checkbox" checked={serviceIds.includes(service.id)} onChange={() => toggleService(service.id)} />
-                    <span>{service.name}</span>
-                  </label>
-                ))}
-              </div>
-            ) : <p className="mt-2 text-xs text-[var(--color-bone-muted)]">Add active services first, then return here to make the barber eligible for queue assignments.</p>
-          ) : <p className="mt-2 text-xs text-[var(--color-bone-muted)]">This profile is not linked to a signed-in barber account yet. Send the barber invitation first.</p>}
+          {barber.staffUserId ? (barber.availableServices.length ? <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{barber.availableServices.map((service) => <label key={service.id} className="flex items-center gap-3 rounded-lg border border-white/[.06] p-3 text-sm"><input type="checkbox" checked={serviceIds.includes(service.id)} onChange={() => toggleService(service.id)} /><span>{service.name}</span></label>)}</div> : <p className="mt-2 text-xs text-[var(--color-bone-muted)]">Add active services first, then return here to choose which services this barber can perform.</p>) : <p className="mt-2 text-xs text-[var(--color-bone-muted)]">Send the barber invitation first to finish setting up their account.</p>}
         </fieldset>
 
-        <button type="button" disabled={busy} onClick={() => void save()} className="w-fit rounded-full bg-[var(--color-brass)] px-5 py-3 text-[9px] tracking-[.16em] uppercase text-[var(--color-ink)] disabled:opacity-50">
-          {busy ? "Saving" : "Save barber"}
-        </button>
+        <button type="button" disabled={busy} onClick={() => void save()} className="w-fit rounded-full bg-[var(--color-brass)] px-5 py-3 text-[9px] tracking-[.16em] uppercase text-[var(--color-ink)] disabled:opacity-50">{busy ? "Saving" : "Save barber"}</button>
       </div>
       {status ? <p className="mt-4 text-xs text-[var(--color-bone-muted)]" role="status">{status}</p> : null}
     </section>

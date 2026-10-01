@@ -8,7 +8,6 @@ import {
   ContactRound,
   ListChecks,
   Scissors,
-  ShieldCheck,
 } from "lucide-react";
 import { loadAdminPortalData } from "@/lib/portal/admin-data";
 import { dateTime, titleCase } from "@/lib/portal/format";
@@ -23,7 +22,6 @@ export async function AdminDashboard() {
   const activeBarbers = data.barbers.filter((barber) => barber.active && barber.status !== "archived").length;
   const appointments = metric("Appointments today");
   const queue = metric("Active queue");
-  const issues = data.failures.length;
 
   return (
     <div className={styles.grid}>
@@ -36,24 +34,14 @@ export async function AdminDashboard() {
         <Link href="/admin/appointments" className="inline-flex w-fit items-center gap-2 rounded-full bg-[var(--color-brass)] px-5 py-3 text-[9px] tracking-[.16em] uppercase text-[var(--color-ink)]">View schedule <ArrowUpRight className="h-4 w-4" /></Link>
       </header>
 
-      {issues ? (
-        <div className={styles.alert} role="status">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-          <div>
-            <strong className="text-xs">{issues} connection issue{issues === 1 ? "" : "s"} need review.</strong>
-            <p className="mt-1 text-[11px] opacity-80">The dashboard will continue showing confirmed shop records. Failed synchronization is never replaced with invented data.</p>
-          </div>
-        </div>
-      ) : null}
-
       {data.configured ? (
         <section className={styles.metricGrid} aria-label="Today’s shop metrics">
           <Metric label="Appointments" value={appointments?.value ?? "0"} note="Scheduled today" />
           <Metric label="Waiting" value={queue?.value ?? "0"} note="Active walk-in queue" />
-          <Metric label="Barbers" value={String(activeBarbers)} note="Active profiles" />
-          <Metric label="Revenue" value={money(revenue.totalCents)} note={`Reconciled · Square ${money(revenue.squareCents)} · Cash ${money(revenue.cashCents)}`} />
+          <Metric label="Barbers" value={String(activeBarbers)} note="Available team profiles" />
+          <Metric label="Revenue" value={money(revenue.totalCents)} note={`Today · Card ${money(revenue.squareCents)} · Cash ${money(revenue.cashCents)}`} />
         </section>
-      ) : <div className={styles.empty}>Your secure session is being refreshed. Reload once if this message remains.</div>}
+      ) : <div className={styles.empty}>Shop information is loading. Please refresh if it does not appear shortly.</div>}
 
       <section className={`${styles.grid} ${styles.gridTwo}`}>
         <article className={styles.card}>
@@ -72,10 +60,15 @@ export async function AdminDashboard() {
         </article>
 
         <aside className={styles.card}>
-          <p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">Shop readiness</p>
-          <h2 className="font-display mt-2 text-2xl">Operations status</h2>
-          <div className={`${styles.pulseGrid} mt-5`}><Pulse label="Database" value={data.configured ? "Connected" : "Refreshing"} /><Pulse label="Queue" value={data.configured ? "Ready" : "Waiting"} /><Pulse label="Active barbers" value={String(activeBarbers)} /><Pulse label="Client profiles" value={String(data.clients.length)} /></div>
-          <p className="mt-5 text-xs leading-5 text-[var(--color-bone-muted)]">Confirmed Square and cash payments feed the same revenue and barber-pay records automatically.</p>
+          <p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-brass)]">Today&apos;s overview</p>
+          <h2 className="font-display mt-2 text-2xl">At a glance</h2>
+          <div className={`${styles.pulseGrid} mt-5`}>
+            <Pulse label="Appointments" value={appointments?.value ?? "0"} />
+            <Pulse label="Waiting" value={queue?.value ?? "0"} />
+            <Pulse label="Active barbers" value={String(activeBarbers)} />
+            <Pulse label="Client profiles" value={String(data.clients.length)} />
+          </div>
+          <p className="mt-5 text-xs leading-5 text-[var(--color-bone-muted)]">Appointments, walk-ins, payments, and barber pay update automatically as the shop works through the day.</p>
         </aside>
       </section>
 
