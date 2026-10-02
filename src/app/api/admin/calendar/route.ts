@@ -92,6 +92,16 @@ export async function GET(request: NextRequest) {
     holdIsLive({ deposit_status: text(row.deposit_status), hold_expires_at: text(row.hold_expires_at) }, nowMs),
   );
   const barberIds = new Set((barbers ?? []).map((row) => String(row.id)));
+
+  // A barber who was deactivated or archived may still have appointments in
+  // these days. Those appointments still exist and clients still come, so the
+  // barber gets a column (marked inactive) instead of the appointments
+  // silently disappearing from the calendar.
+  const orphanBarberIds = [...new Set([...appointmentRows, ...liveHolds].map((row) => String(row.barber_profile_id)))].filter((id) => !barberIds.has(id));
+  const { data: inactiveBarbers } = orphanBarberIds.length
+    ? await admin.from("barber_profiles").select("id,staff_user_id,display_name,availability_status,accepting_walk_ins,active,status,sort_order").eq("business_id", business.id).in("id", orphanBarberIds).order("sort_order")
+    : { data: [] };
+  const calendarBarbers = [...(barbers ?? []), ...((inactiveBarbers ?? []) as Array<Record<string, unknown>>).map((row) => ({ ...row, inactive: true }))];
   const breaks = ((breaksResult.data ?? []) as Array<Record<string, unknown>>).filter((row) => barberIds.has(String(row.barber_profile_id)));
 
   const [paymentLinksResult, notesResult, clientsResult, historyAppointmentsResult, historyQueueResult, serviceItemsResult] = await Promise.all([
@@ -257,7 +267,7 @@ export async function GET(request: NextRequest) {
     startDate,
     endDate,
     days: Array.from({ length: days }, (_, index) => addDays(startDate, index)),
-    barbers: barbers ?? [],
+    barbers: calendarBarbers,
     appointments: enrichedAppointments,
     schedules: schedules ?? [],
     timeOff: timeOff ?? [],

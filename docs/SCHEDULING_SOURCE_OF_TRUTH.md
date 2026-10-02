@@ -38,6 +38,23 @@ A client who pays after the 15-minute hold has lapsed is handled by `confirm_pai
 
 The matching Square payment link is deleted when a hold expires, which makes these cases rare. A checkout that receives any verified payment while its hold is still open stops counting down and keeps its time.
 
+## One rule per question (consistency audit, October 2026)
+
+Every screen that describes a booking must answer from the same rule the booking engine enforces. The rules live in `src/lib/booking/rules.ts` and are covered by tests that fail the build when a screen drifts.
+
+| Question | Rule | Used by |
+|---|---|---|
+| Does this appointment hold a barber's time? | `appointmentOccupancy` (status only, never payment state) | Booking page, database guard, staff timelines |
+| Must a staff calendar list it? | `showsOnStaffSchedule` / `STAFF_SCHEDULE_FILTER`: everything that holds time, plus paid history | Admin calendar, Barber calendar, appointments list, client history |
+| Is it still ahead of the client? | `isOpenAppointmentStatus` | Client portal "Upcoming" and "Next visit" |
+| Is it an appointment for the barber's lists and numbers? | `TIMELINE_STATUSES` | Barber portal lists and performance figures |
+| Should the 24-hour reminder go out, and what does it say? | `reminderDecision`, decided when the reminder is due, text written from the appointment as it is then | Notification processor. A move resets the reminder to the new time |
+| What time is it shown as? | The lounge time zone, always | `src/lib/portal/format.ts`, calendars, emails |
+
+Appointments of a barber who was deactivated or archived stay on the Admin calendar in a column marked inactive.
+
+Known gaps that are documented and not yet changed are listed in `docs/KNOWN_CONSISTENCY_GAPS.md`.
+
 ## Data safety
 
 The migration is strictly additive. It adds columns, tables, functions, triggers and one stricter constraint, and removes nothing: no appointments, clients or payment records, and no database object. The earlier overlap constraint stays in place (the new one is stricter), the superseded time-off trigger function is kept as a pass-through, and the earlier six-argument move function is renamed to `reschedule_appointment_atomic_legacy`. Stale unpaid holds are moved to `expired` with a history row; their records are kept. A hold with any verified payment is never expired. Appointments that were already back to back keep their place.

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isOpenAppointmentStatus } from "@/lib/booking/rules";
 import {
   ArrowUpRight,
   CalendarDays,
@@ -19,7 +20,7 @@ export async function ClientDashboard() {
   const data = await loadClientPortalData();
   const now = Date.parse(data.generatedAt);
   const next = data.appointments
-    .filter((item) => item.startsAt && new Date(item.startsAt).getTime() >= now && !["cancelled", "completed", "no_show"].includes(item.status.toLowerCase()))
+    .filter((item) => item.startsAt && new Date(item.startsAt).getTime() >= now && isOpenAppointmentStatus(item.status))
     .sort((a, b) => new Date(a.startsAt ?? 0).getTime() - new Date(b.startsAt ?? 0).getTime())[0] ?? null;
   const name = data.profile.displayName ?? data.profile.fullName ?? "Welcome back";
 

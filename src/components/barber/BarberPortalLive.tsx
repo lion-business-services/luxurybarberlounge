@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { TIMELINE_STATUSES } from "@/lib/booking/rules";
 import Link from "next/link";
 import { CalendarDays, CircleDollarSign, Clock3, ExternalLink, Scissors, UsersRound } from "lucide-react";
 import { loadBarberPortalData, type BarberPortalData } from "@/lib/portal/barber-data";
@@ -19,8 +20,11 @@ function time(value: string) {
   const date = new Date(Date.UTC(2026, 0, 1, hour || 0, minute || 0));
   return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", hour: "numeric", minute: "2-digit" }).format(date);
 }
+// The same appointments the calendar above these lists draws: the ones that
+// hold, or held, this barber's time. A website checkout that has not been
+// paid is not an appointment yet, and it is never listed with a client's name.
 function activeAppointments(data: BarberPortalData) {
-  return data.appointments.filter((item) => !["cancelled_by_client", "cancelled_by_business", "declined", "expired", "failed"].includes(item.status));
+  return data.appointments.filter((item) => (TIMELINE_STATUSES as readonly string[]).includes(item.status));
 }
 
 export async function BarberDashboardLive() {

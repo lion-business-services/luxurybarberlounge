@@ -3,7 +3,10 @@ import "server-only";
 import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
 import { barbers as publicBarbers } from "@/lib/content/site";
 import { localizedName } from "./format";
-import { resolveBufferMinutes } from "@/lib/booking/rules";
+import { HOLD_STATUSES, TIMELINE_STATUSES, resolveBufferMinutes } from "@/lib/booking/rules";
+
+/** Checkouts that never became an appointment. */
+const ABANDONED_STATUSES = new Set<string>([...HOLD_STATUSES, "draft", "expired", "declined", "failed"]);
 
 const activeQueueStatuses = ["waiting", "confirmed", "checked_in", "assigned", "called", "ready", "in_service"];
 
@@ -159,6 +162,8 @@ export async function loadBarberPortalData(): Promise<BarberPortalData> {
     ).toISOString(),
   }));
 
+  const scheduled = appointments.filter((item) => (TIMELINE_STATUSES as readonly string[]).includes(item.status));
+
   let scheduleRows: Array<Record<string, unknown>> = [];
   if (profileId) {
     const result = await admin.from("barber_schedules").select("weekday,starts_at,ends_at,effective_from,effective_to,active").eq("barber_profile_id", profileId).eq("active", true).order("weekday");
@@ -168,13 +173,16 @@ export async function loadBarberPortalData(): Promise<BarberPortalData> {
     scheduleRows = (result.data ?? []) as Array<Record<string, unknown>>;
   }
 
-  const clientIds = [...new Set(appointments.map((item) => item.clientId))];
+  // A person who started a website checkout and never paid is not this
+  // barber's client, and their contact details are not shown.
+  const withHistory = appointments.filter((item) => !ABANDONED_STATUSES.has(item.status));
+  const clientIds = [...new Set(withHistory.map((item) => item.clientId))];
   const clientResult = clientIds.length
     ? await admin.from("clients").select("id,first_name,last_name,email,phone").eq("business_id", businessId).in("id", clientIds)
     : { data: [] as Array<Record<string, unknown>> };
   const clientById = new Map(((clientResult.data ?? []) as Array<Record<string, unknown>>).map((row) => [String(row.id), row]));
   const groupedClients = new Map<string, { appointments: BarberPortalAppointment[] }>();
-  for (const appointment of appointments) {
+  for (const appointment of withHistory) {
     const group = groupedClients.get(appointment.clientId) ?? { appointments: [] };
     group.appointments.push(appointment);
     groupedClients.set(appointment.clientId, group);
@@ -264,10 +272,12 @@ export async function loadBarberPortalData(): Promise<BarberPortalData> {
       latestPeriod: text(period?.label),
     },
     performance: {
-      appointmentCount: appointments.length,
-      completedCount: appointments.filter((item) => item.status === "completed").length,
+      // Only appointments that hold, or held, the barber's time. Abandoned
+      // checkouts, cancellations and no-shows are not appointments served.
+      appointmentCount: scheduled.length,
+      completedCount: scheduled.filter((item) => item.status === "completed").length,
       uniqueClients: clients.length,
-      scheduledServiceValueCents: appointments.reduce((sum, item) => sum + item.serviceValueCents, 0),
+      scheduledServiceValueCents: scheduled.reduce((sum, item) => sum + item.serviceValueCents, 0),
       calculatedCommissionCents: calculations.reduce((sum, row) => sum + number(row.barber_amount_cents), 0),
     },
   };

@@ -5,6 +5,7 @@ import { squareConfig } from "@/lib/square/config";
 import { squareRequest, SquareApiError, SquareConfigurationError } from "@/lib/square/client";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { isHoldStatus } from "@/lib/booking/rules";
+import { businessConfig } from "@/lib/config/business";
 
 // Service fee applied to every online payment. Itemised on the Square receipt.
 const SERVICE_FEE_PERCENT = "4.0";
@@ -68,6 +69,11 @@ export async function POST(request: NextRequest) {
 
   const { admin } = managed;
   let appointment = managed.appointment;
+  if (appointment.status === "expired" && appointment.deposit_status === "paid") {
+    // Paid after the hold ended and the time was taken. Nothing more to pay;
+    // the lounge places the booking at a new time or refunds it.
+    return NextResponse.json({ ok: false, code: "PAID_NEEDS_NEW_TIME", message: `Your payment was received. The lounge will contact you to set a new time, or call ${businessConfig.phone}.` }, { status: 409 });
+  }
   if (["cancelled_by_client", "cancelled_by_business", "declined", "expired", "failed"].includes(appointment.status)) {
     return NextResponse.json({ ok: false, code: appointment.status === "expired" ? "HOLD_EXPIRED" : "NOT_PAYABLE", message: appointment.status === "expired" ? HOLD_EXPIRED_MESSAGE : "This appointment is not eligible for payment." }, { status: 409 });
   }

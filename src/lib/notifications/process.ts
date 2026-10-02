@@ -1,6 +1,8 @@
 import "server-only";
 import type { createUntypedAdminSupabase } from "@/lib/auth/server";
+import { reminderDecision } from "@/lib/appointments/reminder-policy";
 import { canDeliver } from "@/lib/automation/engine";
+import { absoluteUrl, businessConfig } from "@/lib/config/business";
 import { getEmailProvider, getSmsProvider } from "@/lib/notifications/providers";
 
 type AdminClient = NonNullable<ReturnType<typeof createUntypedAdminSupabase>>;
@@ -51,6 +53,7 @@ export async function processNotificationJobs(admin: AdminClient, options: Proce
       body: typeof payload.body === "string" ? payload.body : "",
       transactional: payload.transactional !== false,
     };
+    let publishedTemplate = false;
     if (job.template_key && job.business_id) {
       const { data: record } = await admin
         .from("message_templates")
@@ -61,7 +64,40 @@ export async function processNotificationJobs(admin: AdminClient, options: Proce
         .eq("locale", job.locale)
         .eq("status", "published")
         .maybeSingle();
-      if (record) template = record;
+      if (record) {
+        template = record;
+        publishedTemplate = true;
+      }
+    }
+
+    // A 24-hour reminder was written when the booking was confirmed. The
+    // appointment may have been moved or cancelled since, so decide again
+    // from the appointment as it is now and say the time it has now.
+    if (job.template_key === "booking_reminder_24h" && typeof payload.appointmentId === "string") {
+      const { data: appointment } = await admin
+        .from("appointments")
+        .select("status,starts_at,timezone,public_reference,service_name_snapshot,barber_name_snapshot")
+        .eq("id", payload.appointmentId)
+        .maybeSingle();
+      const decision = reminderDecision(appointment ? { status: String(appointment.status), starts_at: String(appointment.starts_at) } : null, Date.now());
+      if (decision.action === "cancel") {
+        await admin.from("notification_jobs").update({ status: "cancelled", last_error: decision.reason }).eq("id", job.id);
+        suppressed += 1;
+        continue;
+      }
+      if (decision.action === "defer") {
+        await admin.from("notification_jobs").update({ status: "queued", scheduled_for: decision.scheduledFor, attempt_count: Number(job.attempt_count ?? 0), last_error: null }).eq("id", job.id);
+        continue;
+      }
+      // A template the lounge published in the database keeps its own wording.
+      if (appointment && !publishedTemplate) {
+        const when = new Intl.DateTimeFormat("en-US", { timeZone: String(appointment.timezone || businessConfig.timezone), weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(String(appointment.starts_at)));
+        template = {
+          ...template,
+          subject: `Reminder: ${appointment.service_name_snapshot} at Luxury Barber Lounge`,
+          body: `Your appointment ${appointment.public_reference} is scheduled for ${when} with ${appointment.barber_name_snapshot}. Please arrive a few minutes early. Call ${businessConfig.phone} if you need help. Manage: ${absoluteUrl("/client/appointments")}`,
+        };
+      }
     }
 
     let preferences = { email: true, sms: payload.smsConsent === true };

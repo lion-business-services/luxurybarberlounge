@@ -383,3 +383,32 @@ test("a staff calendar lists every appointment that holds a barber's time, whate
   // The database filter is the same rule.
   assert.equal(rules.STAFF_SCHEDULE_FILTER, "deposit_status.eq.paid,status.in.(confirmed,checked_in,assigned,in_service,completed)");
 });
+
+test("a 24-hour reminder is decided again from the appointment as it is when it is due", async () => {
+  const { reminderDecision, reminderTimeFor, reminderKey } = await import("../../src/lib/appointments/reminder-policy.ts");
+  const now = Date.parse("2026-10-05T14:00:00Z");
+  const inHours = (hours: number) => new Date(now + hours * 3_600_000).toISOString();
+  // Still confirmed and due tomorrow: send.
+  assert.deepEqual(reminderDecision({ status: "confirmed", starts_at: inHours(24) }, now), { action: "send" });
+  assert.deepEqual(reminderDecision({ status: "confirmed", starts_at: inHours(25.5) }, now), { action: "send" });
+  // Cancelled, no-show, released or deleted since it was queued: never send.
+  for (const status of ["cancelled_by_client", "cancelled_by_business", "no_show", "expired", "completed", "pending_confirmation"]) {
+    assert.equal(reminderDecision({ status, starts_at: inHours(24) }, now).action, "cancel", status);
+  }
+  assert.equal(reminderDecision(null, now).action, "cancel");
+  // Already started: never send.
+  assert.equal(reminderDecision({ status: "confirmed", starts_at: inHours(-1) }, now).action, "cancel");
+  // Moved to a later day: wait, and remind 24 hours before the new time.
+  assert.deepEqual(reminderDecision({ status: "confirmed", starts_at: inHours(72) }, now), { action: "defer", scheduledFor: inHours(48) });
+  // When an appointment moves, its reminder moves with it, unless the new time is under a day away.
+  assert.equal(reminderTimeFor(inHours(72), now), inHours(48));
+  assert.equal(reminderTimeFor(inHours(10), now), null);
+  assert.equal(reminderKey("abc"), "booking-reminder-24h:abc");
+});
+
+test("client and barber portal lists use the engine's statuses", async () => {
+  const rules = await import("../../src/lib/booking/rules.ts");
+  // Upcoming for a client: only bookings that still hold or reserve a time.
+  for (const status of rules.BLOCKING_STATUSES) assert.equal(rules.isOpenAppointmentStatus(status), true, status);
+  for (const status of [...rules.NON_BLOCKING_STATUSES, rules.COMPLETED_STATUS]) assert.equal(rules.isOpenAppointmentStatus(status), false, status);
+});

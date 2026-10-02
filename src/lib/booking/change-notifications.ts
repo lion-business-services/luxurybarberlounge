@@ -2,6 +2,7 @@ import "server-only";
 
 import type { createUntypedAdminSupabase } from "@/lib/auth/server";
 import { absoluteUrl, businessConfig } from "@/lib/config/business";
+import { reminderKey, reminderTimeFor } from "@/lib/appointments/reminder-policy";
 import { processNotificationJobs } from "@/lib/notifications/process";
 
 type AdminClient = NonNullable<ReturnType<typeof createUntypedAdminSupabase>>;
@@ -191,6 +192,22 @@ export async function queueAppointmentChangeNotifications(
       scheduled_for: new Date().toISOString(),
       status: "queued",
     });
+  }
+
+  // The 24-hour reminder follows the appointment to its new time, including
+  // when a reminder for the old time has already gone out. When the new time
+  // is less than a day away, this notice is the reminder and nothing is reset.
+  if (event === "rescheduled" || event === "time_changed") {
+    const due = reminderTimeFor(appointment.starts_at, Date.now());
+    if (due) {
+      const reset = await admin
+        .from("notification_jobs")
+        .update({ status: "queued", scheduled_for: due, attempt_count: 0, last_error: null })
+        .eq("channel", "email")
+        .eq("idempotency_key", reminderKey(appointment.id))
+        .neq("status", "processing");
+      if (reset.error) console.error("appointment-reminder-reset", { appointmentId: appointment.id, code: reset.error.code });
+    }
   }
 
   const queued = await admin.from("notification_jobs").upsert(jobs, { onConflict: "channel,idempotency_key", ignoreDuplicates: true });
