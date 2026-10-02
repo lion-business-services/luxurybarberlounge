@@ -179,6 +179,39 @@ test("a signed-in person can book for contact details that are not on file yet",
   assert.ok(retry > 0 && retry < failure, "the unlinked retry must run before the booking is refused");
 });
 
+test("booking checkouts cannot be closed below the full service payment without anyone being told", async () => {
+  const paymentLink = await source("src/app/api/booking/payment-link/route.ts");
+  const balance = await source("src/app/api/booking/balance/[reference]/route.ts");
+  const webhook = await source("src/lib/integrations/processSquareWebhook.ts");
+  const page = await source("src/app/booking/confirmation/[reference]/page.tsx");
+  // Square coupon codes and loyalty rewards are not offered on booking checkouts.
+  for (const route of [paymentLink, balance]) {
+    assert.match(route, /enable_coupon: false/);
+    assert.match(route, /enable_loyalty: false/);
+  }
+  // A checkout that Square closed for less is reported to staff and never confirmed.
+  assert.match(webhook, /CHECKOUT_BELOW_REQUIRED_PAYMENT/);
+  assert.match(webhook, /SQUARE_PAYMENT_NOT_VERIFIED/);
+  assert.match(webhook, /checkoutLink\.purpose === "deposit" && !belowRequired/);
+  // The client is told why instead of waiting for a payment that will not arrive.
+  assert.match(page, /closedBelowRequired/);
+});
+
+test("the staff calendar lets an appointment be dragged to another day", async () => {
+  const board = await source("src/components/schedule/ScheduleBoard.tsx");
+  const workspace = await source("src/components/admin/AdminAppointmentsWorkspace.tsx");
+  // Choosing a barber shows that barber's days side by side.
+  assert.match(workspace, /setView\(barberId \? "week" : "day"\)/);
+  assert.match(workspace, /onPage=\{/);
+  // The drag survives a change of days, scrolls the page, and pages at the edges.
+  assert.match(board, /window\.addEventListener\("pointermove"/);
+  assert.match(board, /verticalScroller/);
+  assert.match(board, /EDGE_DWELL_MS/);
+  assert.match(board, /EDGE_ARM_PX/);
+  // The card still moves only after the parent commits the drop.
+  assert.doesNotMatch(board, /fetch\(/);
+});
+
 test("queue display is privacy-safe and appointments synchronize with queue operations", async () => {
   const display = await source("src/app/api/queue/display/route.ts");
   const queue = await source("src/app/api/operations/queue/route.ts");

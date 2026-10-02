@@ -34,6 +34,8 @@ A client who pays after the 15-minute hold has lapsed is handled by `confirm_pai
 - if another client now holds that time, nothing is double-booked. The booking is kept as `expired` with `deposit_status = paid`, the case is recorded in `sync_failures` with code `PAID_AFTER_HOLD_EXPIRED`, and the lounge is emailed. In the Admin Portal the booking appears on its date under "Not on the calendar" marked "Paid, needs a new time", where staff move it to an open time (which confirms it) or refund it in Square. The confirmation page tells the client the payment was received and that the lounge will contact them.
 - if the confirmation step itself fails, the case is recorded with code `PAID_CONFIRMATION_FAILED` and the lounge is emailed. The checkout stays on the calendar as "Payment received", and staff confirm it from there.
 
+- if Square closes the checkout for less than the required service payment (a Square coupon code, a loyalty reward, a cash tender), the booking is not confirmed. This is the full prepayment rule from `202609102150_guard_appointment_link_verified_square_payment.sql`, and it is unchanged. The case is recorded with code `CHECKOUT_BELOW_REQUIRED_PAYMENT`, the lounge is emailed, and the confirmation page tells the client why the appointment is not confirmed. Booking checkouts are created with `enable_coupon: false` and `enable_loyalty: false`, which hides those boxes even though the Square location setting allows coupons, so this case should not arise for new checkouts.
+
 The matching Square payment link is deleted when a hold expires, which makes these cases rare. A checkout that receives any verified payment while its hold is still open stops counting down and keeps its time.
 
 ## Data safety

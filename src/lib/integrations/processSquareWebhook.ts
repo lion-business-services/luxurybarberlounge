@@ -431,9 +431,27 @@ async function syncPayment(
       .eq("square_order_id", orderId)
       .maybeSingle();
     if (checkoutLink?.id && paymentStatus === "COMPLETED") {
-      await admin.from("appointment_payment_links").update({ status: "paid", paid_at: text(payment.updated_at) ?? text(payment.created_at) ?? new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", checkoutLink.id);
+      const linkPaid = await admin.from("appointment_payment_links").update({ status: "paid", paid_at: text(payment.updated_at) ?? text(payment.created_at) ?? new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", checkoutLink.id);
+      // The database refuses to mark a link paid unless a verified card payment
+      // covers the amount it was issued for. Square can still close a checkout
+      // for less (a discount code, a cash tender). That booking stays
+      // unconfirmed, and it must reach a person instead of ending in silence.
+      const belowRequired = Boolean(linkPaid.error && String(linkPaid.error.message ?? "").includes("SQUARE_PAYMENT_NOT_VERIFIED"));
+      if (belowRequired && checkoutLink.purpose === "deposit") {
+        await recordPaidButUnconfirmedBooking(admin, {
+          businessId: business,
+          appointmentId: String(checkoutLink.appointment_id),
+          squareOrderId: orderId,
+          squarePaymentId: id,
+          kind: "below_required",
+          dbCode: linkPaid.error?.code ?? null,
+          dbMessage: "SQUARE_PAYMENT_NOT_VERIFIED",
+          // A cash tender on an online checkout is not a card payment.
+          collectedCents: (text(payment.source_type) ?? "").toUpperCase() === "CASH" ? 0 : money(payment.amount_money),
+        });
+      }
       // Membership first-month payments have no appointment link; handled below.
-      if (checkoutLink.purpose === "deposit") {
+      if (checkoutLink.purpose === "deposit" && !belowRequired) {
         await admin.from("appointments").update({ deposit_status: "paid" }).eq("id", checkoutLink.appointment_id).neq("deposit_status", "refunded");
         // Deposit settled -> promote the held booking to confirmed through
         // the atomic RPC. It takes the barber-calendar lock, never resurrects
@@ -527,23 +545,31 @@ async function syncPayment(
 }
 
 /**
- * A verified payment arrived for a booking that could not be confirmed.
+ * A Square checkout was completed for a booking that could not be confirmed.
  * "time_taken": the checkout hold had lapsed and the time is no longer free;
  * the booking is kept as paid for staff to place at a new time.
  * "confirmation_failed": the confirmation step itself failed.
+ * "below_required": Square closed the checkout for less than the required
+ * service payment (a discount code, a cash tender), so nothing was confirmed.
  * Records an open failure for the Sync Health screen, alerts the lounge by
  * email, and logs it. Each step is idempotent so webhook retries are safe.
  */
 async function recordPaidButUnconfirmedBooking(
   admin: NonNullable<ReturnType<typeof createUntypedAdminSupabase>>,
-  input: { businessId: string; appointmentId: string; squareOrderId: string; squarePaymentId: string; kind: "time_taken" | "confirmation_failed"; dbCode: string | null; dbMessage: string | null },
+  input: { businessId: string; appointmentId: string; squareOrderId: string; squarePaymentId: string; kind: "time_taken" | "confirmation_failed" | "below_required"; dbCode: string | null; dbMessage: string | null; collectedCents?: number },
 ) {
   const timeTaken = input.kind === "time_taken";
-  const errorCode = timeTaken ? "PAID_AFTER_HOLD_EXPIRED" : "PAID_CONFIRMATION_FAILED";
-  const instruction = timeTaken
+  const belowRequired = input.kind === "below_required";
+  const errorCode = belowRequired ? "CHECKOUT_BELOW_REQUIRED_PAYMENT" : timeTaken ? "PAID_AFTER_HOLD_EXPIRED" : "PAID_CONFIRMATION_FAILED";
+  const collected = `$${((input.collectedCents ?? 0) / 100).toFixed(2)}`;
+  const instruction = belowRequired
+    ? "The booking is not confirmed and its time is released when the checkout hold ends. If money was collected, refund it in Square or contact the client to pay the difference. If the client should keep the appointment, book it for them from the Admin Portal."
+    : timeTaken
     ? "In the Admin Portal, open the Appointments Calendar on the appointment's date, find it under \"Not on the calendar\" marked \"Paid, needs a new time\", and move it to an open time. Or refund the payment in Square."
     : "In the Admin Portal, open the Appointments Calendar on the appointment's date, select the block marked \"Payment received\" and confirm it. If it cannot be confirmed, contact the client or refund the payment in Square.";
-  const summary = timeTaken
+  const summary = belowRequired
+    ? `Square closed a website checkout with ${collected} collected by card, which is less than the required service payment (for example a discount code was used).`
+    : timeTaken
     ? "A client paid after their checkout hold had ended and the time is no longer free."
     : "A client's payment was received but the booking could not be confirmed automatically.";
   const { data: appointment } = await admin
@@ -605,7 +631,9 @@ async function recordPaidButUnconfirmedBooking(
       locale: "en",
       recipient: businessConfig.bookingEmail,
       payload: {
-        subject: `Action needed: paid booking ${appointment?.public_reference ?? ""} could not be confirmed`,
+        subject: belowRequired
+          ? `Action needed: checkout for ${appointment?.public_reference ?? "a booking"} did not cover the service payment`
+          : `Action needed: paid booking ${appointment?.public_reference ?? ""} could not be confirmed`,
         body: `${summary} Booking: ${appointment?.service_name_snapshot ?? "a service"} with ${appointment?.barber_name_snapshot ?? "a barber"} on ${when}. Reference ${appointment?.public_reference ?? "unknown"}. ${instruction}`,
         transactional: true,
         appointmentId: input.appointmentId,

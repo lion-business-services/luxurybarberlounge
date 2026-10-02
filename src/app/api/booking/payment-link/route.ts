@@ -240,6 +240,11 @@ export async function POST(request: NextRequest) {
         },
         checkout_options: {
           allow_tipping: false,
+          // The lounge requires the full service payment by card. Square coupon
+          // codes and loyalty rewards would close the checkout for less, so the
+          // boxes for them are not shown.
+          enable_coupon: false,
+          enable_loyalty: false,
           redirect_url: redirectUrl,
           ask_for_shipping_address: false,
         },

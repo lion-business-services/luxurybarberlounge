@@ -107,6 +107,11 @@ export async function GET(
         },
         checkout_options: {
           allow_tipping: true,
+          // The lounge requires the full service payment by card. Square coupon
+          // codes and loyalty rewards would close the checkout for less, so the
+          // boxes for them are not shown.
+          enable_coupon: false,
+          enable_loyalty: false,
           redirect_url: `${site}/booking/balance-paid?ref=${encodeURIComponent(String(appointment.public_reference))}`,
           ask_for_shipping_address: false,
         },
