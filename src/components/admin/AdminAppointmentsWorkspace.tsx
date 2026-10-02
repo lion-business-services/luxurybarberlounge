@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { ScheduleBoard, ScheduleLegend, type BoardAppointment, type BoardColumn, type BoardDrop } from "@/components/schedule/ScheduleBoard";
 import type { CalendarFacts } from "@/lib/booking/calendar-model";
-import { FINISHABLE_STATUSES, PAID_UNPLACED_STATUS, RESCHEDULABLE_STATUSES, isReschedulable } from "@/lib/booking/rules";
+import { FINISHABLE_STATUSES, PAID_UNPLACED_STATUS, RESCHEDULABLE_STATUSES, TIMELINE_STATUSES as TIMELINE_STATUS_LIST, isReschedulable } from "@/lib/booking/rules";
 import { rejectionMessage, type ScheduleRow } from "@/lib/booking/slots";
 import { getBrowserSupabase } from "@/lib/supabase/client";
 
@@ -31,7 +31,7 @@ const SHOP_TIME_ZONE = "America/New_York";
 const FALLBACK_REFRESH_MS = 20_000;
 const REALTIME_DEBOUNCE_MS = 400;
 /** Statuses that sit on the timeline. Everything else is listed below it. */
-const TIMELINE_STATUSES = new Set(["confirmed", "checked_in", "assigned", "in_service", "completed"]);
+const TIMELINE_STATUSES = new Set<string>(TIMELINE_STATUS_LIST);
 
 type PaymentDetail = {
   status: string;
@@ -666,7 +666,9 @@ function AppointmentInspector({ appointment, barbers, busy, bufferMinutes, onClo
             <p className="text-[9px] uppercase tracking-[.18em] text-[var(--color-brass)]">Appointment details · {appointment.public_reference}</p>
             <h2 className="font-display mt-2 text-3xl sm:text-4xl">{appointment.client_name_snapshot}</h2>
             <div className="mt-3 flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/25 px-3 py-1.5 text-[9px] uppercase tracking-[.12em] text-emerald-300"><BadgeCheck className="h-3.5 w-3.5" />{paidInFull ? "Paid in full" : pretty(appointment.deposit_status)}</span>
+              {paidInFull
+                ? <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/25 px-3 py-1.5 text-[9px] uppercase tracking-[.12em] text-emerald-300"><BadgeCheck className="h-3.5 w-3.5" />Paid in full</span>
+                : <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 px-3 py-1.5 text-[9px] uppercase tracking-[.12em] text-amber-200">{appointment.deposit_status === "not_required" ? "No payment recorded" : `Payment ${pretty(appointment.deposit_status).toLowerCase()}`}</span>}
               <span className="rounded-full border border-[var(--color-brass)]/25 px-3 py-1.5 text-[9px] uppercase tracking-[.12em] text-[var(--color-brass)]">{clientTypeLabel(client.type)}</span>
               <span className="rounded-full border border-white/10 px-3 py-1.5 text-[9px] uppercase tracking-[.12em] text-[var(--color-bone-muted)]">{appointment.status === PAID_UNPLACED_STATUS ? "Paid, needs a new time" : pretty(appointment.status)}</span>
             </div>
@@ -700,7 +702,7 @@ function AppointmentInspector({ appointment, barbers, busy, bufferMinutes, onClo
 
         <section className="rounded-2xl border border-emerald-400/15 bg-emerald-400/[.025] p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="text-[9px] uppercase tracking-[.16em] text-emerald-300">Payment record</p><h3 className="font-display mt-2 text-2xl">Paid appointment</h3></div>
+            <div><p className="text-[9px] uppercase tracking-[.16em] text-emerald-300">Payment record</p><h3 className="font-display mt-2 text-2xl">{paidInFull ? "Paid appointment" : "No payment recorded for this appointment"}</h3></div>
             {payment.receiptUrl ? <a href={payment.receiptUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-emerald-400/25 px-4 text-[9px] uppercase tracking-[.12em] text-emerald-300"><ExternalLink className="h-3.5 w-3.5" />Open Square receipt</a> : null}
           </div>
           <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
