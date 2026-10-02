@@ -29,4 +29,13 @@ run -d "$database" -f "$here/02_scenarios.sql" 2>&1 >/dev/null | sed -n 's/.*NOT
 run -d "$database" -c "select 1" >/dev/null
 
 "$here/03_concurrency.sh" "$database"
+
+# Running the migration again on a database in use must change nothing:
+# early finishes stay released, live holds stay live, nothing new expires.
+fingerprint() { run -d "$database" -c "select md5(string_agg(id::text || status || coalesce(hold_expires_at::text, '-') || occupied_until::text || coalesce(buffer_minutes_override::text, '-'), ',' order by id)) from public.appointments where not (status in ('slot_held', 'pending_confirmation') and deposit_status <> 'paid' and hold_expires_at <= now() + interval '1 minute')"; }
+before="$(fingerprint)"
+run -d "$database" -f "$migration" >/dev/null 2>&1
+after="$(fingerprint)"
+[ "$before" = "$after" ] || { echo "FAILED: re-running the migration changed stored appointments"; exit 1; }
+echo "ok - re-running the migration on a database in use changes no stored occupancy"
 echo "scheduling database suite passed"

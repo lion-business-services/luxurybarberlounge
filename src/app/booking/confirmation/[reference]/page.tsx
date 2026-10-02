@@ -44,6 +44,9 @@ export default async function BookingConfirmationPage({ params, searchParams }: 
   const paidPrincipalCents = (paidLinks ?? []).reduce((sum, link) => sum + Math.max(0, Number(link.amount_cents ?? 0)), 0);
   const remainingCents = Math.max(0, requiredPaymentCents - paidPrincipalCents);
   const released = ["expired", "declined", "failed"].includes(appointment.status);
+  // Money was received for a reservation that no longer holds its time. The
+  // client must never be told they were not charged.
+  const paidButReleased = released && (paidPrincipalCents > 0 || appointment.deposit_status === "paid");
   const cancelled = ["cancelled_by_client", "cancelled_by_business"].includes(appointment.status);
   const noShow = appointment.status === "no_show";
   const completed = appointment.status === "completed";
@@ -64,7 +67,9 @@ export default async function BookingConfirmationPage({ params, searchParams }: 
   const items = (itemRows ?? []) as Array<{ sequence: number; label: string; service_name_snapshot: string; duration_snapshot_minutes: number; price_snapshot_cents: number }>;
   const totalMinutes = Math.round((new Date(appointment.ends_at).getTime() - new Date(appointment.starts_at).getTime()) / 60_000);
 
-  const eyebrow = released
+  const eyebrow = paidButReleased
+    ? "Payment received · action needed"
+    : released
     ? "Reservation released"
     : cancelled
       ? "Appointment cancelled"
@@ -75,7 +80,9 @@ export default async function BookingConfirmationPage({ params, searchParams }: 
           : awaitingDeposit
             ? "Payment required · not yet confirmed"
             : "Appointment confirmed";
-  const heading = released
+  const heading = paidButReleased
+    ? "We received your payment."
+    : released
     ? "This time is no longer held."
     : cancelled
       ? "This appointment was cancelled."
@@ -95,8 +102,16 @@ export default async function BookingConfirmationPage({ params, searchParams }: 
         <p className={`mt-6 text-[10px] tracking-[.3em] uppercase ${tone}`}>{eyebrow}</p>
         <h1 className="font-display mt-3 text-4xl sm:text-6xl">{heading}</h1>
 
-        {released ? (
-          <p className="mt-5 text-sm leading-7 text-[var(--color-bone-muted)]">Payment was not completed within {CHECKOUT_HOLD_MINUTES} minutes, so the time was released for other clients. You have not been charged for this reservation. Choose a new time to book again.</p>
+        {paidButReleased ? (
+          <>
+            <p className="mt-5 text-sm leading-7 text-[var(--color-bone-muted)]">Your payment arrived after the {CHECKOUT_HOLD_MINUTES}-minute hold on this time had ended, and the time is no longer available. Your payment is safe. The lounge has been notified and will contact you to set a new time or refund you. You can also call {businessConfig.phone}.</p>
+            <DepositStatusWatcher awaitingDeposit />
+          </>
+        ) : released ? (
+          <>
+            <p className="mt-5 text-sm leading-7 text-[var(--color-bone-muted)]">Payment was not completed within {CHECKOUT_HOLD_MINUTES} minutes, so the time was released for other clients. If you did not finish paying, you have not been charged. Choose a new time to book again.</p>
+            <DepositStatusWatcher awaitingDeposit />
+          </>
         ) : cancelled || noShow ? (
           <p className="mt-5 text-sm leading-7 text-[var(--color-bone-muted)]">This appointment is no longer on the schedule. Call {businessConfig.phone} with any question, or book a new time.</p>
         ) : awaitingDeposit ? (
@@ -152,7 +167,7 @@ export default async function BookingConfirmationPage({ params, searchParams }: 
         {closed || completed ? null : <GuestAppointmentActions reference={reference} token={token} startsAt={appointment.starts_at} status={appointment.status} timeZone={appointment.timezone || businessConfig.timezone} />}
 
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link href="/book" className="inline-flex min-h-12 items-center justify-center rounded-full bg-[var(--color-brass)] px-6 text-[10px] tracking-[.16em] uppercase text-black">{closed ? "Choose a new time" : "Book another appointment"}</Link>
+          <Link href="/book" className="inline-flex min-h-12 items-center justify-center rounded-full bg-[var(--color-brass)] px-6 text-[10px] tracking-[.16em] uppercase text-black">{paidButReleased ? "Book another appointment" : closed ? "Choose a new time" : "Book another appointment"}</Link>
           <Link href="/login?next=/client/appointments" className="inline-flex min-h-12 items-center justify-center rounded-full border border-[var(--color-ink-line)] px-6 text-[10px] tracking-[.16em] uppercase text-[var(--color-bone)]">Access your client portal</Link>
         </div>
       </section>

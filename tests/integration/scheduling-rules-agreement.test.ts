@@ -14,6 +14,7 @@ import {
   HOLD_STATUSES,
   MAX_FAMILY_CHILDREN,
   MINIMUM_LEAD_MINUTES,
+  PAID_UNPLACED_STATUS,
   RESCHEDULABLE_STATUSES,
   SCHEDULING_SOURCE_OF_TRUTH,
   SLOT_GRID_MINUTES,
@@ -84,11 +85,24 @@ test("application and database scheduling rules agree", async () => {
   assert.match(guard, /pg_advisory_xact_lock\(public\.barber_calendar_lock_key\(/);
 
   // Moving and finishing accept the same statuses.
-  assert.match(functionBody(sql, "reschedule_appointment_atomic"), new RegExp(`status not in \\(${escape(sqlList(RESCHEDULABLE_STATUSES))}\\)`));
+  const move = functionBody(sql, "reschedule_appointment_atomic");
+  assert.match(move, new RegExp(`current_row\\.status in \\(${escape(sqlList(RESCHEDULABLE_STATUSES))}\\)`));
+  // A paid booking that lost its time can be placed by staff, in both layers.
+  assert.match(move, new RegExp(`current_row\\.status = '${PAID_UNPLACED_STATUS}' and current_row\\.deposit_status = 'paid'`));
+  assert.match(move, /APPOINTMENT_CHANGED/);
   const finish = functionBody(sql, "complete_appointment_atomic");
   assert.match(finish, new RegExp(`status not in \\(${escape(sqlList(FINISHABLE_STATUSES))}\\)`));
   assert.match(finish, new RegExp(`interval '${EARLY_FINISH_GUARD_MINUTES} minutes'`));
   assert.match(finish, /if current_row\.status = 'completed' then return current_row; end if;/);
+
+  // A late payment never double-books: the database reports a conflict and
+  // keeps the booking as paid for staff, and the webhook alerts them.
+  const confirm = functionBody(sql, "confirm_paid_appointment");
+  assert.match(confirm, /'conflict', true/);
+  assert.match(confirm, new RegExp(`set status = '${PAID_UNPLACED_STATUS}'`));
+
+  // Holds that carry a verified payment are never released by the guard.
+  assert.match(guard, /not exists \(select 1 from public\.appointment_payment_links l where l\.appointment_id = a\.id and l\.status = 'paid'\)/);
 
   // Family 1 to 5.
   assert.match(functionBody(sql, "create_appointment_atomic"), new RegExp(`v_children < 1 or v_children > ${MAX_FAMILY_CHILDREN}`));
@@ -160,4 +174,9 @@ test("unpaid checkout holds are released on a schedule and never notify twice", 
   const webhook = await readFile("src/lib/integrations/processSquareWebhook.ts", "utf8");
   assert.match(webhook, /confirm_paid_appointment/);
   assert.match(webhook, /PAID_AFTER_HOLD_EXPIRED/);
+  assert.match(webhook, /confirmationResult\?\.conflict === true/);
+
+  // The confirmation page never tells a paying client they were not charged.
+  const confirmation = await readFile("src/app/booking/confirmation/[reference]/page.tsx", "utf8");
+  assert.match(confirmation, /paidButReleased/);
 });

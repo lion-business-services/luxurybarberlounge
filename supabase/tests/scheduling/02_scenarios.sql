@@ -94,7 +94,11 @@ select t.ok((select status from public.appointments where public_reference = 'LE
 select t.ok((select hold_expires_at > now() from public.appointments where public_reference = 'LEGACY-LIVE-HOLD'), 'live hold has a future expiry');
 select t.ok((select status = 'confirmed' and occupied_until = ends_at + interval '5 minutes' from public.appointments where public_reference = 'LEGACY-CONFIRMED'), 'paid appointment untouched; occupancy = end + 5 min');
 select t.ok((select status = 'completed' and completed_at is null and occupied_until = ends_at + interval '5 minutes' from public.appointments where public_reference = 'LEGACY-COMPLETED'), 'historical completion keeps its scheduled end; no completion time is invented');
-select t.ok((select count(*) from public.appointments) = 6, 'no appointment row was deleted');
+select t.ok((select count(*) from public.appointments) = 8, 'no appointment row was deleted');
+select t.ok((select hold_expires_at is null from public.appointments where public_reference = 'LEGACY-PAID-LINK'), 'a hold that carries a verified payment no longer counts down');
+select t.ok((select status = 'confirmed' and buffer_minutes_override = 0 and occupied_until = ends_at from public.appointments where public_reference = 'LEGACY-ADJ-1'), 'a legacy back-to-back appointment keeps its place with its real gap recorded');
+select t.ok((select status = 'confirmed' and buffer_minutes_override is null and occupied_until = ends_at + interval '5 minutes' from public.appointments where public_reference = 'LEGACY-ADJ-2'), 'its neighbour has the normal 5-minute occupancy');
+select t.ok((select count(*) from public.appointments where buffer_minutes_override is not null) = 1, 'no other appointment is grandfathered');
 select t.ok(exists (select 1 from pg_constraint where conname = 'appointments_no_buffered_overlap'), 'buffered exclusion constraint exists');
 select t.ok(not exists (select 1 from pg_constraint where conname = 'appointments_no_active_overlap'), 'unbuffered constraint replaced');
 select t.ok((select count(*) from public.family_booking_tiers where active) = 5, 'Family 1-5 tiers exist');
@@ -199,8 +203,15 @@ begin
   insert into public.square_payments (business_id, square_id, square_order_id, status, amount_cents, raw) values (a.business_id, 'late-' || a.id, 'late-order-' || a.id, 'COMPLETED', 5000, '{"source_type":"CARD"}');
   insert into public.appointment_payment_links (business_id, appointment_id, purpose, amount_cents, square_payment_link_id, square_order_id, checkout_url, status) values (a.business_id, a.id, 'deposit', 5000, 'late-pl-' || a.id, 'late-order-' || a.id, 'https://example.test', 'paid');
   update public.appointments set deposit_status = 'paid' where id = a.id;
-  perform t.fails(format('select public.confirm_paid_appointment(%L)', a.id), 'SLOT_CONFLICT', 'a late payment cannot double-book a slot that was re-sold');
-  perform t.ok((select status from public.appointments where id = a.id) = 'expired', 'the late-paid appointment stays expired for staff reconciliation');
+  perform t.ok((public.confirm_paid_appointment(a.id)->>'conflict')::boolean = true, 'a late payment for a re-sold slot reports conflict instead of double-booking');
+  perform t.ok((select status = 'expired' and deposit_status = 'paid' from public.appointments where id = a.id), 'the late-paid appointment is kept as expired and paid for staff');
+  perform t.ok((select status from public.appointments where id = b.id) = 'pending_confirmation', 'the client who now holds the slot is untouched');
+  perform t.ok((public.confirm_paid_appointment(a.id)->>'conflict')::boolean = true and (select count(*) from public.appointment_status_history where appointment_id = a.id and to_status = 'expired') = 1, 'a repeated webhook reports the same conflict without new history');
+  perform t.fails(format('update public.appointments set status = %L where id = %L', 'confirmed', a.id), 'SLOT_CONFLICT|INVALID_APPOINTMENT_STATUS_TRANSITION', 'a direct status flip cannot bypass the guard');
+  -- staff place the paid booking at a free time
+  perform t.fails(format('select public.reschedule_appointment_atomic(%L, %L, null, null, %L, %L)', a.id, t.ts(2, '09:30'), 'owner', 'place paid booking'), 'SLOT_CONFLICT', 'staff cannot place it on top of the other client either');
+  a := public.reschedule_appointment_atomic(a.id, t.ts(36, '10:00'), null, null, 'owner', 'place paid booking');
+  perform t.ok(a.status = 'confirmed' and a.starts_at = t.ts(36, '10:00') and a.ends_at = t.ts(36, '11:00'), 'staff can move a paid, expired booking to an open time, which confirms it');
 
   -- normal payment promotes the hold and it then never expires
   b := t.pay(b.id);
@@ -219,7 +230,6 @@ begin
   perform t.ok(exists (select 1 from public.appointment_status_history where appointment_id = c.id and from_status = 'expired' and to_status = 'confirmed'), 'restoration is recorded in history');
 
   perform t.ok((select count(*) from public.expire_unpaid_appointment_holds(50)) = 0, 'the expiry job is idempotent');
-  perform t.fails(format('update public.appointments set status = %L where id = %L', 'confirmed', a.id), 'SLOT_CONFLICT|INVALID_APPOINTMENT_STATUS_TRANSITION', 'a direct status flip cannot bypass the guard');
 end;
 $$;
 
@@ -475,6 +485,97 @@ begin
   alter table public.appointments disable trigger trg_enforce_appointment_barber_availability;
   perform t.fails($q$select t.book('00000000-0000-0000-0000-000000000c02', '00000000-0000-0000-0000-000000000504', t.ts(23, '09:27'), 25, 1500)$q$, 'SLOT_CONFLICT', 'constraint alone rejects a start inside the buffer');
   alter table public.appointments enable trigger trg_enforce_appointment_barber_availability;
+end;
+$$;
+
+\echo '--- S14 appointments that were back to back before the 5-minute rule'
+do $$
+declare
+  v_hommy uuid := '00000000-0000-0000-0000-000000000c02';
+  v_beard uuid := '00000000-0000-0000-0000-000000000504';
+  adj1 public.appointments; adj2 public.appointments; moved public.appointments;
+begin
+  select * into adj1 from public.appointments where public_reference = 'LEGACY-ADJ-1';
+  select * into adj2 from public.appointments where public_reference = 'LEGACY-ADJ-2';
+
+  -- later writes to the grandfathered pair keep working and keep their stored gap
+  update public.appointments set client_name_snapshot = client_name_snapshot where id = adj1.id;
+  perform t.ok((select status = 'confirmed' and occupied_until = ends_at and buffer_minutes_override = 0 from public.appointments where id = adj1.id), 'a later write to a grandfathered appointment does not push it into its neighbour');
+  update public.appointments set status = 'checked_in' where id = adj2.id;
+  perform t.ok((select status from public.appointments where id = adj2.id) = 'checked_in', 'its neighbour can be checked in');
+
+  -- new bookings around them always keep the full gap
+  perform t.fails(format('select t.book(%L, %L, %L, 25, 1500)', v_hommy, v_beard, timestamptz '2027-01-06 12:00 America/New_York'), 'SLOT_CONFLICT', 'a new booking directly after the pair is refused');
+  perform t.ok((t.book(v_hommy, v_beard, timestamptz '2027-01-06 12:05 America/New_York', 25, 1500)).id is not null, 'a new booking five minutes after the pair is accepted');
+
+  -- when the neighbour goes away, the freed time still needs the full gap after the grandfathered appointment
+  update public.appointments set status = 'cancelled_by_business' where id = adj2.id;
+  perform t.fails(format('select t.book(%L, %L, %L, 25, 1500)', v_hommy, v_beard, timestamptz '2027-01-06 11:00 America/New_York'), 'SLOT_CONFLICT', 'a new booking cannot reuse the grandfathered zero gap');
+  perform t.ok((t.book(v_hommy, v_beard, timestamptz '2027-01-06 11:05 America/New_York', 25, 1500)).id is not null, 'the freed time is bookable from five minutes after the grandfathered appointment');
+
+  -- moving the grandfathered appointment returns it to the normal rule
+  moved := public.reschedule_appointment_atomic(adj1.id, timestamptz '2027-01-06 14:00 America/New_York', null, null, 'owner', 'move');
+  perform t.ok(moved.buffer_minutes_override is null and moved.occupied_until = moved.ends_at + interval '5 minutes', 'moving a grandfathered appointment clears its exception');
+end;
+$$;
+
+\echo '--- S15 paid holds, barber changes and finishing before the start'
+do $$
+declare
+  v_ruben uuid := '00000000-0000-0000-0000-000000000c01';
+  v_hommy uuid := '00000000-0000-0000-0000-000000000c02';
+  v_haircut uuid := '00000000-0000-0000-0000-000000000501';
+  v_loc uuid := '00000000-0000-0000-0000-0000000000a2';
+  v_clock uuid := '00000000-0000-0000-0000-000000000c09';
+  a public.appointments; b public.appointments; soon public.appointments; done public.appointments;
+  v_start timestamptz := date_trunc('minute', now()) + interval '60 minutes';
+  v_sent bigint;
+begin
+  -- a hold with a verified payment is never released by another client's booking
+  perform t.ok((t.book(v_ruben, v_haircut, timestamptz '2027-01-05 18:10 America/New_York', 60, 5000)).id is not null, 'another booking for the same barber goes through');
+  perform t.ok((select status from public.appointments where public_reference = 'LEGACY-PAID-LINK') = 'pending_confirmation', 'and it does not expire the hold that carries a verified payment');
+  perform t.fails(format('select t.book(%L, %L, %L, 60, 5000)', v_ruben, v_haircut, timestamptz '2027-01-05 12:00 America/New_York'), 'SLOT_CONFLICT', 'the paid hold keeps its time');
+
+  -- a partial payment inside the hold window stops the countdown
+  a := t.book(v_ruben, v_haircut, t.ts(35, '09:00'), 60, 5000);
+  insert into public.square_payments (business_id, square_id, square_order_id, status, amount_cents, raw)
+  values (a.business_id, 'part-pay-' || a.id, 'part-order-' || a.id, 'COMPLETED', 2500, '{"source_type":"CARD"}');
+  insert into public.appointment_payment_links (business_id, appointment_id, purpose, amount_cents, square_payment_link_id, square_order_id, checkout_url, status, paid_at)
+  values (a.business_id, a.id, 'deposit', 2500, 'part-' || a.id, 'part-order-' || a.id, 'https://example.test', 'paid', now());
+  update public.appointments set deposit_status = 'paid' where id = a.id;
+  perform t.ok((select status = 'pending_confirmation' and deposit_status = 'pending' and hold_expires_at is null from public.appointments where id = a.id), 'a part payment does not confirm, and the hold stops counting down');
+
+  -- the expiry job writes nothing, and broadcasts nothing, when nothing is stale
+  select count(*) into v_sent from realtime.sent where topic = 'booking-availability:northfield';
+  perform public.expire_unpaid_appointment_holds(50);
+  perform t.ok((select count(*) from realtime.sent where topic = 'booking-availability:northfield') = v_sent, 'an idle expiry run does not make every open calendar reload');
+
+  -- a time-only move works for a barber whose profile is no longer published
+  b := t.pay((t.book(v_hommy, v_haircut, t.ts(35, '10:00'), 60, 5000)).id);
+  update public.barber_profiles set status = 'draft' where id = v_hommy;
+  b := public.reschedule_appointment_atomic(b.id, t.ts(35, '13:00'), null, null, 'owner', 'time only');
+  perform t.ok(b.starts_at = t.ts(35, '13:00'), 'a time-only move does not depend on the barber profile being published');
+  update public.barber_profiles set status = 'archived' where id = v_hommy;
+  perform t.fails(format('select public.reschedule_appointment_atomic(%L, %L, null, null, %L, %L, %L)', (select id from public.appointments where public_reference = 'LEGACY-CONFIRMED'), timestamptz '2027-01-05 17:00 America/New_York', 'owner', 'to archived', v_hommy), 'BARBER_NOT_BOOKABLE', 'an appointment cannot be handed to an archived barber');
+  update public.barber_profiles set status = 'published' where id = v_hommy;
+
+  -- finishing an appointment before its scheduled start leaves no phantom block
+  soon := public.create_appointment_atomic(jsonb_build_object(
+    'business_id', '00000000-0000-0000-0000-0000000000b1', 'location_id', v_loc, 'client_id', '00000000-0000-0000-0000-0000000000d1',
+    'service_id', v_haircut, 'barber_profile_id', v_clock, 'public_reference', 'T-SOON', 'manage_token_hash', 'x',
+    'service_name_snapshot', 'Haircut', 'service_price_snapshot_cents', 5000, 'service_duration_snapshot_minutes', 60,
+    'barber_name_snapshot', 'Clock Test', 'client_name_snapshot', 'Test Client', 'starts_at', v_start, 'ends_at', v_start + interval '60 minutes',
+    'status', 'pending_confirmation', 'deposit_required_cents', 5000, 'deposit_status', 'pending', 'policy_version', 'test', 'policy_accepted_at', now(), 'idempotency_key', gen_random_uuid()));
+  soon := t.pay(soon.id);
+  done := public.complete_appointment_atomic(soon.id, null, 'owner', 'client served early');
+  perform t.ok(done.status = 'completed' and done.occupied_until = done.starts_at, 'an appointment finished before its start occupies nothing');
+  perform t.ok((public.create_appointment_atomic(jsonb_build_object(
+    'business_id', '00000000-0000-0000-0000-0000000000b1', 'location_id', v_loc, 'client_id', '00000000-0000-0000-0000-0000000000d1',
+    'service_id', v_haircut, 'barber_profile_id', v_clock, 'public_reference', 'T-SOON-2', 'manage_token_hash', 'x',
+    'service_name_snapshot', 'Haircut', 'service_price_snapshot_cents', 5000, 'service_duration_snapshot_minutes', 60,
+    'barber_name_snapshot', 'Clock Test', 'client_name_snapshot', 'Test Client', 'starts_at', v_start - interval '10 minutes', 'ends_at', v_start + interval '50 minutes',
+    'status', 'pending_confirmation', 'deposit_required_cents', 5000, 'deposit_status', 'pending', 'policy_version', 'test', 'policy_accepted_at', now(), 'idempotency_key', gen_random_uuid()))).id is not null,
+    'its whole reserved time is bookable again, including across its old start');
 end;
 $$;
 

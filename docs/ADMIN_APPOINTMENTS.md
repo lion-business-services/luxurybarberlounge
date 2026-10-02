@@ -26,6 +26,8 @@ The Appointments Calendar is a timeline drawn from the booking engine's own inte
 - **Touch and keyboard**: open the appointment and use "Move appointment", which lists only the open times that fit the whole appointment.
 - **Finish** records the actual end time. If the service ends early, the rest of the reserved time reopens after the 5-minute gap. A second click changes nothing.
 - **Family bookings** appear as one card and list each family member with their service, time and price in the details panel.
+- **Paid, needs a new time**: a booking paid after its checkout hold ended, whose time had been taken, is listed under "Not on the calendar". Open it and move it to an open time, which confirms it, or refund it in Square.
+- **Payment received**: a checkout whose payment arrived but was not confirmed automatically shows on the timeline. Select it to confirm.
 - The client is notified once per saved move. A notification problem never undoes the move.
 - The calendar follows live changes through the `booking-availability:northfield` channel and also refreshes every 20 seconds.
 

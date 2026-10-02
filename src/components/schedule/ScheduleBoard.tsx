@@ -112,6 +112,7 @@ export function ScheduleBoard({
   pendingId,
   dimmed,
   onSelect,
+  onPaidHoldSelect,
   movable,
   onDrop,
   snapMinutes = 5,
@@ -127,6 +128,8 @@ export function ScheduleBoard({
   /** Appointments that do not match the current search. */
   dimmed?: Set<string>;
   onSelect?: (appointment: BoardAppointment) => void;
+  /** A checkout whose payment was received but which is not confirmed yet. */
+  onPaidHoldSelect?: (appointment: BoardAppointment) => void;
   movable?: (appointment: BoardAppointment) => boolean;
   onDrop?: (drop: BoardDrop) => void;
   snapMinutes?: number;
@@ -317,26 +320,37 @@ export function ScheduleBoard({
                 })}
 
                 {cards.map((item) => {
-                  const occupancy = appointmentOccupancy(item, facts.nowMs);
-                  if (!occupancy) return null;
+                  const scheduledStart = new Date(item.starts_at).getTime();
+                  const scheduledEnd = new Date(item.ends_at).getTime();
+                  const live = appointmentOccupancy(item, facts.nowMs);
+                  // An appointment finished before it was due to start holds no
+                  // time, but it stays visible in its scheduled place.
+                  const finishedBeforeStart = !live && item.status === "completed";
+                  if (!live && !finishedBeforeStart) return null;
+                  const occupancy = live ?? { kind: "completed" as const, startMs: scheduledStart, endMs: scheduledEnd };
                   const box = position(occupancy.startMs, occupancy.endMs, column.date);
                   if (!box) return null;
-                  const scheduledEnd = new Date(item.ends_at).getTime();
-                  const bufferBox = facts.bufferMinutes > 0 ? position(occupancy.endMs, occupancy.endMs + facts.bufferMinutes * 60_000, column.date) : null;
-                  const releasedBox = occupancy.kind === "completed" && occupancy.endMs < scheduledEnd ? position(occupancy.endMs + facts.bufferMinutes * 60_000, scheduledEnd, column.date) : null;
+                  const bufferBox = !finishedBeforeStart && facts.bufferMinutes > 0 ? position(occupancy.endMs, occupancy.endMs + facts.bufferMinutes * 60_000, column.date) : null;
+                  const releasedBox = !finishedBeforeStart && occupancy.kind === "completed" && occupancy.endMs < scheduledEnd ? position(occupancy.endMs + facts.bufferMinutes * 60_000, scheduledEnd, column.date) : null;
                   const hold = isHoldStatus(item.status);
+                  const paymentReceived = hold && (item.deposit_status === "paid" || !item.hold_expires_at);
                   const dragging = ghost?.appointment.id === item.id;
                   const canMove = Boolean(onDrop && movable?.(item));
-                  const timeText = `${clock(occupancy.startMs, timeZone)} – ${clock(occupancy.endMs, timeZone)}`;
+                  const timeText = `${clock(occupancy.startMs, timeZone)} – ${clock(occupancy.endMs, timeZone)}${finishedBeforeStart ? " (finished early, time released)" : ""}`;
                   const compact = box.height < 46;
                   return (
                     <div key={item.id}>
                       {releasedBox ? <div className="pointer-events-none absolute inset-x-1 rounded border border-dashed border-emerald-400/30" style={releasedBox} title={`Released early. Scheduled until ${clock(scheduledEnd, timeZone)}.`} /> : null}
                       {bufferBox ? <div className="pointer-events-none absolute inset-x-1" style={{ ...bufferBox, backgroundImage: HATCH_BUFFER }} title={`${facts.bufferMinutes}-minute gap after this appointment`} /> : null}
-                      {hold ? (
+                      {hold && paymentReceived && onPaidHoldSelect ? (
+                        <button type="button" onClick={() => onPaidHoldSelect(item)} className="absolute inset-x-1 overflow-hidden rounded-md border border-dashed border-amber-300/80 bg-amber-300/10 px-2 py-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-brass-light)]" style={{ ...box, zIndex: 5 }} aria-label={`Payment received, not confirmed yet, ${timeText}. Select to confirm.`}>
+                          <span className="block truncate text-[9px] uppercase tracking-[.1em] text-amber-200">Payment received · select to confirm</span>
+                          {!compact ? <span className="block truncate text-[10px] text-[var(--color-bone-muted)]">{timeText}</span> : null}
+                        </button>
+                      ) : hold ? (
                         <div className="absolute inset-x-1 overflow-hidden rounded-md border border-dashed border-[var(--color-brass)]/70 bg-[var(--color-brass)]/[.06] px-2 py-1" style={box} title={`Checkout in progress ${timeText}`}>
-                          <p className="truncate text-[9px] uppercase tracking-[.1em] text-[var(--color-brass-light)]">Checkout in progress</p>
-                          {!compact ? <p className="truncate text-[10px] text-[var(--color-bone-muted)]">{timeText}{item.hold_expires_at ? ` · held until ${clock(new Date(item.hold_expires_at).getTime(), timeZone)}` : ""}</p> : null}
+                          <p className="truncate text-[9px] uppercase tracking-[.1em] text-[var(--color-brass-light)]">{paymentReceived ? "Payment received · confirming" : "Checkout in progress"}</p>
+                          {!compact ? <p className="truncate text-[10px] text-[var(--color-bone-muted)]">{timeText}{!paymentReceived && item.hold_expires_at ? ` · held until ${clock(new Date(item.hold_expires_at).getTime(), timeZone)}` : ""}</p> : null}
                         </div>
                       ) : (
                         <button
@@ -348,7 +362,7 @@ export function ScheduleBoard({
                           onPointerCancel={cancelDrag}
                           aria-label={`${timeText}, ${item.client_name_snapshot ?? "Client"}, ${serviceLine(item)}, ${label(item.status)}`}
                           title={`${timeText} · ${item.client_name_snapshot ?? "Client"} · ${serviceLine(item)}${canMove ? " · drag to move" : ""}`}
-                          className={`absolute inset-x-1 overflow-hidden rounded-md border border-l-[3px] border-white/10 px-2 text-left transition-shadow hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-brass-light)] ${STATUS_STYLE[item.status] ?? STATUS_STYLE.confirmed} ${selectedId === item.id ? "ring-1 ring-[var(--color-brass-light)]" : ""} ${canMove ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${dragging || pendingId === item.id ? "opacity-45" : ""} ${dimmed?.has(item.id) ? "opacity-25" : ""}`}
+                          className={`absolute inset-x-1 overflow-hidden rounded-md border border-l-[3px] border-white/10 px-2 text-left transition-shadow hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-brass-light)] ${STATUS_STYLE[item.status] ?? STATUS_STYLE.confirmed} ${finishedBeforeStart ? "border-dashed opacity-70" : ""} ${selectedId === item.id ? "ring-1 ring-[var(--color-brass-light)]" : ""} ${canMove ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${dragging || pendingId === item.id ? "opacity-45" : ""} ${dimmed?.has(item.id) ? "opacity-25" : ""}`}
                           style={{ ...box, paddingTop: compact ? 2 : 5, zIndex: 5 }}
                         >
                           {compact ? (

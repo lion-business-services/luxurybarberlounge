@@ -20,6 +20,16 @@
 -- is deleted.
 begin;
 
+-- Fail fast instead of queueing behind live traffic. If a lock cannot be
+-- taken the whole migration rolls back untouched and can simply be re-run.
+set local lock_timeout = '15s';
+
+-- Created first on purpose: the payment-link trigger locks payment links and
+-- then appointments, so this migration takes its locks in the same order.
+create index if not exists idx_appointment_payment_links_open
+  on public.appointment_payment_links (appointment_id)
+  where status = 'created';
+
 -- ---------------------------------------------------------------------------
 -- 1. Authoritative rule values
 -- ---------------------------------------------------------------------------
@@ -92,11 +102,13 @@ alter table public.appointments
   add column if not exists occupied_until timestamptz,
   add column if not exists booking_kind text not null default 'single',
   add column if not exists party_size integer not null default 1,
-  add column if not exists reschedule_count integer not null default 0;
+  add column if not exists reschedule_count integer not null default 0,
+  add column if not exists buffer_minutes_override integer;
 
 comment on column public.appointments.hold_expires_at is 'When an unpaid checkout hold stops reserving its time. Null for paid appointments.';
 comment on column public.appointments.completed_at is 'Actual completion time recorded by Finish. starts_at/ends_at keep the originally scheduled reservation.';
 comment on column public.appointments.occupied_until is 'End of the time this appointment blocks, including the buffer. Maintained by trigger; never write it directly.';
+comment on column public.appointments.buffer_minutes_override is 'Only for appointments that already existed closer than the buffer when the 5-minute rule was introduced. Cleared automatically when the appointment is moved. Never set for new bookings.';
 comment on column public.appointments.booking_kind is 'single, or family (one adult service followed by Kids Haircuts; see appointment_service_items).';
 
 do $$
@@ -107,6 +119,9 @@ begin
   if not exists (select 1 from pg_constraint where conname = 'appointments_party_size_check') then
     alter table public.appointments add constraint appointments_party_size_check check (party_size between 1 and 6);
   end if;
+  if not exists (select 1 from pg_constraint where conname = 'appointments_buffer_override_check') then
+    alter table public.appointments add constraint appointments_buffer_override_check check (buffer_minutes_override is null or buffer_minutes_override between 0 and 120);
+  end if;
 end;
 $$;
 
@@ -115,15 +130,43 @@ $$;
 --    are not disturbed for historical rows)
 -- ---------------------------------------------------------------------------
 
+-- Triggers that were already switched off stay off afterwards.
+create temporary table lbl_disabled_appointment_triggers on commit drop as
+select tgname from pg_trigger
+where tgrelid = 'public.appointments'::regclass and not tgisinternal and tgenabled = 'D';
+
 alter table public.appointments disable trigger user;
 
 update public.appointments a
-set hold_expires_at = case
-      when a.status in ('slot_held', 'pending_confirmation') and a.deposit_status <> 'paid' and a.hold_expires_at is null
-        then a.created_at + make_interval(mins => public.booking_hold_minutes())
-      else a.hold_expires_at
-    end,
-    occupied_until = a.ends_at + make_interval(mins => public.booking_buffer_minutes(a.location_id));
+set hold_expires_at = a.created_at + make_interval(mins => public.booking_hold_minutes())
+where a.status in ('slot_held', 'pending_confirmation')
+  and a.deposit_status <> 'paid'
+  and a.hold_expires_at is null
+  and not exists (
+    select 1 from public.appointment_payment_links l
+    where l.appointment_id = a.id and l.status = 'paid'
+  );
+
+-- A hold that already carries a verified payment never lapses on its own: it
+-- keeps its place (hold_expires_at is null) until staff resolve it.
+update public.appointments a
+set hold_expires_at = null
+where a.status in ('slot_held', 'pending_confirmation')
+  and a.deposit_status <> 'paid'
+  and a.hold_expires_at is not null
+  and (
+    exists (
+      select 1 from public.appointment_payment_links l
+      where l.appointment_id = a.id and l.status = 'paid'
+    )
+    or exists (
+      select 1
+      from public.appointment_payment_links l
+      join public.square_payments sp
+        on sp.business_id = l.business_id and sp.square_order_id = l.square_order_id
+      where l.appointment_id = a.id and upper(coalesce(sp.status, '')) in ('COMPLETED', 'APPROVED')
+    )
+  );
 
 -- Abandoned checkouts: unpaid holds whose 15-minute window has passed and that
 -- have no verified payment of any kind. They are marked expired (never
@@ -157,7 +200,47 @@ select e.id, null, e.from_status, 'expired', null, 'Unpaid checkout hold expired
        jsonb_build_object('source', 'migration_202610020001', 'hold_minutes', public.booking_hold_minutes())
 from expired e;
 
+-- Appointments that were booked back to back while the gap was zero keep
+-- their place: each records the real gap to its next neighbour, so the new
+-- constraint accepts the existing pair. New bookings never get an override.
+update public.appointments a
+set buffer_minutes_override = greatest(0, floor(extract(epoch from (n.next_start - a.ends_at)) / 60))::integer
+from (
+  select x.id,
+         (select min(b.starts_at)
+          from public.appointments b
+          where b.barber_profile_id = x.barber_profile_id
+            and b.id <> x.id
+            and b.status in ('slot_held', 'pending_confirmation', 'confirmed', 'checked_in', 'assigned', 'in_service')
+            and (b.starts_at, b.id) > (x.starts_at, x.id)
+            and b.starts_at < x.ends_at + make_interval(mins => public.booking_buffer_minutes(x.location_id))) as next_start
+  from public.appointments x
+  where x.status in ('slot_held', 'pending_confirmation', 'confirmed', 'checked_in', 'assigned', 'in_service')
+    and x.buffer_minutes_override is null
+) n
+where n.id = a.id and n.next_start is not null;
+
+-- Same formula as the appointments_maintain_occupancy trigger, so running
+-- this migration again never undoes an early Finish.
+update public.appointments a
+set occupied_until = case
+      when a.status = 'completed' and a.completed_at is not null and a.completed_at <= a.starts_at then a.starts_at
+      when a.status = 'completed' and a.completed_at is not null
+        then least(a.ends_at, a.completed_at) + make_interval(mins => coalesce(a.buffer_minutes_override, public.booking_buffer_minutes(a.location_id)))
+      else a.ends_at + make_interval(mins => coalesce(a.buffer_minutes_override, public.booking_buffer_minutes(a.location_id)))
+    end;
+
 alter table public.appointments enable trigger user;
+
+do $$
+declare
+  v_trigger record;
+begin
+  for v_trigger in select tgname from lbl_disabled_appointment_triggers loop
+    execute format('alter table public.appointments disable trigger %I', v_trigger.tgname);
+  end loop;
+end;
+$$;
 
 alter table public.appointments alter column occupied_until set not null;
 
@@ -172,14 +255,35 @@ language plpgsql
 set search_path = public
 as $$
 declare
-  v_buffer interval := make_interval(mins => public.booking_buffer_minutes(new.location_id));
+  v_buffer interval;
   v_hold interval := make_interval(mins => public.booking_hold_minutes());
 begin
+  -- A grandfathered gap belongs to one exact placement. Once the appointment
+  -- is moved, or for any new booking, the normal buffer applies.
+  if tg_op = 'INSERT' then
+    new.buffer_minutes_override := null;
+  elsif new.starts_at is distinct from old.starts_at
+     or new.ends_at is distinct from old.ends_at
+     or new.barber_profile_id is distinct from old.barber_profile_id then
+    new.buffer_minutes_override := null;
+  end if;
+  v_buffer := make_interval(mins => coalesce(new.buffer_minutes_override, public.booking_buffer_minutes(new.location_id)));
+
   if new.status in ('slot_held', 'pending_confirmation') and coalesce(new.deposit_status, 'pending') <> 'paid' then
     if tg_op = 'INSERT' then
       new.hold_expires_at := coalesce(new.hold_expires_at, now() + v_hold);
     elsif old.status not in ('slot_held', 'pending_confirmation') then
       new.hold_expires_at := now() + v_hold;
+    end if;
+    -- Once any payment for this checkout is verified, the hold stops counting
+    -- down: a paying client keeps the time until the booking is confirmed or
+    -- staff resolve it. A hold that had already lapsed is not brought back
+    -- here; confirm_paid_appointment decides that under the calendar lock.
+    if new.hold_expires_at is not null and new.hold_expires_at > now() and exists (
+      select 1 from public.appointment_payment_links l
+      where l.appointment_id = new.id and l.status = 'paid'
+    ) then
+      new.hold_expires_at := null;
     end if;
   end if;
 
@@ -187,10 +291,13 @@ begin
     new.completed_at := coalesce(new.completed_at, now());
   end if;
 
-  if new.status = 'completed' then
+  if new.status = 'completed' and new.completed_at is not null and new.completed_at <= new.starts_at then
+    -- Finished before it was due to start: it never occupied the chair.
+    new.occupied_until := new.starts_at;
+  elsif new.status = 'completed' then
     -- Finishing early releases the unused reservation; finishing late never
     -- extends it. The scheduled starts_at/ends_at are left untouched.
-    new.occupied_until := greatest(new.starts_at, least(new.ends_at, coalesce(new.completed_at, new.ends_at))) + v_buffer;
+    new.occupied_until := least(new.ends_at, coalesce(new.completed_at, new.ends_at)) + v_buffer;
   else
     new.occupied_until := new.ends_at + v_buffer;
   end if;
@@ -278,8 +385,10 @@ begin
   perform pg_advisory_xact_lock(public.barber_calendar_lock_key(new.barber_profile_id));
 
   -- Release abandoned checkouts for this barber before checking conflicts.
-  with stale as (
-    select a.id, a.status as from_status
+  -- A hold with a verified payment is never released here: it keeps its place
+  -- until the payment confirms it. Nothing is written when nothing is stale.
+  if exists (
+    select 1
     from public.appointments a
     where a.barber_profile_id = new.barber_profile_id
       and a.id <> new.id
@@ -287,18 +396,31 @@ begin
       and a.deposit_status <> 'paid'
       and a.hold_expires_at is not null
       and a.hold_expires_at <= v_now
-    for update skip locked
-  ), expired as (
-    update public.appointments a
-    set status = 'expired'
-    from stale
-    where a.id = stale.id
-    returning a.id, stale.from_status
-  )
-  insert into public.appointment_status_history (appointment_id, booking_metadata_id, from_status, to_status, changed_by, reason, metadata)
-  select e.id, null, e.from_status, 'expired', null, 'Unpaid checkout hold expired',
-         jsonb_build_object('source', 'scheduling_guard', 'hold_minutes', public.booking_hold_minutes())
-  from expired e;
+      and not exists (select 1 from public.appointment_payment_links l where l.appointment_id = a.id and l.status = 'paid')
+  ) then
+    with stale as (
+      select a.id, a.status as from_status
+      from public.appointments a
+      where a.barber_profile_id = new.barber_profile_id
+        and a.id <> new.id
+        and a.status in ('slot_held', 'pending_confirmation')
+        and a.deposit_status <> 'paid'
+        and a.hold_expires_at is not null
+        and a.hold_expires_at <= v_now
+        and not exists (select 1 from public.appointment_payment_links l where l.appointment_id = a.id and l.status = 'paid')
+      for update of a skip locked
+    ), expired as (
+      update public.appointments a
+      set status = 'expired'
+      from stale
+      where a.id = stale.id
+      returning a.id, stale.from_status
+    )
+    insert into public.appointment_status_history (appointment_id, booking_metadata_id, from_status, to_status, changed_by, reason, metadata)
+    select e.id, null, e.from_status, 'expired', null, 'Unpaid checkout hold expired',
+           jsonb_build_object('source', 'scheduling_guard', 'hold_minutes', public.booking_hold_minutes())
+    from expired e;
+  end if;
 
   v_buffer := make_interval(mins => public.booking_buffer_minutes(new.location_id));
   v_new_until := new.ends_at + v_buffer;
@@ -394,7 +516,14 @@ begin
       or a.status = 'completed'
     )
     and a.starts_at < v_new_until
-    and a.occupied_until > new.starts_at
+    -- A new placement always keeps the full buffer, even next to an
+    -- appointment whose own stored gap was grandfathered.
+    and (case
+           when a.buffer_minutes_override is null then a.occupied_until
+           else a.occupied_until - make_interval(mins => a.buffer_minutes_override) + v_buffer
+         end) > new.starts_at
+    -- An appointment finished before it started occupies nothing.
+    and a.occupied_until > a.starts_at
   order by a.starts_at
   limit 1;
 
@@ -781,6 +910,7 @@ declare
   v_time_changed boolean;
   v_barber_changed boolean;
   v_key bigint;
+  v_locked_barber uuid;
 begin
   select * into current_row from public.appointments where id = p_appointment_id;
   if not found then raise exception 'APPOINTMENT_NOT_FOUND' using errcode = 'P0002'; end if;
@@ -796,8 +926,19 @@ begin
     perform pg_advisory_xact_lock(v_key);
   end loop;
 
+  v_locked_barber := current_row.barber_profile_id;
   select * into current_row from public.appointments where id = p_appointment_id for update;
-  if current_row.status not in ('confirmed', 'rescheduled') then
+  -- Someone else moved this appointment to another barber between our first
+  -- read and the lock. Stop instead of working from a stale picture.
+  if current_row.barber_profile_id is distinct from v_locked_barber then
+    raise exception 'APPOINTMENT_CHANGED' using errcode = 'P0001';
+  end if;
+  -- Confirmed appointments can be moved. A booking that was paid after its
+  -- hold had lapsed (expired, fully paid) can be placed at a new time by staff.
+  if not (
+    current_row.status in ('confirmed', 'rescheduled')
+    or (current_row.status = 'expired' and current_row.deposit_status = 'paid')
+  ) then
     raise exception 'APPOINTMENT_NOT_RESCHEDULABLE' using errcode = '22023';
   end if;
   if p_starts_at is null then raise exception 'INVALID_APPOINTMENT_RANGE' using errcode = '22023'; end if;
@@ -813,13 +954,17 @@ begin
     return current_row;
   end if;
 
-  if v_time_changed and p_starts_at < now() - interval '1 minute' then
+  if (v_time_changed or current_row.status = 'expired') and p_starts_at < now() - interval '1 minute' then
     raise exception 'RESCHEDULE_IN_PAST' using errcode = '22023';
   end if;
 
+  -- A time-only move keeps the current barber, whatever their profile state.
+  -- Handing the appointment to someone else needs an active, unarchived barber.
   select * into target_barber from public.barber_profiles
-  where id = v_target and business_id = current_row.business_id and active and status = 'published';
-  if not found then raise exception 'BARBER_NOT_BOOKABLE' using errcode = '22023'; end if;
+  where id = v_target and business_id = current_row.business_id;
+  if not found or (v_barber_changed and (not target_barber.active or target_barber.status = 'archived')) then
+    raise exception 'BARBER_NOT_BOOKABLE' using errcode = '22023';
+  end if;
 
   if v_barber_changed then
     if not exists (
@@ -957,6 +1102,22 @@ security definer
 set search_path = public
 as $$
 begin
+  -- Nothing is written (and nothing is broadcast) when nothing is stale.
+  if not exists (
+    select 1
+    from public.appointments a
+    where a.status in ('slot_held', 'pending_confirmation')
+      and a.deposit_status <> 'paid'
+      and a.hold_expires_at is not null
+      and a.hold_expires_at <= now()
+      and not exists (
+        select 1 from public.appointment_payment_links l
+        where l.appointment_id = a.id and l.status = 'paid'
+      )
+  ) then
+    return;
+  end if;
+
   return query
   with stale as (
     select a.id, a.status as from_status
@@ -1044,10 +1205,12 @@ grant execute on function public.renew_appointment_hold(uuid) to service_role;
 
 -- Promotes a verified, fully paid booking to confirmed. A hold that is still
 -- live simply confirms. A hold that already expired is restored only when its
--- time is still free; otherwise SLOT_CONFLICT is raised and the caller records
--- an exception for staff instead of double-booking the barber.
--- Returns {"promoted": boolean, "appointment": row}; promoted is true only for
--- the one call that actually changed the status, so confirmations are sent once.
+-- time is still free. When the time is gone, nothing is double-booked: the
+-- booking is left as "expired, paid" so staff can place it at a new time or
+-- refund it, and the result says conflict = true so the caller alerts them.
+-- Returns {"promoted": boolean, "conflict": boolean, "appointment": row}.
+-- promoted is true only for the one call that actually changed the status,
+-- so confirmations are sent once.
 create or replace function public.confirm_paid_appointment(p_appointment_id uuid, p_actor uuid default null, p_source text default 'square_webhook')
 returns jsonb
 language plpgsql
@@ -1057,6 +1220,7 @@ as $$
 declare
   current_row public.appointments;
   updated_row public.appointments;
+  v_reason text;
 begin
   select * into current_row from public.appointments where id = p_appointment_id;
   if not found then raise exception 'APPOINTMENT_NOT_FOUND' using errcode = 'P0002'; end if;
@@ -1066,10 +1230,29 @@ begin
 
   -- Never resurrect a cancelled, declined, completed or no-show appointment.
   if current_row.status not in ('slot_held', 'pending_confirmation', 'expired') then
-    return jsonb_build_object('promoted', false, 'appointment', to_jsonb(current_row));
+    return jsonb_build_object('promoted', false, 'conflict', false, 'appointment', to_jsonb(current_row));
   end if;
 
-  update public.appointments set status = 'confirmed' where id = p_appointment_id returning * into updated_row;
+  begin
+    update public.appointments set status = 'confirmed' where id = p_appointment_id returning * into updated_row;
+  exception
+    when exclusion_violation or raise_exception then
+      -- The scheduling guard refused the placement: the time was taken, or is
+      -- no longer inside the barber's schedule. The block above is undone.
+      v_reason := sqlerrm;
+      update public.appointments
+      set status = 'expired',
+          deposit_status = case when deposit_status = 'refunded' then deposit_status else 'paid' end
+      where id = p_appointment_id
+      returning * into updated_row;
+      if current_row.status is distinct from 'expired' then
+        insert into public.appointment_status_history (appointment_id, booking_metadata_id, from_status, to_status, changed_by, reason, metadata)
+        values (p_appointment_id, null, current_row.status, 'expired', p_actor,
+                'Payment verified after the hold expired; the time is no longer available',
+                jsonb_build_object('source', p_source, 'guard', v_reason));
+      end if;
+      return jsonb_build_object('promoted', false, 'conflict', true, 'reason', v_reason, 'appointment', to_jsonb(updated_row));
+  end;
 
   if updated_row.status is distinct from current_row.status then
     insert into public.appointment_status_history (appointment_id, booking_metadata_id, from_status, to_status, changed_by, reason, metadata)
@@ -1080,11 +1263,9 @@ begin
 
   return jsonb_build_object(
     'promoted', updated_row.status = 'confirmed' and current_row.status is distinct from 'confirmed',
+    'conflict', false,
     'appointment', to_jsonb(updated_row)
   );
-exception
-  when exclusion_violation then
-    raise exception 'SLOT_CONFLICT' using errcode = '23P01';
 end;
 $$;
 
@@ -1292,9 +1473,5 @@ create index if not exists idx_appointments_hold_expiry
 create index if not exists idx_barber_breaks_profile_window
   on public.barber_breaks (barber_profile_id, starts_at, ends_at)
   where status = 'scheduled';
-
-create index if not exists idx_appointment_payment_links_open
-  on public.appointment_payment_links (appointment_id)
-  where status = 'created';
 
 commit;

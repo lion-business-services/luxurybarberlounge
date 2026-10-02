@@ -9,6 +9,7 @@ import {
   MINIMUM_LEAD_MINUTES,
   NON_BLOCKING_STATUSES,
   appointmentOccupancy,
+  isReschedulable,
   parseFamilyTier,
   resolveBufferMinutes,
 } from "../../src/lib/booking/rules.ts";
@@ -334,4 +335,29 @@ test("free intervals on the calendar match what the slot engine will accept", ()
   const hard: HardBlock[] = [{ kind: "time_off", startMs: at("15:00"), endMs: at("17:00") }];
   const free = freeIntervals(windowsFor(), bookings, hard).map((item) => `${local(item.startMs)}-${local(item.endMs)}`);
   assert.deepEqual(free, ["08:00-09:00", "10:05-12:00", "12:50-15:00", "17:00-21:00"]);
+});
+
+test("an appointment finished before its start occupies nothing", () => {
+  const start = "2026-10-06T18:00:00.000Z";
+  const end = "2026-10-06T19:00:00.000Z";
+  const nowMs = Date.parse("2026-10-06T17:10:00.000Z");
+  assert.equal(appointmentOccupancy({ status: "completed", starts_at: start, ends_at: end, completed_at: "2026-10-06T17:05:00.000Z" }, nowMs), null);
+  assert.equal(appointmentOccupancy({ status: "completed", starts_at: start, ends_at: end, completed_at: start }, nowMs), null);
+  // Finished one minute in: occupied for that minute only.
+  assert.deepEqual(appointmentOccupancy({ status: "completed", starts_at: start, ends_at: end, completed_at: "2026-10-06T18:01:00.000Z" }, nowMs), {
+    kind: "completed",
+    startMs: Date.parse(start),
+    endMs: Date.parse("2026-10-06T18:01:00.000Z"),
+  });
+});
+
+test("only confirmed bookings, and paid bookings that lost their time, can be moved", () => {
+  assert.equal(isReschedulable("confirmed", "paid"), true);
+  assert.equal(isReschedulable("rescheduled", "paid"), true);
+  assert.equal(isReschedulable("expired", "paid"), true);
+  assert.equal(isReschedulable("expired", "pending"), false);
+  assert.equal(isReschedulable("expired", null), false);
+  for (const status of ["pending_confirmation", "checked_in", "in_service", "completed", "cancelled_by_client", "no_show"]) {
+    assert.equal(isReschedulable(status, "paid"), false, status);
+  }
 });

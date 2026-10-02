@@ -9,7 +9,7 @@ import {
   schedulingErrorStatus,
   type SchedulingErrorReason,
 } from "@/lib/booking/observability";
-import { RESCHEDULABLE_STATUSES } from "@/lib/booking/rules";
+import { PAID_UNPLACED_STATUS, isReschedulable } from "@/lib/booking/rules";
 import { businessConfig } from "@/lib/config/business";
 
 /**
@@ -37,6 +37,7 @@ export type MovableAppointment = {
   ends_at: string;
   timezone: string | null;
   status: string;
+  deposit_status?: string | null;
   public_reference: string;
 };
 
@@ -87,13 +88,15 @@ export async function moveAppointment(admin: AdminClient, request: MoveRequest):
   const sameTime = new Date(appointment.starts_at).getTime() === start.getTime();
   const sameBarber = targetBarber === appointment.barber_profile_id;
 
-  if (!(RESCHEDULABLE_STATUSES as readonly string[]).includes(appointment.status)) {
+  if (!isReschedulable(appointment.status, appointment.deposit_status)) {
     log("warn", "rejected", request, { reason: "not_reschedulable", status: appointment.status });
     return rejected("not_reschedulable");
   }
 
-  // A repeated request for a move that already happened is a no-op, not an error.
-  if (!(sameTime && sameBarber)) {
+  // A repeated request for a move that already happened is a no-op, not an
+  // error. A paid booking that holds no time yet is always a real placement.
+  const unplaced = appointment.status === PAID_UNPLACED_STATUS;
+  if (unplaced || !(sameTime && sameBarber)) {
     try {
       const placement = await checkPlacement(admin, {
         locationId: appointment.location_id,
@@ -102,6 +105,9 @@ export async function moveAppointment(admin: AdminClient, request: MoveRequest):
         startsAt,
         durationMinutes,
         excludeAppointmentId: appointment.id,
+        // Handing an appointment to another barber at its existing time must
+        // stay possible after it has started; the time itself is not changing.
+        ignorePast: sameTime && !unplaced,
       });
       if (!placement.ok) {
         log("warn", "rejected", request, { reason: placement.reason, conflictId: placement.conflictId ?? null, stage: "precheck", durationMinutes });
@@ -131,7 +137,7 @@ export async function moveAppointment(admin: AdminClient, request: MoveRequest):
   }
 
   const updated = (Array.isArray(data) ? data[0] : data) as Record<string, unknown>;
-  const changed = !(sameTime && sameBarber);
+  const changed = unplaced || !(sameTime && sameBarber);
   log("info", changed ? "committed" : "unchanged", request, { durationMinutes, rescheduleCount: updated.reschedule_count ?? null });
 
   let notificationQueued = false;
@@ -140,7 +146,7 @@ export async function moveAppointment(admin: AdminClient, request: MoveRequest):
       const result = await queueAppointmentChangeNotifications(
         admin,
         updated as Parameters<typeof queueAppointmentChangeNotifications>[1],
-        sameTime ? "barber_changed" : "rescheduled",
+        sameTime && !unplaced ? "barber_changed" : "rescheduled",
         { location: request.locationName, previousStartsAt: appointment.starts_at },
       );
       notificationQueued = result.queued;

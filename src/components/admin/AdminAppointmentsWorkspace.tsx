@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { ScheduleBoard, ScheduleLegend, type BoardAppointment, type BoardColumn, type BoardDrop } from "@/components/schedule/ScheduleBoard";
 import type { CalendarFacts } from "@/lib/booking/calendar-model";
-import { FINISHABLE_STATUSES, RESCHEDULABLE_STATUSES } from "@/lib/booking/rules";
+import { FINISHABLE_STATUSES, PAID_UNPLACED_STATUS, RESCHEDULABLE_STATUSES, isReschedulable } from "@/lib/booking/rules";
 import { rejectionMessage, type ScheduleRow } from "@/lib/booking/slots";
 import { getBrowserSupabase } from "@/lib/supabase/client";
 
@@ -272,6 +272,7 @@ export function AdminAppointmentsWorkspace() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [pendingMove, setPendingMove] = useState<BoardDrop | null>(null);
   const [savingMoveId, setSavingMoveId] = useState<string | null>(null);
+  const [paidHoldId, setPaidHoldId] = useState<string | null>(null);
   const [live, setLive] = useState(false);
   const requestSequence = useRef(0);
   const refreshTimer = useRef<number | null>(null);
@@ -291,10 +292,18 @@ export function AdminAppointmentsWorkspace() {
     setPayload(result);
   }, [date, days]);
 
+  // The newest loader is kept in a ref so the timers and the realtime channel
+  // are set up once and never torn down when the date or view changes.
+  const loadRef = useRef(load);
+  useEffect(() => {
+    loadRef.current = load;
+    const initial = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
+
   useEffect(() => {
     let disposed = false;
-    const refresh = () => { if (!disposed) void load(); };
-    const initial = window.setTimeout(refresh, 0);
+    const refresh = () => { if (!disposed) void loadRef.current(); };
     const fallback = window.setInterval(refresh, FALLBACK_REFRESH_MS);
     const visible = () => { if (document.visibilityState === "visible") refresh(); };
     window.addEventListener("online", refresh);
@@ -320,7 +329,6 @@ export function AdminAppointmentsWorkspace() {
 
     return () => {
       disposed = true;
-      window.clearTimeout(initial);
       window.clearInterval(fallback);
       if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current);
       window.removeEventListener("online", refresh);
@@ -328,7 +336,7 @@ export function AdminAppointmentsWorkspace() {
       document.removeEventListener("visibilitychange", visible);
       if (supabase && channel) void supabase.removeChannel(channel);
     };
-  }, [load]);
+  }, []);
 
   const selected = useMemo(() => payload?.appointments.find((item) => item.id === selectedId) ?? null, [payload, selectedId]);
 
@@ -463,10 +471,22 @@ export function AdminAppointmentsWorkspace() {
     setSavingMoveId(null);
   }
 
+  async function confirmPaidHold() {
+    if (!paidHoldId || busy) return;
+    const id = paidHoldId;
+    setPaidHoldId(null);
+    setBusy("confirm");
+    const result = await patch(id, "confirm");
+    setNotice(result?.ok ? { tone: "success", text: "Booking confirmed." } : { tone: "error", text: result?.message ?? "The booking could not be confirmed. Please try again." });
+    await load();
+    setBusy(null);
+  }
+
   if (!payload || !facts) return <div className="rounded-2xl border border-[var(--color-ink-line)] p-8 text-sm text-[var(--color-bone-muted)]">{notice?.text ?? "Loading the live appointment calendar…"}</div>;
 
   const step = view === "day" ? 1 : 7;
   const onTimeline = payload.appointments.filter((item) => TIMELINE_STATUSES.has(item.status));
+  const paidHold = paidHoldId ? payload.holds.find((item) => item.id === paidHoldId) ?? null : null;
   const moveBarberName = pendingMove ? payload.barbers.find((barber) => barber.id === pendingMove.barberId)?.display_name ?? "the selected barber" : "";
 
   return <div className="grid gap-6">
@@ -526,16 +546,17 @@ export function AdminAppointmentsWorkspace() {
       dimmed={dimmed}
       snapMinutes={payload.rules.snapMinutes}
       onSelect={(item) => { if (payload.appointments.some((row) => row.id === item.id)) setSelectedId(item.id); }}
+      onPaidHoldSelect={(item) => setPaidHoldId(item.id)}
       movable={(item) => !savingMoveId && (RESCHEDULABLE_STATUSES as readonly string[]).includes(item.status)}
       onDrop={handleDrop}
     />
 
     {offTimeline.length ? <section className="rounded-2xl border border-[var(--color-ink-line)] bg-white/[.02] p-4 sm:p-5">
       <p className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]">Not on the calendar</p>
-      <p className="mt-1 text-xs text-[var(--color-bone-muted)]">Cancelled, no-show and superseded appointments do not hold any time.</p>
+      <p className="mt-1 text-xs text-[var(--color-bone-muted)]">Cancelled, no-show and superseded appointments do not hold any time. A booking marked &quot;Paid, needs a new time&quot; was paid after its checkout hold ended and its time had been taken: open it and move it to an open time, or refund it in Square.</p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {offTimeline.map((item) => <button key={item.id} type="button" onClick={() => setSelectedId(item.id)} className="rounded-xl border border-white/[.08] p-3 text-left hover:border-[var(--color-brass)]/40">
-          <span className="flex items-center justify-between gap-2"><strong className="text-xs">{dateTime(item.starts_at)}</strong><span className="text-[8px] uppercase tracking-[.1em] text-[var(--color-bone-muted)]">{pretty(item.status)}</span></span>
+          <span className="flex items-center justify-between gap-2"><strong className="text-xs">{dateTime(item.starts_at)}</strong><span className={`text-[8px] uppercase tracking-[.1em] ${item.status === PAID_UNPLACED_STATUS ? "text-amber-300" : "text-[var(--color-bone-muted)]"}`}>{item.status === PAID_UNPLACED_STATUS ? "Paid, needs a new time" : pretty(item.status)}</span></span>
           <span className="mt-1 block truncate text-sm">{item.client_name_snapshot}</span>
           <span className="block truncate text-[10px] text-[var(--color-bone-muted)]">{item.service_name_snapshot} · {item.barber_name_snapshot}</span>
         </button>)}
@@ -555,6 +576,19 @@ export function AdminAppointmentsWorkspace() {
         <div className="mt-6 flex gap-2">
           <button type="button" autoFocus onClick={() => void confirmMove()} className="min-h-11 flex-1 rounded-full bg-[var(--color-brass)] px-4 text-[10px] uppercase tracking-[.14em] text-black">Move appointment</button>
           <button type="button" onClick={() => setPendingMove(null)} className="min-h-11 flex-1 rounded-full border border-[var(--color-ink-line)] px-4 text-[10px] uppercase tracking-[.14em]">Keep as is</button>
+        </div>
+      </div>
+    </div> : null}
+
+    {paidHold ? <div className="fixed inset-0 z-[95] grid place-items-center bg-black/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Confirm paid booking">
+      <div className="w-full max-w-md rounded-2xl border border-[var(--color-brass)]/30 bg-[#0b0b0b] p-6 shadow-2xl">
+        <p className="text-[9px] uppercase tracking-[.18em] text-[var(--color-brass)]">Payment received</p>
+        <h2 className="font-display mt-2 text-2xl">{paidHold.client_name_snapshot ?? "Client"}</h2>
+        <p className="mt-1 text-sm text-[var(--color-bone-muted)]">{paidHold.service_name_snapshot ?? "Service"} · {dateTime(paidHold.starts_at)}{paidHold.public_reference ? ` · ${paidHold.public_reference}` : ""}</p>
+        <p className="mt-4 text-xs leading-5 text-[var(--color-bone-muted)]">A payment was received for this checkout but the booking was not confirmed automatically. Confirming checks the payment again and only succeeds when the full service amount is paid.</p>
+        <div className="mt-6 flex gap-2">
+          <button type="button" autoFocus onClick={() => void confirmPaidHold()} className="min-h-11 flex-1 rounded-full bg-[var(--color-brass)] px-4 text-[10px] uppercase tracking-[.14em] text-black">Confirm booking</button>
+          <button type="button" onClick={() => setPaidHoldId(null)} className="min-h-11 flex-1 rounded-full border border-[var(--color-ink-line)] px-4 text-[10px] uppercase tracking-[.14em]">Close</button>
         </div>
       </div>
     </div> : null}
@@ -584,7 +618,8 @@ function AppointmentInspector({ appointment, barbers, busy, bufferMinutes, onClo
   const [moveStart, setMoveStart] = useState("");
   const [openTimes, setOpenTimes] = useState<{ key: string; starts: string[]; error: string | null } | null>(null);
   const [internalNote, setInternalNote] = useState("");
-  const movable = (RESCHEDULABLE_STATUSES as readonly string[]).includes(appointment.status);
+  const movable = isReschedulable(appointment.status, appointment.deposit_status);
+  const unplaced = appointment.status === PAID_UNPLACED_STATUS;
   const finishable = (FINISHABLE_STATUSES as readonly string[]).includes(appointment.status);
   const handover = ["checked_in", "assigned", "in_service"].includes(appointment.status);
   const slotKey = `${appointment.id}:${moveBarber}:${moveDate}:${appointment.starts_at}`;
@@ -624,7 +659,7 @@ function AppointmentInspector({ appointment, barbers, busy, bufferMinutes, onClo
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/25 px-3 py-1.5 text-[9px] uppercase tracking-[.12em] text-emerald-300"><BadgeCheck className="h-3.5 w-3.5" />{paidInFull ? "Paid in full" : pretty(appointment.deposit_status)}</span>
               <span className="rounded-full border border-[var(--color-brass)]/25 px-3 py-1.5 text-[9px] uppercase tracking-[.12em] text-[var(--color-brass)]">{clientTypeLabel(client.type)}</span>
-              <span className="rounded-full border border-white/10 px-3 py-1.5 text-[9px] uppercase tracking-[.12em] text-[var(--color-bone-muted)]">{pretty(appointment.status)}</span>
+              <span className="rounded-full border border-white/10 px-3 py-1.5 text-[9px] uppercase tracking-[.12em] text-[var(--color-bone-muted)]">{appointment.status === PAID_UNPLACED_STATUS ? "Paid, needs a new time" : pretty(appointment.status)}</span>
             </div>
           </div>
           <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[var(--color-ink-line)] hover:border-[var(--color-brass)]/50" aria-label="Close appointment details"><X className="h-4 w-4" /></button>
@@ -737,13 +772,14 @@ function AppointmentInspector({ appointment, barbers, busy, bufferMinutes, onClo
 
           {movable ? <div className="mt-5 rounded-xl border border-[var(--color-ink-line)] p-4">
             <p className="text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Move appointment</p>
+            {unplaced ? <p className="mt-2 text-xs leading-5 text-amber-200">This booking is paid but holds no time: the payment arrived after the checkout hold ended and the original time had been taken. Choose an open time to confirm it, or refund the payment in Square.</p> : null}
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Barber<select value={moveBarber} onChange={(event) => { setMoveBarber(event.target.value); setMoveStart(""); }} className="min-h-11 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal">{barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select></label>
               <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Date<input type="date" value={moveDate} min={localDate()} onChange={(event) => { setMoveDate(event.target.value); setMoveStart(""); }} className="min-h-11 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal" /></label>
             </div>
             <div className="mt-3" aria-live="polite">
               {slotsLoading ? <p className="text-xs text-[var(--color-bone-muted)]">Loading open times…</p> : openTimes?.error ? <p className="text-xs text-red-200">{openTimes.error}</p> : openTimes && openTimes.starts.length === 0 ? <p className="text-xs text-[var(--color-bone-muted)]">No open time that day for a {minutes}-minute appointment.</p> : <div className="flex max-h-44 flex-wrap gap-2 overflow-y-auto" role="group" aria-label="Open times">
-                {(openTimes?.starts ?? []).map((start) => <button key={start} type="button" aria-pressed={moveStart === start} disabled={start === currentStart && moveBarber === appointment.barber_profile_id} onClick={() => setMoveStart(start)} className={`min-h-10 rounded-full border px-3 text-xs tabular-nums disabled:opacity-35 ${moveStart === start ? "border-[var(--color-brass)] bg-[var(--color-brass)] text-black" : "border-[var(--color-ink-line)]"}`}>{time(start)}</button>)}
+                {(openTimes?.starts ?? []).map((start) => <button key={start} type="button" aria-pressed={moveStart === start} disabled={!unplaced && start === currentStart && moveBarber === appointment.barber_profile_id} onClick={() => setMoveStart(start)} className={`min-h-10 rounded-full border px-3 text-xs tabular-nums disabled:opacity-35 ${moveStart === start ? "border-[var(--color-brass)] bg-[var(--color-brass)] text-black" : "border-[var(--color-ink-line)]"}`}>{time(start)}</button>)}
               </div>}
             </div>
             <button type="button" disabled={busy !== null || !moveStart} onClick={() => void onAct("reschedule", { startsAt: moveStart, ...(moveBarber !== appointment.barber_profile_id ? { barberProfileId: moveBarber } : {}) }).then((ok) => { if (ok) setMoveStart(""); })} className="mt-4 min-h-11 w-full rounded-full border border-[var(--color-brass)]/60 px-4 text-[9px] uppercase tracking-[.14em] disabled:opacity-40">{busy === "reschedule" ? "Moving…" : moveStart ? `Move to ${dateTime(moveStart)}` : "Choose an open time"}</button>

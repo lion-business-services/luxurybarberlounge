@@ -183,8 +183,12 @@ function bounds(context: ScheduleContext) {
   };
 }
 
-/** Decides one exact placement for one barber using an already loaded context. */
-export function evaluateInContext(context: ScheduleContext, barberId: string, startsAt: string, durationMinutes: number): PlacementResult {
+/**
+ * Decides one exact placement for one barber using an already loaded context.
+ * ignorePast is only for handing an appointment to another barber at its
+ * existing time, which must stay possible after the appointment has started.
+ */
+export function evaluateInContext(context: ScheduleContext, barberId: string, startsAt: string, durationMinutes: number, options: { ignorePast?: boolean } = {}): PlacementResult {
   const barber = context.barbers.get(barberId);
   const startMs = new Date(startsAt).getTime();
   if (!barber || !Number.isFinite(startMs)) return { ok: false, reason: "outside_schedule" };
@@ -196,7 +200,7 @@ export function evaluateInContext(context: ScheduleContext, barberId: string, st
     windows: barber.windowsByDate.get(date) ?? [],
     bookings: barber.bookings,
     hardBlocks: barber.hardBlocks,
-    ...bounds(context),
+    ...(options.ignorePast ? { latestMs: bounds(context).latestMs } : bounds(context)),
   });
 }
 
@@ -212,6 +216,7 @@ export async function checkPlacement(admin: AdminClient, input: {
   startsAt: string;
   durationMinutes: number;
   excludeAppointmentId?: string;
+  ignorePast?: boolean;
 }): Promise<PlacementResult & { bufferMinutes: number }> {
   const startDate = dateInZone(new Date(input.startsAt), input.timezone);
   const context = await loadScheduleContext(admin, {
@@ -222,7 +227,7 @@ export async function checkPlacement(admin: AdminClient, input: {
     days: 1,
     excludeAppointmentId: input.excludeAppointmentId,
   });
-  return { ...evaluateInContext(context, input.barberId, input.startsAt, input.durationMinutes), bufferMinutes: context.bufferMinutes };
+  return { ...evaluateInContext(context, input.barberId, input.startsAt, input.durationMinutes, { ignorePast: input.ignorePast }), bufferMinutes: context.bufferMinutes };
 }
 
 /**

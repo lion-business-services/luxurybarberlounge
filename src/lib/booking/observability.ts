@@ -23,6 +23,8 @@ export type SchedulingErrorReason =
   | PlacementRejection
   | "outside_business_hours"
   | "not_reschedulable"
+  | "changed"
+  | "invalid_transition"
   | "not_finishable"
   | "not_started"
   | "barber_not_eligible"
@@ -48,6 +50,8 @@ export function schedulingErrorReason(error: DatabaseError): SchedulingErrorReas
   if (/BARBER_ON_BREAK/.test(message)) return "break";
   if (/RESCHEDULE_IN_PAST/.test(message)) return "past";
   if (/APPOINTMENT_NOT_RESCHEDULABLE/.test(message)) return "not_reschedulable";
+  if (/APPOINTMENT_CHANGED/.test(message)) return "changed";
+  if (/INVALID_APPOINTMENT_STATUS_TRANSITION/.test(message)) return "invalid_transition";
   if (/APPOINTMENT_NOT_FINISHABLE/.test(message)) return "not_finishable";
   if (/APPOINTMENT_NOT_STARTED/.test(message)) return "not_started";
   if (/BARBER_SERVICE_NOT_ELIGIBLE/.test(message)) return "barber_not_eligible";
@@ -69,6 +73,8 @@ const MESSAGES: Record<SchedulingErrorReason, string> = {
   hold: "A client is completing checkout for that time.",
   buffer: `That time is inside the ${BOOKING_BUFFER_MINUTES}-minute gap required between appointments.`,
   not_reschedulable: "Only confirmed appointments can be moved.",
+  changed: "This appointment was just changed by someone else. Refresh and try again.",
+  invalid_transition: "That change is not allowed for this appointment's current status.",
   not_finishable: "This appointment can no longer be finished.",
   not_started: "This appointment has not started yet, so it cannot be finished.",
   barber_not_eligible: "That barber does not offer every service in this booking.",

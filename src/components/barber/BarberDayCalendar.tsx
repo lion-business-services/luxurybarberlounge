@@ -68,10 +68,18 @@ export function BarberDayCalendar({ days = 1 }: { days?: 1 | 7 }) {
     setPayload(result);
   }, [date, days]);
 
+  // The newest loader is kept in a ref so the timers and the realtime channel
+  // are set up once and never torn down when the date changes.
+  const loadRef = useRef(load);
+  useEffect(() => {
+    loadRef.current = load;
+    const initial = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
+
   useEffect(() => {
     let disposed = false;
-    const refresh = () => { if (!disposed) void load(); };
-    const initial = window.setTimeout(refresh, 0);
+    const refresh = () => { if (!disposed) void loadRef.current(); };
     const fallback = window.setInterval(refresh, FALLBACK_REFRESH_MS);
     const visible = () => { if (document.visibilityState === "visible") refresh(); };
     window.addEventListener("focus", refresh);
@@ -82,13 +90,12 @@ export function BarberDayCalendar({ days = 1 }: { days?: 1 | 7 }) {
       : null;
     return () => {
       disposed = true;
-      window.clearTimeout(initial);
       window.clearInterval(fallback);
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", visible);
       if (supabase && channel) void supabase.removeChannel(channel);
     };
-  }, [load]);
+  }, []);
 
   const facts = useMemo<CalendarFacts | null>(() => {
     if (!payload) return null;

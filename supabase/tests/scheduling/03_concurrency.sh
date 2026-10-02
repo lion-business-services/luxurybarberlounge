@@ -41,4 +41,13 @@ wait
 winners="$(cat "$tmp/move" "$tmp/book" | grep -c '^MOVED$\|^BOOKED$' || true)"
 [ "$winners" = "1" ] || { echo "FAILED: reschedule vs booking race produced $winners winners"; cat "$tmp/move" "$tmp/book"; exit 1; }
 echo "ok - a reschedule racing a new booking for the same time: exactly 1 succeeds"
+# A time-only move racing a reassignment must not silently undo the reassignment.
+ruben='00000000-0000-0000-0000-000000000c01'
+target="$(run -c "select (t.pay((t.book('00000000-0000-0000-0000-000000000c02', '00000000-0000-0000-0000-000000000501', t.ts(30, '09:00'), 60, 5000)).id)).id")"
+( run -c "begin; select 'REASSIGNED' from public.reschedule_appointment_atomic('$target', t.ts(30, '09:00'), null, null, 'owner', 'race', '$ruben'); select pg_sleep(0.6); commit;" >"$tmp/reassign" 2>&1 ) &
+( sleep 0.2; run -c "select 'MOVED' from public.reschedule_appointment_atomic('$target', t.ts(30, '11:00'), null, null, 'owner', 'race')" >"$tmp/timeonly" 2>&1 ) &
+wait
+final="$(run -c "select barber_profile_id::text || ' ' || to_char(starts_at at time zone 'America/New_York', 'HH24:MI') from public.appointments where id = '$target'")"
+grep -q '^REASSIGNED$' "$tmp/reassign" && grep -q 'APPOINTMENT_CHANGED' "$tmp/timeonly" && [ "$final" = "$ruben 09:00" ] || { echo "FAILED: reassign vs time-only move -> $final"; cat "$tmp/reassign" "$tmp/timeonly"; exit 1; }
+echo "ok - a move that raced a reassignment is refused instead of undoing it"
 rm -rf "$tmp"

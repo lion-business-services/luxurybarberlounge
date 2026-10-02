@@ -12,7 +12,9 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "private, no-store, max-age=0" };
 const operatingRoles = ["receptionist", "manager", "owner", "super_admin"] as const;
-const adminVisibleStatuses = ["confirmed", "checked_in", "assigned", "in_service", "completed", "cancelled_by_client", "cancelled_by_business", "no_show", "rescheduled"] as const;
+// "expired" is listed only together with deposit_status = paid (see GET): a
+// paid booking that holds no time yet and needs staff to place it.
+const adminVisibleStatuses = ["confirmed", "checked_in", "assigned", "in_service", "completed", "cancelled_by_client", "cancelled_by_business", "no_show", "rescheduled", "expired"] as const;
 type OperationalAppointmentRecord = {
   id: string;
   business_id: string;
@@ -201,7 +203,12 @@ export async function PATCH(request: NextRequest) {
       console.warn("booking-confirm", { correlationId, appointmentId: appointment.id, reason, code: error?.code ?? null });
       return NextResponse.json({ ok: false, code: reason, message: schedulingErrorMessage(reason) }, { status: schedulingErrorStatus(reason), headers: NO_STORE });
     }
-    const outcome = data as { promoted?: boolean; appointment?: { status?: string } };
+    const outcome = data as { promoted?: boolean; conflict?: boolean; appointment?: { status?: string } };
+    if (outcome.conflict) {
+      // Nothing was double-booked. The booking stays paid and is listed for staff to place.
+      console.warn("booking-confirm", { correlationId, appointmentId: appointment.id, reason: "conflict" });
+      return NextResponse.json({ ok: false, code: "appointment", message: "That time is no longer free. The booking is saved as paid: open it and move it to an open time." }, { status: 409, headers: NO_STORE });
+    }
     if (outcome.promoted) await audit(value, appointment, "booking.confirmed", input.reason || "Appointment confirmed", { status: appointment.status }, { status: "confirmed" });
     if (outcome.appointment?.status !== "confirmed") return NextResponse.json({ ok: false, message: `The appointment cannot move from ${String(appointment.status).replaceAll("_", " ")} to confirmed.` }, { status: 409, headers: NO_STORE });
     return NextResponse.json({ ok: true, status: "confirmed", duplicate: !outcome.promoted }, { headers: NO_STORE });

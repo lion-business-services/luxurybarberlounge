@@ -444,7 +444,7 @@ async function syncPayment(
           p_actor: null,
           p_source: "square_webhook",
         });
-        const confirmationResult = (confirmation.data ?? null) as { promoted?: boolean; appointment?: AnyRecord } | null;
+        const confirmationResult = (confirmation.data ?? null) as { promoted?: boolean; conflict?: boolean; reason?: string; appointment?: AnyRecord } | null;
         const confirmedRow = confirmationResult?.appointment ?? null;
         // "promoted" is true only for the single call that changed the status,
         // so a repeated webhook never re-sends the confirmation.
@@ -452,17 +452,22 @@ async function syncPayment(
           ? (confirmedRow as unknown as BookingNotificationAppointment)
           : null;
 
-        if (confirmation.error || confirmedRow?.status === "expired") {
-          // The client paid after the hold window and the time is no longer
-          // free. Money was taken, so this must reach a person: it is never
-          // silently dropped and never double-books the barber.
+        if (confirmation.error || confirmationResult?.conflict === true) {
+          // Money was taken but the booking could not be confirmed. This must
+          // reach a person: it is never silently dropped and never
+          // double-books the barber. Two different situations:
+          //  - conflict: the hold had lapsed and the time is no longer free.
+          //    The booking is kept as "expired, paid" for staff to place.
+          //  - error: the confirmation itself failed (for example a database
+          //    problem). Staff are told to confirm it from the Admin Portal.
           await recordPaidButUnconfirmedBooking(admin, {
             businessId: business,
             appointmentId: String(checkoutLink.appointment_id),
             squareOrderId: orderId,
             squarePaymentId: id,
+            kind: confirmationResult?.conflict === true ? "time_taken" : "confirmation_failed",
             dbCode: confirmation.error?.code ?? null,
-            dbMessage: confirmation.error?.message?.slice(0, 160) ?? null,
+            dbMessage: (confirmation.error?.message ?? confirmationResult?.reason ?? null)?.slice(0, 160) ?? null,
           });
         }
 
@@ -522,15 +527,25 @@ async function syncPayment(
 }
 
 /**
- * A verified payment arrived for a booking that could not be confirmed
- * (its checkout hold expired and the time was re-booked, or the guard refused
- * it). Records an open failure for the Sync Health screen, alerts the lounge
- * by email, and logs it. Each step is idempotent so webhook retries are safe.
+ * A verified payment arrived for a booking that could not be confirmed.
+ * "time_taken": the checkout hold had lapsed and the time is no longer free;
+ * the booking is kept as paid for staff to place at a new time.
+ * "confirmation_failed": the confirmation step itself failed.
+ * Records an open failure for the Sync Health screen, alerts the lounge by
+ * email, and logs it. Each step is idempotent so webhook retries are safe.
  */
 async function recordPaidButUnconfirmedBooking(
   admin: NonNullable<ReturnType<typeof createUntypedAdminSupabase>>,
-  input: { businessId: string; appointmentId: string; squareOrderId: string; squarePaymentId: string; dbCode: string | null; dbMessage: string | null },
+  input: { businessId: string; appointmentId: string; squareOrderId: string; squarePaymentId: string; kind: "time_taken" | "confirmation_failed"; dbCode: string | null; dbMessage: string | null },
 ) {
+  const timeTaken = input.kind === "time_taken";
+  const errorCode = timeTaken ? "PAID_AFTER_HOLD_EXPIRED" : "PAID_CONFIRMATION_FAILED";
+  const instruction = timeTaken
+    ? "In the Admin Portal, open the Appointments Calendar on the appointment's date, find it under \"Not on the calendar\" marked \"Paid, needs a new time\", and move it to an open time. Or refund the payment in Square."
+    : "In the Admin Portal, open the Appointments Calendar on the appointment's date, select the block marked \"Payment received\" and confirm it. If it cannot be confirmed, contact the client or refund the payment in Square.";
+  const summary = timeTaken
+    ? "A client paid after their checkout hold had ended and the time is no longer free."
+    : "A client's payment was received but the booking could not be confirmed automatically.";
   const { data: appointment } = await admin
     .from("appointments")
     .select("public_reference,starts_at,barber_profile_id,barber_name_snapshot,service_name_snapshot,status,timezone")
@@ -538,6 +553,7 @@ async function recordPaidButUnconfirmedBooking(
     .maybeSingle();
 
   console.error("booking-paid-but-unconfirmed", {
+    kind: input.kind,
     appointmentId: input.appointmentId,
     barberId: appointment?.barber_profile_id ?? null,
     requestedStart: appointment?.starts_at ?? null,
@@ -553,7 +569,7 @@ async function recordPaidButUnconfirmedBooking(
     .eq("provider", "booking")
     .eq("resource_type", "appointment")
     .eq("resource_id", input.appointmentId)
-    .eq("error_code", "PAID_AFTER_HOLD_EXPIRED")
+    .eq("error_code", errorCode)
     .in("status", ["open", "retrying"])
     .maybeSingle();
 
@@ -563,8 +579,8 @@ async function recordPaidButUnconfirmedBooking(
       provider: "booking",
       resource_type: "appointment",
       resource_id: input.appointmentId,
-      error_code: "PAID_AFTER_HOLD_EXPIRED",
-      message: "A client paid after their checkout hold expired and the time is no longer free. Move the appointment to a new time or refund the payment in Square.",
+      error_code: errorCode,
+      message: `${summary} ${instruction}`,
       details: {
         reference: appointment?.public_reference ?? null,
         requested_start: appointment?.starts_at ?? null,
@@ -590,11 +606,11 @@ async function recordPaidButUnconfirmedBooking(
       recipient: businessConfig.bookingEmail,
       payload: {
         subject: `Action needed: paid booking ${appointment?.public_reference ?? ""} could not be confirmed`,
-        body: `A client paid for ${appointment?.service_name_snapshot ?? "a service"} with ${appointment?.barber_name_snapshot ?? "a barber"} on ${when}, but the checkout hold had expired and that time is no longer free. Reference ${appointment?.public_reference ?? "unknown"}. Please contact the client to choose a new time, or refund the payment in Square.`,
+        body: `${summary} Booking: ${appointment?.service_name_snapshot ?? "a service"} with ${appointment?.barber_name_snapshot ?? "a barber"} on ${when}. Reference ${appointment?.public_reference ?? "unknown"}. ${instruction}`,
         transactional: true,
         appointmentId: input.appointmentId,
       },
-      idempotency_key: `booking-paid-after-hold-expired:${input.appointmentId}`,
+      idempotency_key: `booking-paid-unconfirmed:${input.kind}:${input.appointmentId}`,
       scheduled_for: new Date().toISOString(),
       status: "queued",
     },

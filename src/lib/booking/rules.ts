@@ -70,6 +70,17 @@ export const NON_BLOCKING_STATUSES = [
 
 export const RESCHEDULABLE_STATUSES = ["confirmed", "rescheduled"] as const;
 
+/**
+ * A booking whose payment arrived after its checkout hold had lapsed and whose
+ * time had been taken. It holds no time, and staff place it at a new time.
+ */
+export const PAID_UNPLACED_STATUS = "expired" as const;
+
+/** Mirrors reschedule_appointment_atomic: what staff, clients and guests may move. */
+export function isReschedulable(status: string, depositStatus?: string | null) {
+  return (RESCHEDULABLE_STATUSES as readonly string[]).includes(status) || (status === PAID_UNPLACED_STATUS && depositStatus === "paid");
+}
+
 export const FINISHABLE_STATUSES = ["confirmed", "checked_in", "assigned", "in_service"] as const;
 
 /** Only approved, "unavailable" barber time off removes time from booking. */
@@ -148,7 +159,9 @@ export function appointmentOccupancy(row: OccupancyInput, nowMs: number): Occupa
     // Finishing early releases the unused part of the reservation. Finishing
     // late never extends it: the appointment is already in the past by then.
     const completedMs = row.completed_at ? new Date(row.completed_at).getTime() : scheduledEndMs;
-    const endMs = Math.max(startMs, Math.min(scheduledEndMs, Number.isFinite(completedMs) ? completedMs : scheduledEndMs));
+    const endMs = Math.min(scheduledEndMs, Number.isFinite(completedMs) ? completedMs : scheduledEndMs);
+    // Finished before it was due to start: it never occupied the chair.
+    if (endMs <= startMs) return null;
     return { kind: "completed", startMs, endMs };
   }
 

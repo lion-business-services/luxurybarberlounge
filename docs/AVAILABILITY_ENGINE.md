@@ -25,11 +25,15 @@ Nothing else removes time. There is no lead time, no rounding of free time, and 
 | Record | Occupies time |
 | --- | --- |
 | `confirmed`, `checked_in`, `assigned`, `in_service` | Always, from start to scheduled end |
-| `slot_held`, `pending_confirmation` (unpaid website checkout) | Only until `hold_expires_at` (15 minutes). Paid holds keep blocking |
-| `completed` | From start to the earlier of scheduled end and `completed_at` |
+| `slot_held`, `pending_confirmation` (unpaid website checkout) | Only until `hold_expires_at` (15 minutes). A hold with any verified payment stops counting down (`hold_expires_at` is null) and keeps its time |
+| `completed` | From start to the earlier of scheduled end and `completed_at`. Finished before its scheduled start: nothing |
 | `cancelled_*`, `declined`, `expired`, `failed`, `no_show`, `rescheduled`, `draft` | Never |
 
 An expired hold stops blocking the instant its window passes, in the engine and in the database guard. The `/api/cron/appointments` job (every 5 minutes) only tidies the stored status and closes the matching Square checkout link.
+
+### Appointments that were back to back before the rule
+
+While the gap was zero, two appointments could be booked back to back. Those keep their place: the migration records the real gap on the earlier one (`buffer_minutes_override`), so the constraint accepts the existing pair. The exception is tied to that exact placement. It is cleared when the appointment is moved, it is never set for a new booking, and any new booking next to such an appointment still needs the full 5 minutes.
 
 ## Start times offered
 
@@ -72,7 +76,11 @@ Family 1 to 5 is one adult service followed by one to five Kids Haircuts with th
 
 ## Finishing an appointment
 
-`complete_appointment_atomic` records `completed_at`, keeps the scheduled start and end for history and commission, and shortens `occupied_until` so the unused time reopens after the gap. It is idempotent and refuses an appointment that starts more than 120 minutes in the future.
+`complete_appointment_atomic` records `completed_at`, keeps the scheduled start and end for history and commission, and shortens `occupied_until` so the unused time reopens after the gap. It is idempotent and refuses an appointment that starts more than 120 minutes in the future. An appointment finished before its scheduled start releases its whole reservation.
+
+## Moving an appointment
+
+`reschedule_appointment_atomic` moves time, barber or both in one transaction and keeps the stored duration. Confirmed appointments can be moved, and so can a paid booking that lost its time (`expired` with `deposit_status = paid`), which confirms it at the new time. If someone else changed the barber between the request and the lock, the move is refused with `APPOINTMENT_CHANGED` instead of overwriting that change. Handing an appointment to another barber requires an active, unarchived barber who offers every service in the booking.
 
 ## Timezone
 

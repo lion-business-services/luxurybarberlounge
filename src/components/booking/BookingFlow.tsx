@@ -138,13 +138,11 @@ export function BookingFlow() {
     if (!catalog || !service || step !== 2) { lastAvailabilityKey.current = ""; return; }
     // Same question as last time (same service, barber and date) means this is
     // a live refresh: the list is updated in place without a loading flash.
-    const previousKey = lastAvailabilityKey.current;
-    const silent = previousKey === availabilityKey;
-    lastAvailabilityKey.current = availabilityKey;
-    let started = false;
+    // The key is recorded only once a load for it has succeeded, so an
+    // interrupted first load is never mistaken for an empty day.
+    const silent = lastAvailabilityKey.current === availabilityKey;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      started = true;
       if (!silent) { setLoadingSlots(true); setError(""); setSlots([]); setDraft((current) => ({ ...current, startsAt: "" })); }
       fetch("/api/booking/availability", { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify({ locationId: catalog.location.id, serviceId: service.id, addonIds: draft.familyChildren > 0 ? [] : draft.addonIds, familyChildren: draft.familyChildren > 0 ? draft.familyChildren : undefined, barberIds: draft.firstAvailable || !draft.barberId ? undefined : [draft.barberId], startDate: draft.date, days: 1 }), signal: controller.signal }).then(async (response) => {
         const payload = await response.json() as { ok: boolean; slots?: AvailabilitySlot[]; message?: string };
@@ -153,6 +151,7 @@ export function BookingFlow() {
           throw new Error(payload.message || "Availability could not be loaded.");
         }
         const next = payload.slots ?? [];
+        lastAvailabilityKey.current = availabilityKey;
         setSlots(next);
         if (!silent) { setAnnouncement(`${next.length} appointment times available.`); return; }
         // If the chosen time was just taken, it is deselected and the client is told.
@@ -163,7 +162,7 @@ export function BookingFlow() {
         }
       }).catch((caught) => { if (!silent && (caught as Error).name !== "AbortError") setError(caught instanceof Error ? caught.message : "Availability could not be loaded."); }).finally(() => { if (!silent) setLoadingSlots(false); });
     }, 0);
-    return () => { controller.abort(); window.clearTimeout(timer); if (!started) lastAvailabilityKey.current = previousKey; };
+    return () => { controller.abort(); window.clearTimeout(timer); };
   }, [catalog, service, draft.addonIds, draft.familyChildren, draft.barberId, draft.firstAvailable, draft.date, step, availabilityKey, availabilityTick]);
 
   // While the client is choosing a time, the list follows the live schedule:

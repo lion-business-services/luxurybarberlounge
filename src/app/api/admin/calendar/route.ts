@@ -17,7 +17,11 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const allowed = new Set(["receptionist", "manager", "owner", "super_admin"]);
-const visibleStatuses = ["confirmed", "checked_in", "assigned", "in_service", "completed", "cancelled_by_client", "cancelled_by_business", "no_show", "rescheduled"];
+// "expired" is included because the query below only returns paid records:
+// a paid booking whose time was taken before the payment arrived is listed
+// so staff can place it at a new time.
+const historyStatuses = ["confirmed", "checked_in", "assigned", "in_service", "completed", "cancelled_by_client", "cancelled_by_business", "no_show", "rescheduled"];
+const visibleStatuses = [...historyStatuses, "expired"];
 
 function text(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -106,7 +110,7 @@ export async function GET(request: NextRequest) {
     clientIds.length
       ? admin.from("clients").select("id,first_name,last_name,email,phone,preferred_language,referral_source,acquisition_source,status,created_at,updated_at").in("id", clientIds)
       : Promise.resolve({ data: [], error: null }),
-    admin.from("appointments").select("id,client_id,client_email_snapshot,client_phone_snapshot,starts_at,status,deposit_status").eq("business_id", business.id).eq("deposit_status", "paid").in("status", visibleStatuses).lt("starts_at", rangeEnd).order("starts_at", { ascending: false }).limit(2000),
+    admin.from("appointments").select("id,client_id,client_email_snapshot,client_phone_snapshot,starts_at,status,deposit_status").eq("business_id", business.id).eq("deposit_status", "paid").in("status", historyStatuses).lt("starts_at", rangeEnd).order("starts_at", { ascending: false }).limit(2000),
     admin.from("queue_entries").select("id,client_record_id,client_email,client_phone,walk_in_at,joined_at,completed_at,status").eq("business_id", business.id).is("appointment_id", null).eq("status", "completed").not("completed_at", "is", null).lt("completed_at", rangeEnd).order("completed_at", { ascending: false }).limit(2000),
     appointmentIds.length
       ? admin.from("appointment_service_items").select("appointment_id,sequence,role,label,service_name_snapshot,price_snapshot_cents,duration_snapshot_minutes,offset_minutes").in("appointment_id", appointmentIds).order("sequence")
