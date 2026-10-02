@@ -54,6 +54,7 @@ Release points are what make 12:50 bookable after an appointment that ends at 12
 | Server loader | `src/lib/booking/availability.ts` | One round of parallel queries, then the pure engine. `searchSupabaseAvailability`, `checkPlacement`, `listPlacements` |
 | Move operation | `src/lib/booking/reschedule.ts` | The one way to move an appointment (admin, client, guest) |
 | Database guard | `supabase/migrations/202610020001_scheduling_single_source_of_truth.sql` | Trigger `enforce_appointment_barber_availability`, constraint `appointments_no_buffered_overlap`, atomic RPCs |
+| Database hardening | `supabase/migrations/202610020002_scheduling_function_hardening.sql` | Pins `search_path` on the four pure helper functions and removes the default execute grant from the realtime broadcast trigger function. Apply it after the guard migration |
 
 The integration test `tests/integration/scheduling-rules-agreement.test.ts` fails the build when the application constants and the migration disagree.
 
