@@ -57,3 +57,18 @@ export function addDays(date: string, days: number) {
 export function weekdayForDate(date: string) {
   return new Date(`${date}T12:00:00Z`).getUTCDay();
 }
+
+/** "YYYY-MM-DDTHH:MM" for a datetime-local input, in the given timezone. */
+export function toZonedInputValue(value: Date, timeZone: string) {
+  const parts = zonedParts(value, timeZone);
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}T${pad(parts.hour)}:${pad(parts.minute)}`;
+}
+
+/** Reads a datetime-local value as wall-clock time in the given timezone. */
+export function zonedInputToUtc(value: string, timeZone: string) {
+  const [date, clock] = value.split("T");
+  if (!date || !clock || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}/.test(clock)) return null;
+  const instant = zonedDateTimeToUtc(date, clock.length === 5 ? `${clock}:00` : clock.slice(0, 8), timeZone);
+  return Number.isNaN(instant.getTime()) ? null : instant;
+}

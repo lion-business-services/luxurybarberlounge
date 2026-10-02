@@ -71,8 +71,12 @@ test("session metadata stores hashes and never raw access tokens", async () => {
 
 test("client appointment mutations use atomic Supabase booking operations and immutable history columns", async () => {
   const source = await readFile("src/app/api/client/appointments/route.ts", "utf8");
-  assert.match(source, /reschedule_appointment_atomic/);
-  assert.match(source, /searchSupabaseAvailability/);
+  const move = await readFile("src/lib/booking/reschedule.ts", "utf8");
+  // Client rescheduling goes through the one shared move operation, which
+  // validates with the single availability engine and commits atomically.
+  assert.match(source, /moveAppointment\(/);
+  assert.match(move, /reschedule_appointment_atomic/);
+  assert.match(move, /checkPlacement\(/);
   assert.match(source, /cancelled_by_client/);
   assert.match(source, /to_status:\s*"cancelled_by_client"/);
   assert.doesNotMatch(source, /appointment_status_history"\)\.insert\([^\n]*\bstatus:/);

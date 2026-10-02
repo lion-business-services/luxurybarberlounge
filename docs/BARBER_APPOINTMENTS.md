@@ -15,3 +15,13 @@ Barbers do not receive owner-only analytics, unrelated client records, private a
 ## Assignment notifications
 
 Successful appointment creation queues a barber-assignment notification using an idempotency key. Retries do not create duplicate deliveries. A failed email provider does not delete or roll back the appointment.
+
+## Barber timeline and Finish (October 2026)
+
+Today and Calendar in the Barber Portal show the barber's own timeline, drawn from the same engine as the Admin Portal calendar and the public booking page.
+
+- A barber sees only their own appointments. A checkout in progress is shown as a hold without client details.
+- **Finish** is available for the barber's own confirmed, checked-in, assigned or in-service appointments. It records the actual end time and reopens unused time after the 5-minute gap. The server checks that the appointment belongs to the signed-in barber.
+- Time marked unavailable under Profile and availability is removed from public booking immediately, and reopens immediately when it is removed.
+
+API: `GET /api/barber/calendar`, `PATCH /api/barber/calendar` (`finish`).

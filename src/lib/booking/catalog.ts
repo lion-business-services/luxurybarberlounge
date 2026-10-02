@@ -2,7 +2,8 @@ import "server-only";
 import { createPublicServerSupabase, createUntypedAdminSupabase } from "@/lib/auth/server";
 import { businessConfig } from "@/lib/config/business";
 import { barbers, serviceAddOns, serviceCategories, services } from "@/lib/content/site";
-import type { BookingCatalog } from "@/lib/booking/types";
+import { resolveBufferMinutes } from "@/lib/booking/rules";
+import type { BookingCatalog, BookingCatalogFamily } from "@/lib/booking/types";
 
 function english(value: unknown) {
   if (value && typeof value === "object" && "en" in value) return String((value as { en?: unknown }).en ?? "");
@@ -120,7 +121,7 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
     content_status: "published",
     active: true,
     sort_order: index,
-  })), { onConflict: "business_id,slug" }).select("id,slug,category_id,name,short_description,full_description,price_cents,duration_minutes,deposit_cents,active,bookable,content_status");
+  })), { onConflict: "business_id,slug" }).select("id,slug,category_id,name,short_description,full_description,price_cents,duration_minutes,deposit_cents,active,bookable,content_status,family_adult_eligible");
   requireResult(serviceError, "SERVICES_UNAVAILABLE");
   const serviceBySlug = new Map((serviceRows ?? []).map((item) => [item.slug, item]));
   const currentServiceSlugs = services.map((item) => item.slug);
@@ -313,8 +314,16 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
       priceCents: Number(item.price_cents ?? 0),
       depositCents: Number(item.deposit_cents ?? 0),
       relatedServiceIds: [],
+      familyAdultEligible: item.family_adult_eligible !== false,
     }));
   if (!catalogServices.length) throw new BookingCatalogError("NO_BOOKABLE_SERVICES");
+
+  const [{ data: tierRows, error: tierError }, { data: settingsRow }] = await Promise.all([
+    admin.from("family_booking_tiers").select("slug,name,description,children_count,child_service_id,sort_order").eq("business_id", business.id).eq("active", true).order("sort_order"),
+    admin.from("location_settings").select("default_buffer_minutes").eq("location_id", location.id).maybeSingle(),
+  ]);
+  requireResult(tierError, "BOOKING_MIGRATIONS_REQUIRED");
+  const family = familyFromRows(tierRows ?? [], settingsRow?.default_buffer_minutes, new Set(catalogServices.map((item) => item.id)));
 
   const catalogBarbers = (barberRows ?? []).map((item) => {
     const source = barbers.find((barber) => barber.slug === item.slug);
@@ -352,7 +361,28 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
       services: catalogServices,
       addons: (addonRows ?? []).map((item) => ({ id: item.id, slug: item.slug, serviceId: item.service_id, name: english(item.name), description: english(item.description), durationMinutes: Number(item.duration_minutes), priceCents: Number(item.price_cents) })),
       barbers: catalogBarbers,
+      family,
     },
+  };
+}
+
+type FamilyTierRow = { slug?: string; name?: unknown; description?: unknown; children_count?: number; child_service_id?: string };
+
+/** Family tiers whose child service is currently bookable; anything else is dropped rather than guessed. */
+function familyFromRows(rows: FamilyTierRow[], bufferMinutes: unknown, bookableServiceIds: Set<string>): BookingCatalogFamily {
+  return {
+    bufferMinutes: resolveBufferMinutes(bufferMinutes),
+    tiers: rows.flatMap((item) => {
+      const childrenCount = Number(item.children_count);
+      if (!item.slug || !item.child_service_id || !Number.isInteger(childrenCount) || !bookableServiceIds.has(String(item.child_service_id))) return [];
+      return [{
+        slug: item.slug,
+        name: english(item.name) || `Family ${childrenCount}`,
+        description: english(item.description),
+        childrenCount,
+        childServiceId: String(item.child_service_id),
+      }];
+    }).sort((a, b) => a.childrenCount - b.childrenCount),
   };
 }
 
@@ -360,7 +390,8 @@ export async function ensureBookingCatalog(): Promise<{ admin: NonNullable<Retur
 type PublicCatalogRpc = {
   location?: { id?: string; name?: string; timezone?: string; address?: string };
   categories?: Array<{ id?: string; slug?: string; name?: unknown; description?: unknown }>;
-  services?: Array<{ id?: string; slug?: string; category_id?: string | null; name?: unknown; short_description?: unknown; full_description?: unknown; price_cents?: number; duration_minutes?: number; deposit_cents?: number }>;
+  services?: Array<{ id?: string; slug?: string; category_id?: string | null; name?: unknown; short_description?: unknown; full_description?: unknown; price_cents?: number; duration_minutes?: number; deposit_cents?: number; family_adult_eligible?: boolean }>;
+  family?: { buffer_minutes?: number; tiers?: FamilyTierRow[] };
   addons?: Array<{ id?: string; slug?: string; service_id?: string | null; name?: unknown; description?: unknown; price_cents?: number; duration_minutes?: number }>;
   barbers?: Array<{ id?: string; slug?: string; display_name?: unknown; professional_title?: unknown; short_intro?: unknown; specialties?: unknown; languages?: unknown; service_ids?: unknown; bookable?: boolean; demo?: boolean }>;
 };
@@ -381,6 +412,7 @@ function publicCatalogFromRpc(payload: PublicCatalogRpc): BookingCatalog {
     priceCents: Number(item.price_cents ?? 0),
     depositCents: Number(item.deposit_cents ?? 0),
     relatedServiceIds: [],
+    familyAdultEligible: item.family_adult_eligible !== false,
   }] : []);
   if (!catalogServices.length) throw new BookingCatalogError("NO_BOOKABLE_SERVICES");
   const catalogBarbers = (payload.barbers ?? []).flatMap((item) => {
@@ -414,6 +446,7 @@ function publicCatalogFromRpc(payload: PublicCatalogRpc): BookingCatalog {
     services: catalogServices,
     addons: (payload.addons ?? []).flatMap((item) => item.id && item.slug ? [{ id: item.id, slug: item.slug, serviceId: item.service_id ?? null, name: english(item.name), description: english(item.description), durationMinutes: Number(item.duration_minutes ?? 0), priceCents: Number(item.price_cents ?? 0) }] : []),
     barbers: catalogBarbers,
+    family: familyFromRows(payload.family?.tiers ?? [], payload.family?.buffer_minutes, new Set(catalogServices.map((item) => item.id))),
   };
 }
 

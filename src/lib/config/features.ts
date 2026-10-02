@@ -8,10 +8,12 @@ function enabled(value: string | undefined, fallback = false) {
  * complete, while credential-dependent actions stay hidden or become an
  * inquiry/call flow until their providers are activated.
  *
- * Production scheduling is intentionally Supabase-authoritative. Square stays
- * live for checkout, payments, orders, customers, refunds, catalog sync and
- * webhooks. This keeps every configured website barber/service bookable even
- * while the seller's Square Appointments roster is still being completed.
+ * Scheduling is Supabase-authoritative and there is no flag to change that:
+ * see SCHEDULING_SOURCE_OF_TRUTH in src/lib/booking/rules.ts. Square stays live
+ * for checkout, payments, orders, customers, refunds, catalog sync and
+ * webhooks. A second, Square-driven availability engine was removed so the
+ * website, the portals and the database can never disagree about a barber's
+ * time.
  */
 export const features = {
   // Square is live in production (payments, orders, webhooks, catalog and team
@@ -41,11 +43,6 @@ export const features = {
   advancedCommission: enabled(process.env.NEXT_PUBLIC_FEATURE_ADVANCED_COMMISSION, true),
   experimental3DHero: enabled(process.env.NEXT_PUBLIC_FEATURE_EXPERIMENTAL_3D_HERO, true),
 
-  // Do not let the broader Square feature flag silently make Square
-  // Appointments the scheduling source of truth. That requires an explicitly
-  // complete Square team/service roster and is intentionally disabled for the
-  // production launch architecture.
-  squareLiveBooking: false,
 } as const;
 
 export type FeatureKey = keyof typeof features;

@@ -34,6 +34,11 @@ const legacyFormatDebt = new Set([
   "20260903180000_walk_in_commission_attribution_guard.sql",
   "20260903184500_commission_statements_ready_to_review.sql",
   "20260904190000_barber_booking_email_immediate.sql",
+  // Applied to production from the Supabase dashboard with 14-digit names and
+  // without an explicit transaction. Already live, so they are recorded as
+  // format debt instead of being rewritten.
+  "20260916195329_block_appointments_during_approved_barber_time_off.sql",
+  "20260922160000_sync_appointment_queue_status.sql",
 ]);
 
 const failures = [];

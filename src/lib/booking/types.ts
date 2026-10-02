@@ -10,6 +10,23 @@ export type BookingCatalogService = {
   priceCents: number;
   depositCents: number;
   relatedServiceIds: string[];
+  /** Whether the adult in a family booking may choose this service. */
+  familyAdultEligible: boolean;
+};
+
+export type BookingCatalogFamilyTier = {
+  slug: string;
+  name: string;
+  description: string;
+  childrenCount: number;
+  /** The live Kids Haircut service; its price and duration come from the catalog. */
+  childServiceId: string;
+};
+
+export type BookingCatalogFamily = {
+  /** Changeover between consecutive family members; equals the appointment buffer. */
+  bufferMinutes: number;
+  tiers: BookingCatalogFamilyTier[];
 };
 
 export type BookingCatalogAddon = {
@@ -52,6 +69,7 @@ export type BookingCatalog = {
   services: BookingCatalogService[];
   addons: BookingCatalogAddon[];
   barbers: BookingCatalogBarber[];
+  family: BookingCatalogFamily;
 };
 
 export type AvailabilitySlot = {

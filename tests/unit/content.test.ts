@@ -11,6 +11,7 @@ const names = [
   "Alfredo Hernandez (Pollo)",
   "Russ Hawkins",
   "Daniel Penalo",
+  "Luis Rivera",
 ];
 
 test("canonical business details and hours match the completed intake", () => {

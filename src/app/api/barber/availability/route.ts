@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
 import { businessConfig } from "@/lib/config/business";
+import { BLOCKING_STATUSES, CHECKOUT_HOLD_MINUTES, appointmentOccupancy, isActiveStatus } from "@/lib/booking/rules";
 import { addDays, weekdayForDate, zonedDateTimeToUtc } from "@/lib/booking/timezone";
 import { processNotificationJobs } from "@/lib/notifications/process";
 
@@ -20,22 +21,6 @@ const cancelSchema = z.object({
   id: z.string().uuid(),
   source: z.enum(["time_off", "schedule"]),
 });
-
-const activeAppointmentStatuses = [
-  "slot_held",
-  "pending_confirmation",
-  "confirmed",
-  "checked_in",
-  "assigned",
-  "in_service",
-];
-
-const operationalAppointmentStatuses = new Set([
-  "confirmed",
-  "checked_in",
-  "assigned",
-  "in_service",
-]);
 
 type AvailabilityAction = "marked_unavailable" | "added_availability" | "restored_availability" | "removed_availability";
 
@@ -219,19 +204,22 @@ export async function POST(request: NextRequest) {
   if (kind === "unavailable") {
     const { data: overlappingAppointments, error: overlappingError } = await ctx.admin
       .from("appointments")
-      .select("id,status,deposit_status")
+      .select("id,status,deposit_status,starts_at,ends_at,hold_expires_at,completed_at")
       .eq("barber_profile_id", ctx.profile.id)
       .lt("starts_at", endsAt.toISOString())
       .gt("ends_at", startsAt.toISOString())
-      .in("status", activeAppointmentStatuses);
+      .in("status", [...BLOCKING_STATUSES]);
 
     if (overlappingError) {
       return NextResponse.json({ ok: false, message: "Existing appointments could not be verified." }, { status: 503 });
     }
 
-    const overlaps = overlappingAppointments ?? [];
+    // Same rule as the booking engine: an appointment or a checkout hold that
+    // is still live occupies the time. An expired, unpaid hold does not.
+    const nowMs = Date.now();
+    const overlaps = (overlappingAppointments ?? []).filter((appointment) => appointmentOccupancy(appointment, nowMs) !== null);
     const operationalConflict = overlaps.some(
-      (appointment) => operationalAppointmentStatuses.has(String(appointment.status)) || appointment.deposit_status === "paid",
+      (appointment) => isActiveStatus(String(appointment.status)) || appointment.deposit_status === "paid",
     );
 
     if (operationalConflict) {
@@ -241,24 +229,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const pendingIds = overlaps.map((appointment) => String(appointment.id));
-    if (pendingIds.length) {
-      const { count: checkoutCount, error: checkoutError } = await ctx.admin
-        .from("appointment_payment_links")
-        .select("id", { count: "exact", head: true })
-        .in("appointment_id", pendingIds)
-        .in("status", ["created", "paid"]);
-
-      if (checkoutError) {
-        return NextResponse.json({ ok: false, message: "Existing checkout links could not be verified." }, { status: 503 });
-      }
-
-      if ((checkoutCount ?? 0) > 0) {
-        return NextResponse.json(
-          { ok: false, code: "CHECKOUT_IN_PROGRESS", message: "A client has an active checkout for this time. Cancel or move that checkout before marking the time unavailable." },
-          { status: 409 },
-        );
-      }
+    if (overlaps.length > 0) {
+      return NextResponse.json(
+        { ok: false, code: "CHECKOUT_IN_PROGRESS", message: `A client is paying for this time right now. If they do not finish, the time is released automatically within ${CHECKOUT_HOLD_MINUTES} minutes and you can mark it unavailable then.` },
+        { status: 409 },
+      );
     }
 
     const { data, error } = await ctx.admin

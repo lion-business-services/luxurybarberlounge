@@ -108,20 +108,37 @@ test("availability accounts for schedules, breaks, time off, bookings, holds, an
     assert.match(availability, new RegExp(`from\\("${table}"\\)`));
   }
   assert.match(availability, /default_buffer_minutes/);
-  assert.match(availability, /minimumLeadMinutes/);
-  assert.match(availability, /maximumAdvanceDays/);
-  assert.match(availability, /existingOccupiedEnd/);
-  assert.match(availability, /bufferMinutes \* 60_000/);
-  assert.match(availability, /locallyBookable/);
+  assert.match(availability, /MINIMUM_LEAD_MINUTES/);
+  assert.match(availability, /MAXIMUM_ADVANCE_DAYS/);
   assert.match(availability, /searchSupabaseAvailability/);
+  // Every decision is delegated to the one pure engine and the one rule set.
+  assert.match(availability, /appointmentOccupancy\(/);
+  assert.match(availability, /generateStartTimes\(/);
+  assert.match(availability, /evaluatePlacement\(/);
+  const engine = await source("src/lib/booking/slots.ts");
+  assert.match(engine, /block\.endMs \+ buffer/);
+  assert.match(engine, /reason: "buffer"/);
+  // Exactly one availability engine: no Square Appointments fallback remains.
+  assert.doesNotMatch(availability, /searchSquareBookingAvailability|\/v2\/bookings\/availability/);
 });
 
 test("admin appointment workspace provides operational filters and status actions", async () => {
   const workspace = await source("src/components/admin/AdminAppointmentsWorkspace.tsx");
   const route = await source("src/app/api/admin/appointments/route.ts");
-  for (const word of ["Date", "Status", "Barber", "Source", "Check in", "Start service", "Complete", "No show", "Reschedule", "Internal note"]) {
+  for (const word of ["Date", "Status", "Barber", "Source", "Check in", "Start service", "Finish", "No show", "Move appointment", "Internal note"]) {
     assert.match(workspace, new RegExp(word));
   }
+  // The calendar is the shared timeline with drag and drop, and it never moves
+  // a card on its own: it reloads after the server confirms the change.
+  assert.match(workspace, /<ScheduleBoard/);
+  assert.match(workspace, /onDrop=\{handleDrop\}/);
+  assert.match(workspace, /booking-availability:northfield/);
+  assert.doesNotMatch(workspace, /setPayload\(\(current\)/);
+  // Moves, finishing and confirmation are atomic database operations.
+  assert.match(route, /moveAppointment\(/);
+  assert.match(route, /complete_appointment_atomic/);
+  assert.match(route, /confirm_paid_appointment/);
+  assert.doesNotMatch(route, /ensureBookingCatalog/);
   assert.match(route, /appointment_status_history/);
   assert.match(route, /appointment_assignments/);
   assert.match(route, /booking\.barber_reassigned/);
@@ -135,7 +152,8 @@ test("client appointment changes are ownership-protected and conflict-safe", asy
   route,
   /from\("appointments"\)[\s\S]*eq\("id", appointmentId\)/,
 );
-  assert.match(route, /reschedule_appointment_atomic/);
+  assert.match(route, /moveAppointment\(/);
+  assert.match(await source("src/lib/booking/reschedule.ts"), /reschedule_appointment_atomic/);
   assert.match(route, /cancellationCutoffHours/);
   assert.match(route, /cancelled_by_client/);
 });
@@ -271,7 +289,16 @@ test("rescheduling preserves the booked duration without requiring add-on identi
   const availability = await source("src/lib/booking/availability.ts");
   assert.match(availability, /addonIds\?: string\[\]/);
   assert.match(availability, /durationMinutesOverride\?: number/);
-  assert.match(availability, /input\.durationMinutesOverride \?\?/);
+  assert.match(availability, /excludeAppointmentId/);
+
+  // One shared move operation: the length comes from the stored appointment
+  // (so a family booking moves as a whole) and the appointment being moved
+  // never blocks its own destination.
+  const move = await source("src/lib/booking/reschedule.ts");
+  assert.match(move, /new Date\(appointment\.ends_at\)\.getTime\(\) - new Date\(appointment\.starts_at\)\.getTime\(\)/);
+  assert.match(move, /excludeAppointmentId: appointment\.id/);
+  assert.match(move, /reschedule_appointment_atomic/);
+  assert.match(move, /queueAppointmentChangeNotifications/);
 
   for (const routePath of [
     "src/app/api/admin/appointments/route.ts",
@@ -279,9 +306,13 @@ test("rescheduling preserves the booked duration without requiring add-on identi
     "src/app/api/client/appointments/route.ts",
   ]) {
     const route = await source(routePath);
-    assert.match(route, /addonIds: \[\]/);
-    assert.match(route, /durationMinutesOverride:/);
+    assert.match(route, /moveAppointment\(/);
+    assert.doesNotMatch(route, /rpc\("reschedule_appointment_atomic"/);
   }
+
+  // The database derives the new end from the stored duration as well.
+  const migration = await source("supabase/migrations/202610020001_scheduling_single_source_of_truth.sql");
+  assert.match(migration, /v_new_end := p_starts_at \+ \(current_row\.ends_at - current_row\.starts_at\)/);
 });
 
 test("Square sandbox auto-syncs foundation mappings without exposing public checkout", async () => {

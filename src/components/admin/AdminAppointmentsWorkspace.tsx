@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeCheck,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   ExternalLink,
   History,
   Mail,
@@ -18,12 +17,21 @@ import {
   Scissors,
   UserCheck,
   UserRound,
+  UsersRound,
   WalletCards,
   X,
 } from "lucide-react";
-import { zonedDateTimeToUtc } from "@/lib/booking/timezone";
+import { ScheduleBoard, ScheduleLegend, type BoardAppointment, type BoardColumn, type BoardDrop } from "@/components/schedule/ScheduleBoard";
+import type { CalendarFacts } from "@/lib/booking/calendar-model";
+import { FINISHABLE_STATUSES, RESCHEDULABLE_STATUSES } from "@/lib/booking/rules";
+import { rejectionMessage, type ScheduleRow } from "@/lib/booking/slots";
+import { getBrowserSupabase } from "@/lib/supabase/client";
 
 const SHOP_TIME_ZONE = "America/New_York";
+const FALLBACK_REFRESH_MS = 20_000;
+const REALTIME_DEBOUNCE_MS = 400;
+/** Statuses that sit on the timeline. Everything else is listed below it. */
+const TIMELINE_STATUSES = new Set(["confirmed", "checked_in", "assigned", "in_service", "completed"]);
 
 type PaymentDetail = {
   status: string;
@@ -60,6 +68,16 @@ type AppointmentNote = {
   note: string;
   clientVisible: boolean;
   createdAt: string | null;
+};
+
+type ServiceItem = {
+  sequence: number;
+  role: string | null;
+  label: string | null;
+  serviceName: string | null;
+  priceCents: number;
+  durationMinutes: number;
+  offsetMinutes: number;
 };
 
 type Appointment = {
@@ -100,6 +118,12 @@ type Appointment = {
   sync_status: string | null;
   created_at: string;
   updated_at: string;
+  booking_kind: string | null;
+  party_size: number | null;
+  completed_at: string | null;
+  hold_expires_at: string | null;
+  reschedule_count: number | null;
+  serviceItems: ServiceItem[];
   payment: PaymentDetail;
   clientInsights: ClientInsights;
   notes: AppointmentNote[];
@@ -111,6 +135,21 @@ type Appointment = {
   };
 };
 
+type Hold = {
+  id: string;
+  public_reference: string | null;
+  barber_profile_id: string;
+  starts_at: string;
+  ends_at: string;
+  status: string;
+  deposit_status: string | null;
+  hold_expires_at: string | null;
+  service_name_snapshot: string | null;
+  client_name_snapshot: string | null;
+  booking_kind: string | null;
+  party_size: number;
+};
+
 type Barber = {
   id: string;
   staff_user_id: string | null;
@@ -119,30 +158,19 @@ type Barber = {
   accepting_walk_ins: boolean;
 };
 
-type Schedule = {
-  id: string;
-  barber_profile_id: string;
-  weekday: number;
-  starts_at: string;
-  ends_at: string;
-  effective_from: string | null;
-  effective_to: string | null;
-  active: boolean;
-};
-
-type TimeOff = {
+type TimeBlock = {
   id: string;
   barber_profile_id: string;
   starts_at: string;
   ends_at: string;
   reason: string | null;
   status: string;
-  availability_kind: string | null;
+  availability_kind?: string | null;
 };
 
 type CalendarPayload = {
   ok: boolean;
-  generatedAt?: string;
+  generatedAt: string;
   timezone: string;
   location: string;
   startDate: string;
@@ -150,12 +178,19 @@ type CalendarPayload = {
   days: string[];
   barbers: Barber[];
   appointments: Appointment[];
-  schedules: Schedule[];
-  timeOff: TimeOff[];
+  schedules: ScheduleRow[];
+  timeOff: TimeBlock[];
+  breaks: TimeBlock[];
+  holds: Hold[];
+  businessHours: CalendarFacts["businessHours"];
+  holidayHours: CalendarFacts["holidayHours"];
+  rules: { source: string; bufferMinutes: number; snapMinutes: number; earlyFinishGuardMinutes: number };
   message?: string;
 };
 
-type PatchResponse = { ok?: boolean; message?: string; status?: string };
+type PatchResponse = { ok?: boolean; message?: string; status?: string; code?: string; changed?: boolean; duplicate?: boolean; clientNotified?: boolean; availableAgainAt?: string };
+type Notice = { tone: "info" | "success" | "error"; text: string };
+type View = "day" | "week";
 
 function localDate(value = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: SHOP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(value);
@@ -167,10 +202,6 @@ function shiftDate(date: string, days: number) {
   const value = new Date(`${date}T12:00:00Z`);
   value.setUTCDate(value.getUTCDate() + days);
   return value.toISOString().slice(0, 10);
-}
-
-function appointmentDate(value: string) {
-  return localDate(new Date(value));
 }
 
 function time(value: string) {
@@ -194,26 +225,16 @@ function dayLabel(date: string) {
   return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" }).format(new Date(`${date}T12:00:00Z`));
 }
 
+function longDayLabel(date: string) {
+  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date(`${date}T12:00:00Z`));
+}
+
 function money(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
 function pretty(value: string | null | undefined) {
   return String(value ?? "—").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function scheduleTime(value: string) {
-  const [hour, minute] = value.slice(0, 5).split(":").map(Number);
-  const date = new Date(Date.UTC(2026, 0, 1, hour, minute));
-  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", hour: "numeric", minute: "2-digit" }).format(date);
-}
-
-function localInputToUtc(value: string) {
-  const [date, clock] = value.split("T");
-  if (!date || !clock) return null;
-  const normalizedClock = clock.length === 5 ? `${clock}:00` : clock;
-  const instant = zonedDateTimeToUtc(date, normalizedClock, SHOP_TIME_ZONE);
-  return Number.isNaN(instant.getTime()) ? null : instant.toISOString();
 }
 
 function clientTypeLabel(value: ClientInsights["type"]) {
@@ -236,60 +257,111 @@ function addonSummary(value: unknown) {
   }).join(", ");
 }
 
+function scheduledMinutes(appointment: { starts_at: string; ends_at: string }) {
+  return Math.round((new Date(appointment.ends_at).getTime() - new Date(appointment.starts_at).getTime()) / 60_000);
+}
+
 export function AdminAppointmentsWorkspace() {
-  const [startDate, setStartDate] = useState(() => localDate());
+  const [view, setView] = useState<View>("day");
+  const [date, setDate] = useState(() => localDate());
   const [payload, setPayload] = useState<CalendarPayload | null>(null);
-  const [selected, setSelected] = useState<Appointment | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [barberFilter, setBarberFilter] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
-  const [rescheduleAt, setRescheduleAt] = useState("");
-  const [reassignBarber, setReassignBarber] = useState("");
-  const [internalNote, setInternalNote] = useState("");
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [pendingMove, setPendingMove] = useState<BoardDrop | null>(null);
+  const [savingMoveId, setSavingMoveId] = useState<string | null>(null);
+  const [live, setLive] = useState(false);
+  const requestSequence = useRef(0);
+  const refreshTimer = useRef<number | null>(null);
+
+  const days = view === "day" ? 1 : 7;
 
   const load = useCallback(async () => {
-    const response = await fetch(`/api/admin/calendar?start=${encodeURIComponent(startDate)}&days=7`, { cache: "no-store" }).catch(() => null);
+    const requestId = ++requestSequence.current;
+    const response = await fetch(`/api/admin/calendar?start=${encodeURIComponent(date)}&days=${days}`, { cache: "no-store" }).catch(() => null);
     const result = response ? await response.json().catch(() => null) as CalendarPayload | null : null;
+    // A slower, older response must never overwrite a newer one.
+    if (requestId !== requestSequence.current) return;
     if (!response?.ok || !result?.ok) {
-      setMessage("The appointment calendar could not be loaded. Please refresh and try again.");
+      setNotice({ tone: "error", text: "The appointment calendar could not be loaded. Please refresh and try again." });
       return;
     }
     setPayload(result);
-    setSelected((current) => current ? result.appointments.find((item) => item.id === current.id) ?? null : null);
-    setMessage("");
-  }, [startDate]);
+  }, [date, days]);
 
   useEffect(() => {
-    const initial = window.setTimeout(() => void load(), 0);
-    const timer = window.setInterval(() => void load(), 15000);
-    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
+    let disposed = false;
+    const refresh = () => { if (!disposed) void load(); };
+    const initial = window.setTimeout(refresh, 0);
+    const fallback = window.setInterval(refresh, FALLBACK_REFRESH_MS);
+    const visible = () => { if (document.visibilityState === "visible") refresh(); };
+    window.addEventListener("online", refresh);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", visible);
+
+    // The database announces every availability change on this channel. The
+    // message carries no personal data; it only tells the calendar to reload.
+    const supabase = getBrowserSupabase();
+    const channel = supabase
+      ? supabase
+          .channel("booking-availability:northfield", { config: { private: false } })
+          .on("broadcast", { event: "availability_changed" }, () => {
+            if (disposed) return;
+            if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current);
+            refreshTimer.current = window.setTimeout(() => { refreshTimer.current = null; refresh(); }, REALTIME_DEBOUNCE_MS);
+          })
+          .subscribe((status) => {
+            if (disposed) return;
+            setLive(status === "SUBSCRIBED");
+          })
+      : null;
+
+    return () => {
+      disposed = true;
+      window.clearTimeout(initial);
+      window.clearInterval(fallback);
+      if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current);
+      window.removeEventListener("online", refresh);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", visible);
+      if (supabase && channel) void supabase.removeChannel(channel);
+    };
   }, [load]);
 
-  useEffect(() => {
-    if (!selected) return;
-    setReassignBarber(selected.barber_profile_id);
-    setInternalNote("");
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone: SHOP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(selected.starts_at));
-    const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
-    setRescheduleAt(`${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`);
-  }, [selected]);
+  const selected = useMemo(() => payload?.appointments.find((item) => item.id === selectedId) ?? null, [payload, selectedId]);
 
   useEffect(() => {
-    if (!selected) return;
+    if (!selectedId) return;
     const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelected(null);
+      if (event.key === "Escape") setSelectedId(null);
     };
     document.addEventListener("keydown", close);
     return () => document.removeEventListener("keydown", close);
-  }, [selected]);
+  }, [selectedId]);
 
-  const filteredAppointments = useMemo(() => {
+  const facts = useMemo<CalendarFacts | null>(() => {
+    if (!payload) return null;
+    return {
+      timezone: payload.timezone || SHOP_TIME_ZONE,
+      bufferMinutes: payload.rules.bufferMinutes,
+      nowMs: Date.parse(payload.generatedAt),
+      schedules: payload.schedules,
+      businessHours: payload.businessHours,
+      holidayHours: payload.holidayHours,
+      timeOff: payload.timeOff,
+      breaks: payload.breaks,
+      appointments: [...payload.appointments, ...payload.holds],
+    };
+  }, [payload]);
+
+  const dimmed = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return (payload?.appointments ?? []).filter((item) => {
-      if (barberFilter && item.barber_profile_id !== barberFilter) return false;
-      if (!query) return true;
-      return [
+    const result = new Set<string>();
+    if (!query || !payload) return result;
+    for (const item of payload.appointments) {
+      const matches = [
         item.client_name_snapshot,
         item.client_email_snapshot,
         item.client_phone_snapshot,
@@ -298,35 +370,111 @@ export function AdminAppointmentsWorkspace() {
         item.barber_name_snapshot,
         clientTypeLabel(item.clientInsights.type),
       ].some((value) => String(value ?? "").toLowerCase().includes(query));
-    });
-  }, [barberFilter, payload, search]);
+      if (!matches) result.add(item.id);
+    }
+    return result;
+  }, [payload, search]);
 
-  async function act(action: string, extra: Record<string, unknown> = {}) {
-    if (!selected) return;
-    setBusy(action);
-    setMessage("");
+  const weekBarber = useMemo(() => payload?.barbers.find((barber) => barber.id === barberFilter) ?? payload?.barbers[0] ?? null, [barberFilter, payload]);
+
+  const columns = useMemo<BoardColumn[]>(() => {
+    if (!payload) return [];
+    if (view === "day") {
+      return (barberFilter ? payload.barbers.filter((barber) => barber.id === barberFilter) : payload.barbers).map((barber) => ({
+        key: `${barber.id}:${date}`,
+        barberId: barber.id,
+        date,
+        title: barber.display_name,
+        subtitle: `${pretty(barber.availability_status)}${barber.accepting_walk_ins ? " · Walk-ins" : ""}`,
+      }));
+    }
+    if (!weekBarber) return [];
+    return payload.days.map((day) => ({ key: `${weekBarber.id}:${day}`, barberId: weekBarber.id, date: day, title: dayLabel(day), subtitle: day === localDate() ? "Today" : weekBarber.display_name }));
+  }, [barberFilter, date, payload, view, weekBarber]);
+
+  const boardAppointments = useMemo<BoardAppointment[]>(() => {
+    if (!payload) return [];
+    return [...payload.appointments.filter((item) => TIMELINE_STATUSES.has(item.status)), ...payload.holds];
+  }, [payload]);
+
+  const offTimeline = useMemo(() => {
+    if (!payload) return [];
+    const visibleBarbers = new Set(columns.map((column) => column.barberId));
+    return payload.appointments.filter((item) => !TIMELINE_STATUSES.has(item.status) && visibleBarbers.has(item.barber_profile_id) && !dimmed.has(item.id));
+  }, [columns, dimmed, payload]);
+
+  async function patch(appointmentId: string, action: string, extra: Record<string, unknown> = {}) {
     const response = await fetch("/api/admin/appointments", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ appointmentId: selected.id, action, reason: `Calendar: ${action.replaceAll("_", " ")}`, ...extra }),
+      body: JSON.stringify({ appointmentId, action, reason: `Calendar: ${action.replaceAll("_", " ")}`, ...extra }),
     }).catch(() => null);
-    const result = response ? await response.json().catch(() => null) as PatchResponse | null : null;
-    setMessage(result?.ok ? (result.message ?? "Appointment updated.") : "The appointment could not be updated. Please try again.");
-    if (result?.ok) {
-      if (action === "note") setInternalNote("");
-      await load();
-    }
-    setBusy(null);
+    return response ? await response.json().catch(() => null) as PatchResponse | null : null;
   }
 
-  if (!payload) return <div className="rounded-2xl border border-[var(--color-ink-line)] p-8 text-sm text-[var(--color-bone-muted)]">Loading the live appointment calendar…</div>;
+  async function act(action: string, extra: Record<string, unknown> = {}) {
+    if (!selected || busy) return;
+    setBusy(action);
+    setNotice(null);
+    const result = await patch(selected.id, action, extra);
+    if (result?.ok) {
+      const text = action === "complete"
+        ? result.duplicate ? "This appointment was already finished." : `Finished.${result.availableAgainAt ? ` ${selected.barber_name_snapshot} is open again from ${time(result.availableAgainAt)}.` : ""}`
+        : action === "reschedule" || action === "reassign"
+          ? result.changed === false ? "The appointment is already at that time." : `Appointment moved.${result.clientNotified ? " The client has been notified." : ""}`
+          : result.message ?? "Appointment updated.";
+      setNotice({ tone: "success", text });
+      await load();
+    } else {
+      setNotice({ tone: "error", text: result?.message ?? "The appointment could not be updated. Please try again." });
+    }
+    setBusy(null);
+    return Boolean(result?.ok);
+  }
+
+  function handleDrop(drop: BoardDrop) {
+    if (!drop.result.ok) {
+      // Nothing was sent to the server and the card stays where it was.
+      setNotice({ tone: "error", text: `Not moved. ${rejectionMessage(drop.result.reason)}` });
+      return;
+    }
+    setNotice(null);
+    setPendingMove(drop);
+  }
+
+  async function confirmMove() {
+    if (!pendingMove || savingMoveId) return;
+    const move = pendingMove;
+    setPendingMove(null);
+    setSavingMoveId(move.appointment.id);
+    // The card is not moved here. It moves only when the reload shows the
+    // database has committed the new time.
+    const result = await patch(move.appointment.id, "reschedule", {
+      startsAt: new Date(move.startMs).toISOString(),
+      ...(move.barberId !== move.appointment.barber_profile_id ? { barberProfileId: move.barberId } : {}),
+      reason: "Calendar: moved by drag and drop",
+    });
+    if (result?.ok) {
+      setNotice({ tone: "success", text: `Appointment moved to ${dateTime(new Date(move.startMs).toISOString())}.${result.clientNotified ? " The client has been notified." : ""}` });
+    } else {
+      setNotice({ tone: "error", text: `Not moved. ${result?.message ?? "The change could not be saved. Please try again."}` });
+    }
+    await load();
+    setSavingMoveId(null);
+  }
+
+  if (!payload || !facts) return <div className="rounded-2xl border border-[var(--color-ink-line)] p-8 text-sm text-[var(--color-bone-muted)]">{notice?.text ?? "Loading the live appointment calendar…"}</div>;
+
+  const step = view === "day" ? 1 : 7;
+  const onTimeline = payload.appointments.filter((item) => TIMELINE_STATUSES.has(item.status));
+  const moveBarberName = pendingMove ? payload.barbers.find((barber) => barber.id === pendingMove.barberId)?.display_name ?? "the selected barber" : "";
 
   return <div className="grid gap-6">
     <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
       <div>
-        <p className="text-[10px] uppercase tracking-[.24em] text-[var(--color-brass)]">Paid & confirmed schedule</p>
+        <p className="text-[10px] uppercase tracking-[.24em] text-[var(--color-brass)]">Live schedule · {payload.location}</p>
         <h1 className="font-display mt-2 text-4xl sm:text-5xl">Appointments Calendar</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--color-bone-muted)]">A live seven-day chair calendar showing paid appointments, barber working hours and approved unavailability. Click any appointment for the full client, payment, visit-history and operational record.</p>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--color-bone-muted)]">Each barber&apos;s working hours, open time, appointments, checkouts in progress and unavailable time, exactly as the booking page sees them. Drag a confirmed appointment to move it, or open it for full details.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         <Link href="/book" target="_blank" className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-5 py-3 text-[10px] uppercase tracking-[.14em] text-black"><CalendarDays className="h-4 w-4" />New booking</Link>
@@ -336,68 +484,130 @@ export function AdminAppointmentsWorkspace() {
     </header>
 
     <section className="grid gap-3 md:grid-cols-4">
-      <Metric label="Week appointments" value={String(payload.appointments.length)} />
-      <Metric label="Confirmed" value={String(payload.appointments.filter((item) => item.status === "confirmed").length)} />
-      <Metric label="In service" value={String(payload.appointments.filter((item) => item.status === "in_service").length)} />
-      <Metric label="Barbers scheduled" value={String(payload.barbers.length)} />
+      <Metric label={view === "day" ? "Appointments this day" : "Appointments this week"} value={String(onTimeline.length)} />
+      <Metric label="Confirmed" value={String(onTimeline.filter((item) => item.status === "confirmed").length)} />
+      <Metric label="In service" value={String(onTimeline.filter((item) => item.status === "in_service").length)} />
+      <Metric label="Checkouts in progress" value={String(payload.holds.length)} />
     </section>
 
     <section className="rounded-2xl border border-[var(--color-ink-line)] bg-white/[.02] p-4 sm:p-5">
-      <div className="grid gap-4 xl:grid-cols-[auto_minmax(260px,1fr)_220px_auto] xl:items-end">
+      <div className="grid gap-4 xl:grid-cols-[auto_auto_minmax(220px,1fr)_220px_auto] xl:items-end">
         <div className="flex gap-2">
-          <button type="button" onClick={() => setStartDate(shiftDate(startDate, -7))} className="grid h-12 w-12 place-items-center rounded-full border border-[var(--color-ink-line)]" aria-label="Previous week"><ChevronLeft className="h-4 w-4" /></button>
-          <button type="button" onClick={() => setStartDate(localDate())} className="min-h-12 rounded-full border border-[var(--color-ink-line)] px-5 text-[10px] uppercase tracking-[.14em]">Today</button>
-          <button type="button" onClick={() => setStartDate(shiftDate(startDate, 7))} className="grid h-12 w-12 place-items-center rounded-full border border-[var(--color-ink-line)]" aria-label="Next week"><ChevronRight className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setDate(shiftDate(date, -step))} className="grid h-12 w-12 place-items-center rounded-full border border-[var(--color-ink-line)]" aria-label={view === "day" ? "Previous day" : "Previous week"}><ChevronLeft className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setDate(localDate())} className="min-h-12 rounded-full border border-[var(--color-ink-line)] px-5 text-[10px] uppercase tracking-[.14em]">Today</button>
+          <button type="button" onClick={() => setDate(shiftDate(date, step))} className="grid h-12 w-12 place-items-center rounded-full border border-[var(--color-ink-line)]" aria-label={view === "day" ? "Next day" : "Next week"}><ChevronRight className="h-4 w-4" /></button>
+        </div>
+        <div className="flex gap-2">
+          <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Date<input type="date" value={date} onChange={(event) => { if (event.target.value) setDate(event.target.value); }} className="min-h-12 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-3 text-sm normal-case tracking-normal" /></label>
+          <div className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">View
+            <div className="flex min-h-12 overflow-hidden rounded-xl border border-[var(--color-ink-line)]" role="group" aria-label="Calendar view">
+              {(["day", "week"] as const).map((option) => <button key={option} type="button" aria-pressed={view === option} onClick={() => setView(option)} className={`px-4 text-[10px] uppercase tracking-[.14em] ${view === option ? "bg-[var(--color-brass)] text-black" : "text-[var(--color-bone)]"}`}>{option}</button>)}
+            </div>
+          </div>
         </div>
         <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Search<span className="relative"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4" /><input value={search} onChange={(event) => setSearch(event.target.value)} className="min-h-12 w-full rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] pl-10 pr-4 text-sm normal-case tracking-normal" placeholder="Client, reference, service or barber" /></span></label>
-        <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Barber<select value={barberFilter} onChange={(event) => setBarberFilter(event.target.value)} className="min-h-12 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal"><option value="">All barbers</option>{payload.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select></label>
+        <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Barber<select value={view === "week" ? weekBarber?.id ?? "" : barberFilter} onChange={(event) => setBarberFilter(event.target.value)} className="min-h-12 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal">{view === "day" ? <option value="">All barbers</option> : null}{payload.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select></label>
         <button type="button" onClick={() => void load()} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-[var(--color-ink-line)] px-5 text-[10px] uppercase tracking-[.14em]"><RefreshCw className="h-4 w-4" />Refresh</button>
       </div>
-    </section>
-
-    {message ? <div className="rounded-xl border border-[var(--color-brass)]/25 bg-[var(--color-brass)]/5 p-4 text-sm">{message}</div> : null}
-
-    <section className="overflow-x-auto rounded-2xl border border-[var(--color-ink-line)] bg-[#0a0a0a]">
-      <div className="min-w-[1540px]">
-        <div className="grid grid-cols-[220px_repeat(7,minmax(185px,1fr))] border-b border-[var(--color-ink-line)] bg-white/[.025]">
-          <div className="p-4"><p className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]">Chair calendar</p><p className="mt-1 text-xs text-[var(--color-bone-muted)]">{payload.location}</p></div>
-          {payload.days.map((day) => <div key={day} className={`border-l border-[var(--color-ink-line)] p-4 ${day === localDate() ? "bg-[var(--color-brass)]/5" : ""}`}><p className="text-xs font-medium">{dayLabel(day)}</p><p className="mt-1 text-[9px] uppercase tracking-[.12em] text-[var(--color-bone-muted)]">{day === localDate() ? "Today" : day}</p></div>)}
-        </div>
-        {(barberFilter ? payload.barbers.filter((barber) => barber.id === barberFilter) : payload.barbers).map((barber) => <BarberCalendarRow key={barber.id} barber={barber} days={payload.days} schedules={payload.schedules} timeOff={payload.timeOff} appointments={filteredAppointments.filter((item) => item.barber_profile_id === barber.id)} selectedId={selected?.id ?? null} onSelect={setSelected} />)}
+      <div className="mt-4 flex flex-col gap-3 border-t border-[var(--color-ink-line)] pt-4 lg:flex-row lg:items-center lg:justify-between">
+        <p className="text-sm"><strong className="font-medium">{view === "day" ? longDayLabel(date) : `${dayLabel(payload.days[0] ?? date)} to ${dayLabel(payload.days.at(-1) ?? date)}${weekBarber ? ` · ${weekBarber.display_name}` : ""}`}</strong><span className="ml-3 text-[10px] uppercase tracking-[.12em] text-[var(--color-bone-muted)]">{live ? "Live updates on" : "Refreshing every 20 seconds"}</span></p>
+        <ScheduleLegend bufferMinutes={payload.rules.bufferMinutes} />
       </div>
     </section>
 
+    {notice ? <div role={notice.tone === "error" ? "alert" : "status"} className={`rounded-xl border p-4 text-sm ${notice.tone === "error" ? "border-red-400/40 bg-red-500/10 text-red-100" : notice.tone === "success" ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100" : "border-[var(--color-brass)]/25 bg-[var(--color-brass)]/5"}`}>{notice.text}</div> : null}
+
+    <ScheduleBoard
+      columns={columns}
+      facts={facts}
+      appointments={boardAppointments}
+      selectedId={selectedId}
+      pendingId={savingMoveId}
+      dimmed={dimmed}
+      snapMinutes={payload.rules.snapMinutes}
+      onSelect={(item) => { if (payload.appointments.some((row) => row.id === item.id)) setSelectedId(item.id); }}
+      movable={(item) => !savingMoveId && (RESCHEDULABLE_STATUSES as readonly string[]).includes(item.status)}
+      onDrop={handleDrop}
+    />
+
+    {offTimeline.length ? <section className="rounded-2xl border border-[var(--color-ink-line)] bg-white/[.02] p-4 sm:p-5">
+      <p className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]">Not on the calendar</p>
+      <p className="mt-1 text-xs text-[var(--color-bone-muted)]">Cancelled, no-show and superseded appointments do not hold any time.</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {offTimeline.map((item) => <button key={item.id} type="button" onClick={() => setSelectedId(item.id)} className="rounded-xl border border-white/[.08] p-3 text-left hover:border-[var(--color-brass)]/40">
+          <span className="flex items-center justify-between gap-2"><strong className="text-xs">{dateTime(item.starts_at)}</strong><span className="text-[8px] uppercase tracking-[.1em] text-[var(--color-bone-muted)]">{pretty(item.status)}</span></span>
+          <span className="mt-1 block truncate text-sm">{item.client_name_snapshot}</span>
+          <span className="block truncate text-[10px] text-[var(--color-bone-muted)]">{item.service_name_snapshot} · {item.barber_name_snapshot}</span>
+        </button>)}
+      </div>
+    </section> : null}
+
+    {pendingMove ? <div className="fixed inset-0 z-[95] grid place-items-center bg-black/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Confirm appointment move">
+      <div className="w-full max-w-md rounded-2xl border border-[var(--color-brass)]/30 bg-[#0b0b0b] p-6 shadow-2xl">
+        <p className="text-[9px] uppercase tracking-[.18em] text-[var(--color-brass)]">Move appointment</p>
+        <h2 className="font-display mt-2 text-2xl">{pendingMove.appointment.client_name_snapshot}</h2>
+        <p className="mt-1 text-sm text-[var(--color-bone-muted)]">{pendingMove.appointment.service_name_snapshot} · {scheduledMinutes(pendingMove.appointment)} minutes</p>
+        <dl className="mt-5 grid gap-3">
+          <Info label="From" value={`${dateTime(pendingMove.appointment.starts_at)} · ${payload.barbers.find((barber) => barber.id === pendingMove.appointment.barber_profile_id)?.display_name ?? "Barber"}`} />
+          <Info label="To" value={`${dateTime(new Date(pendingMove.startMs).toISOString())} · ${moveBarberName}`} />
+        </dl>
+        <p className="mt-4 text-xs leading-5 text-[var(--color-bone-muted)]">The client is notified once the move is saved. If the time was taken a moment ago, nothing changes and you will see why.</p>
+        <div className="mt-6 flex gap-2">
+          <button type="button" autoFocus onClick={() => void confirmMove()} className="min-h-11 flex-1 rounded-full bg-[var(--color-brass)] px-4 text-[10px] uppercase tracking-[.14em] text-black">Move appointment</button>
+          <button type="button" onClick={() => setPendingMove(null)} className="min-h-11 flex-1 rounded-full border border-[var(--color-ink-line)] px-4 text-[10px] uppercase tracking-[.14em]">Keep as is</button>
+        </div>
+      </div>
+    </div> : null}
+
     {selected ? <AppointmentInspector
+      key={selected.id}
       appointment={selected}
       barbers={payload.barbers}
       busy={busy}
-      rescheduleAt={rescheduleAt}
-      reassignBarber={reassignBarber}
-      internalNote={internalNote}
-      onClose={() => setSelected(null)}
-      onRescheduleChange={setRescheduleAt}
-      onBarberChange={setReassignBarber}
-      onNoteChange={setInternalNote}
+      bufferMinutes={payload.rules.bufferMinutes}
+      onClose={() => setSelectedId(null)}
       onAct={act}
-      onMessage={setMessage}
     /> : null}
   </div>;
 }
 
-function AppointmentInspector({ appointment, barbers, busy, rescheduleAt, reassignBarber, internalNote, onClose, onRescheduleChange, onBarberChange, onNoteChange, onAct, onMessage }: {
+function AppointmentInspector({ appointment, barbers, busy, bufferMinutes, onClose, onAct }: {
   appointment: Appointment;
   barbers: Barber[];
   busy: string | null;
-  rescheduleAt: string;
-  reassignBarber: string;
-  internalNote: string;
+  bufferMinutes: number;
   onClose: () => void;
-  onRescheduleChange: (value: string) => void;
-  onBarberChange: (value: string) => void;
-  onNoteChange: (value: string) => void;
-  onAct: (action: string, extra?: Record<string, unknown>) => Promise<void>;
-  onMessage: (value: string) => void;
+  onAct: (action: string, extra?: Record<string, unknown>) => Promise<boolean | undefined>;
 }) {
+  const [moveBarber, setMoveBarber] = useState(appointment.barber_profile_id);
+  const [moveDate, setMoveDate] = useState(() => localDate(new Date(appointment.starts_at)));
+  const [moveStart, setMoveStart] = useState("");
+  const [openTimes, setOpenTimes] = useState<{ key: string; starts: string[]; error: string | null } | null>(null);
+  const [internalNote, setInternalNote] = useState("");
+  const movable = (RESCHEDULABLE_STATUSES as readonly string[]).includes(appointment.status);
+  const finishable = (FINISHABLE_STATUSES as readonly string[]).includes(appointment.status);
+  const handover = ["checked_in", "assigned", "in_service"].includes(appointment.status);
+  const slotKey = `${appointment.id}:${moveBarber}:${moveDate}:${appointment.starts_at}`;
+  const slotsLoading = movable && openTimes?.key !== slotKey;
+
+  useEffect(() => {
+    if (!movable || !moveDate) return;
+    let disposed = false;
+    const query = new URLSearchParams({ appointmentId: appointment.id, date: moveDate, barberProfileId: moveBarber });
+    fetch(`/api/admin/appointments/slots?${query.toString()}`, { cache: "no-store" })
+      .then((response) => response.json().catch(() => null))
+      .then((result: { ok?: boolean; starts?: string[]; message?: string } | null) => {
+        if (disposed) return;
+        setOpenTimes({ key: slotKey, starts: result?.ok ? result.starts ?? [] : [], error: result?.ok ? null : result?.message ?? "Open times could not be loaded." });
+      })
+      .catch(() => {
+        if (!disposed) setOpenTimes({ key: slotKey, starts: [], error: "Open times could not be loaded." });
+      });
+    return () => { disposed = true; };
+  }, [appointment.id, movable, moveBarber, moveDate, slotKey]);
+
+  const currentStart = new Date(appointment.starts_at).toISOString();
+  const minutes = scheduledMinutes(appointment);
   const payment = appointment.payment;
   const client = appointment.clientInsights;
   const paidInFull = payment.status === "paid_in_full" || appointment.deposit_status === "paid";
@@ -423,11 +633,26 @@ function AppointmentInspector({ appointment, barbers, busy, rescheduleAt, reassi
 
       <div className="grid gap-5 p-5 sm:p-7">
         <section className="grid gap-3 sm:grid-cols-2">
-          <DetailCard icon={<CalendarDays className="h-4 w-4" />} label="Appointment" value={dateTime(appointment.starts_at)} subvalue={`${appointment.service_duration_snapshot_minutes} minutes · ends ${time(appointment.ends_at)}`} />
+          <DetailCard icon={<CalendarDays className="h-4 w-4" />} label="Appointment" value={dateTime(appointment.starts_at)} subvalue={`${minutes} minutes · ends ${time(appointment.ends_at)}${appointment.completed_at ? ` · finished ${time(appointment.completed_at)}` : ""}`} />
           <DetailCard icon={<UserRound className="h-4 w-4" />} label="Barber" value={appointment.barber_name_snapshot} subvalue={pretty(appointment.status)} />
-          <DetailCard icon={<Scissors className="h-4 w-4" />} label="Service" value={appointment.service_name_snapshot} subvalue={`Add-ons: ${addonSummary(appointment.addon_snapshot)}`} />
+          <DetailCard icon={<Scissors className="h-4 w-4" />} label="Service" value={appointment.service_name_snapshot} subvalue={appointment.booking_kind === "family" ? `Family booking · ${appointment.party_size ?? appointment.serviceItems.length} people` : `Add-ons: ${addonSummary(appointment.addon_snapshot)}`} />
           <DetailCard icon={<ReceiptText className="h-4 w-4" />} label="Service price" value={money(appointment.service_price_snapshot_cents)} subvalue={`Reference ${appointment.public_reference}`} />
         </section>
+
+        {appointment.serviceItems.length ? <section className="rounded-2xl border border-[var(--color-brass)]/20 bg-[var(--color-brass)]/[.025] p-5">
+          <div className="flex items-center gap-2"><UsersRound className="h-4 w-4 text-[var(--color-brass)]" /><p className="text-[9px] uppercase tracking-[.16em] text-[var(--color-brass)]">Family booking · one appointment, {appointment.serviceItems.length} services in a row</p></div>
+          <ol className="mt-4 grid gap-2">
+            {appointment.serviceItems.map((item) => {
+              const itemStart = new Date(new Date(appointment.starts_at).getTime() + item.offsetMinutes * 60_000).toISOString();
+              const itemEnd = new Date(new Date(itemStart).getTime() + item.durationMinutes * 60_000).toISOString();
+              return <li key={item.sequence} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--color-ink-line)] p-3">
+                <span><strong className="text-sm">{item.label ?? pretty(item.role)}</strong><span className="mt-0.5 block text-xs text-[var(--color-bone-muted)]">{item.serviceName} · {item.durationMinutes} min</span></span>
+                <span className="text-right text-xs tabular-nums"><span className="block">{time(itemStart)} – {time(itemEnd)}</span><span className="block text-[var(--color-bone-muted)]">{money(item.priceCents)}</span></span>
+              </li>;
+            })}
+          </ol>
+          <p className="mt-3 text-xs leading-5 text-[var(--color-bone-muted)]">Total {minutes} minutes including the {bufferMinutes}-minute changeover between family members, {money(appointment.service_price_snapshot_cents)}. The whole booking moves together.</p>
+        </section> : null}
 
         <section className="rounded-2xl border border-emerald-400/15 bg-emerald-400/[.025] p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -504,65 +729,39 @@ function AppointmentInspector({ appointment, barbers, busy, rescheduleAt, reassi
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
             <Action label="Check in" disabled={busy !== null || appointment.status !== "confirmed"} onClick={() => void onAct("check_in")} />
             <Action label="Start service" disabled={busy !== null || !["checked_in", "assigned"].includes(appointment.status)} onClick={() => void onAct("in_service")} />
-            <Action label="Complete" disabled={busy !== null || appointment.status !== "in_service"} onClick={() => void onAct("complete")} />
+            <Action label={busy === "complete" ? "Finishing…" : "Finish"} disabled={busy !== null || !finishable} onClick={() => void onAct("complete")} />
             <Action label="No show" disabled={busy !== null || !["confirmed", "checked_in", "assigned"].includes(appointment.status)} onClick={() => void onAct("no_show")} />
             <Action label="Cancel" disabled={busy !== null || ["completed", "cancelled_by_client", "cancelled_by_business", "no_show"].includes(appointment.status)} onClick={() => void onAct("cancel")} />
           </div>
+          <p className="mt-3 text-xs leading-5 text-[var(--color-bone-muted)]">{appointment.status === "completed" ? `Finished${appointment.completed_at ? ` at ${time(appointment.completed_at)}` : ""}. Any unused time was reopened after the ${bufferMinutes}-minute gap.` : `Finish records the real end time. If the service ends early, the rest of the reserved time reopens for booking after the ${bufferMinutes}-minute gap.`}</p>
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Reassign barber<select value={reassignBarber} onChange={(event) => onBarberChange(event.target.value)} className="min-h-11 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal">{barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select></label>
-              <button type="button" disabled={busy !== null || reassignBarber === appointment.barber_profile_id} onClick={() => void onAct("reassign", { barberProfileId: reassignBarber })} className="min-h-11 rounded-full border border-[var(--color-ink-line)] px-4 text-[9px] uppercase tracking-[.14em] disabled:opacity-40">Save barber</button>
+          {movable ? <div className="mt-5 rounded-xl border border-[var(--color-ink-line)] p-4">
+            <p className="text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Move appointment</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Barber<select value={moveBarber} onChange={(event) => { setMoveBarber(event.target.value); setMoveStart(""); }} className="min-h-11 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal">{barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select></label>
+              <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Date<input type="date" value={moveDate} min={localDate()} onChange={(event) => { setMoveDate(event.target.value); setMoveStart(""); }} className="min-h-11 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal" /></label>
             </div>
-            <div className="grid gap-2">
-              <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Reschedule<input type="datetime-local" value={rescheduleAt} onChange={(event) => onRescheduleChange(event.target.value)} className="min-h-11 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal" /></label>
-              <button type="button" disabled={busy !== null || !rescheduleAt} onClick={() => { const startsAt = localInputToUtc(rescheduleAt); if (!startsAt) { onMessage("Choose a valid appointment date and time."); return; } void onAct("reschedule", { startsAt }); }} className="min-h-11 rounded-full border border-[var(--color-ink-line)] px-4 text-[9px] uppercase tracking-[.14em] disabled:opacity-40">Save new time</button>
+            <div className="mt-3" aria-live="polite">
+              {slotsLoading ? <p className="text-xs text-[var(--color-bone-muted)]">Loading open times…</p> : openTimes?.error ? <p className="text-xs text-red-200">{openTimes.error}</p> : openTimes && openTimes.starts.length === 0 ? <p className="text-xs text-[var(--color-bone-muted)]">No open time that day for a {minutes}-minute appointment.</p> : <div className="flex max-h-44 flex-wrap gap-2 overflow-y-auto" role="group" aria-label="Open times">
+                {(openTimes?.starts ?? []).map((start) => <button key={start} type="button" aria-pressed={moveStart === start} disabled={start === currentStart && moveBarber === appointment.barber_profile_id} onClick={() => setMoveStart(start)} className={`min-h-10 rounded-full border px-3 text-xs tabular-nums disabled:opacity-35 ${moveStart === start ? "border-[var(--color-brass)] bg-[var(--color-brass)] text-black" : "border-[var(--color-ink-line)]"}`}>{time(start)}</button>)}
+              </div>}
             </div>
-          </div>
+            <button type="button" disabled={busy !== null || !moveStart} onClick={() => void onAct("reschedule", { startsAt: moveStart, ...(moveBarber !== appointment.barber_profile_id ? { barberProfileId: moveBarber } : {}) }).then((ok) => { if (ok) setMoveStart(""); })} className="mt-4 min-h-11 w-full rounded-full border border-[var(--color-brass)]/60 px-4 text-[9px] uppercase tracking-[.14em] disabled:opacity-40">{busy === "reschedule" ? "Moving…" : moveStart ? `Move to ${dateTime(moveStart)}` : "Choose an open time"}</button>
+            <p className="mt-2 text-xs leading-5 text-[var(--color-bone-muted)]">Only times that fit the whole {minutes}-minute appointment are listed. The client is notified once the move is saved.</p>
+          </div> : null}
+
+          {handover ? <div className="mt-5 grid gap-2 sm:max-w-sm">
+            <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Hand over to another barber<select value={moveBarber} onChange={(event) => setMoveBarber(event.target.value)} className="min-h-11 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal">{barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select></label>
+            <button type="button" disabled={busy !== null || moveBarber === appointment.barber_profile_id} onClick={() => void onAct("reassign", { barberProfileId: moveBarber })} className="min-h-11 rounded-full border border-[var(--color-ink-line)] px-4 text-[9px] uppercase tracking-[.14em] disabled:opacity-40">Save barber</button>
+          </div> : null}
 
           <div className="mt-5 grid gap-2">
-            <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Internal note<textarea value={internalNote} onChange={(event) => onNoteChange(event.target.value)} rows={3} className="rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 py-3 text-sm normal-case tracking-normal" placeholder="Private note for the shop team" /></label>
-            <button type="button" disabled={busy !== null || !internalNote.trim()} onClick={() => void onAct("note", { note: internalNote.trim(), clientVisible: false })} className="min-h-11 rounded-full border border-[var(--color-ink-line)] px-4 text-[9px] uppercase tracking-[.14em] disabled:opacity-40">Save note</button>
+            <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Internal note<textarea value={internalNote} onChange={(event) => setInternalNote(event.target.value)} rows={3} className="rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 py-3 text-sm normal-case tracking-normal" placeholder="Private note for the shop team" /></label>
+            <button type="button" disabled={busy !== null || !internalNote.trim()} onClick={() => void onAct("note", { note: internalNote.trim(), clientVisible: false }).then((ok) => { if (ok) setInternalNote(""); })} className="min-h-11 rounded-full border border-[var(--color-ink-line)] px-4 text-[9px] uppercase tracking-[.14em] disabled:opacity-40">Save note</button>
           </div>
         </section>
       </div>
     </aside>
-  </div>;
-}
-
-function BarberCalendarRow({ barber, days, schedules, timeOff, appointments, selectedId, onSelect }: {
-  barber: Barber;
-  days: string[];
-  schedules: Schedule[];
-  timeOff: TimeOff[];
-  appointments: Appointment[];
-  selectedId: string | null;
-  onSelect: (item: Appointment) => void;
-}) {
-  return <div className="grid grid-cols-[220px_repeat(7,minmax(185px,1fr))] border-b border-[var(--color-ink-line)] last:border-0">
-    <div className="p-4"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-full bg-[var(--color-brass)]/10 text-[var(--color-brass)]"><UserRound className="h-4 w-4" /></span><div><strong className="text-sm">{barber.display_name}</strong><p className="mt-1 text-[9px] uppercase tracking-[.12em] text-[var(--color-bone-muted)]">{pretty(barber.availability_status)}{barber.accepting_walk_ins ? " · Walk-ins" : ""}</p></div></div></div>
-    {days.map((day) => {
-      const weekday = new Date(`${day}T12:00:00Z`).getUTCDay();
-      const daySchedules = schedules.filter((schedule) => schedule.barber_profile_id === barber.id && schedule.weekday === weekday && (!schedule.effective_from || schedule.effective_from <= day) && (!schedule.effective_to || schedule.effective_to >= day));
-      const dayStart = zonedDateTimeToUtc(day, "00:00:00", SHOP_TIME_ZONE).getTime();
-      const dayEnd = zonedDateTimeToUtc(shiftDate(day, 1), "00:00:00", SHOP_TIME_ZONE).getTime();
-      const dayOff = timeOff.filter((block) => block.barber_profile_id === barber.id && new Date(block.starts_at).getTime() < dayEnd && new Date(block.ends_at).getTime() > dayStart);
-      const dayAppointments = appointments.filter((item) => appointmentDate(item.starts_at) === day);
-      return <div key={day} className={`min-h-[190px] border-l border-[var(--color-ink-line)] p-2.5 ${day === localDate() ? "bg-[var(--color-brass)]/[.025]" : ""}`}>
-        <div className="mb-2 flex flex-wrap gap-1">
-          {daySchedules.length ? daySchedules.map((schedule) => <span key={schedule.id} className="rounded-full border border-emerald-400/20 px-2 py-1 text-[8px] uppercase tracking-[.1em] text-emerald-300">Available {scheduleTime(schedule.starts_at)}–{scheduleTime(schedule.ends_at)}</span>) : <span className="rounded-full border border-white/10 px-2 py-1 text-[8px] uppercase tracking-[.1em] text-[var(--color-bone-muted)]">Not scheduled</span>}
-          {dayOff.map((block) => <span key={block.id} className="rounded-full border border-red-400/20 px-2 py-1 text-[8px] uppercase tracking-[.1em] text-red-200">Unavailable {time(block.starts_at)}–{time(block.ends_at)}</span>)}
-        </div>
-        <div className="grid gap-2">
-          {dayAppointments.map((item) => <button type="button" key={item.id} onClick={() => onSelect(item)} title={`Open complete appointment details for ${item.client_name_snapshot}`} className={`rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${selectedId === item.id ? "border-[var(--color-brass)] bg-[var(--color-brass)]/10" : "border-white/[.08] bg-white/[.025] hover:border-[var(--color-brass)]/40"}`}>
-            <div className="flex items-center justify-between gap-2"><strong className="text-xs">{time(item.starts_at)}</strong><span className="text-[8px] uppercase tracking-[.1em] text-emerald-300">Paid {money(item.payment.paidPrincipalCents)}</span></div>
-            <p className="mt-2 truncate text-sm font-medium">{item.client_name_snapshot}</p>
-            <p className="mt-1 text-[10px] leading-4 text-[var(--color-bone-muted)]">{item.service_name_snapshot}</p>
-            <div className="mt-2 flex items-center justify-between gap-2"><span className="text-[8px] uppercase tracking-[.1em] text-[var(--color-brass)]">{pretty(item.status)}</span><span className="text-[8px] uppercase tracking-[.1em] text-[var(--color-bone-muted)]">{item.clientInsights.type === "new" ? "New" : item.clientInsights.type.startsWith("returning") ? "Returning" : "History ?"}</span></div>
-          </button>)}
-        </div>
-      </div>;
-    })}
   </div>;
 }
 

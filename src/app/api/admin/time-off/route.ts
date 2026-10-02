@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
+import { BLOCKING_STATUSES, appointmentOccupancy } from "@/lib/booking/rules";
 import { businessConfig } from "@/lib/config/business";
 import { processNotificationJobs } from "@/lib/notifications/process";
 
 export const dynamic = "force-dynamic";
 
 const adminRoles = new Set(["manager", "owner", "super_admin"]);
-const activeAppointmentStatuses = ["slot_held", "pending_confirmation", "confirmed", "checked_in", "assigned", "in_service"];
 
 const decisionSchema = z.object({
   id: z.string().uuid(),
@@ -82,15 +82,18 @@ export async function POST(request: NextRequest) {
 
   let conflicts = 0;
   if (parsed.data.decision === "approved" && String(entry.availability_kind || "unavailable") === "unavailable") {
-    const { count } = await admin
+    const { data: overlapping, error: overlappingError } = await admin
       .from("appointments")
-      .select("id", { count: "exact", head: true })
+      .select("id,status,deposit_status,starts_at,ends_at,hold_expires_at,completed_at")
       .eq("barber_profile_id", entry.barber_profile_id)
       .eq("location_id", entry.location_id)
       .lt("starts_at", entry.ends_at)
       .gt("ends_at", entry.starts_at)
-      .in("status", activeAppointmentStatuses);
-    conflicts = count ?? 0;
+      .in("status", [...BLOCKING_STATUSES]);
+    if (overlappingError) return NextResponse.json({ ok: false, message: "Existing appointments could not be verified." }, { status: 503 });
+    // Same rule as the booking engine: expired, unpaid checkout holds do not count.
+    const nowMs = Date.now();
+    conflicts = (overlapping ?? []).filter((appointment) => appointmentOccupancy(appointment, nowMs) !== null).length;
     if (conflicts > 0) {
       return NextResponse.json(
         {

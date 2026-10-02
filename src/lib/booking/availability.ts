@@ -1,321 +1,266 @@
 import "server-only";
 
+import type { createUntypedAdminSupabase } from "@/lib/auth/server";
 import { BookingCatalogError, getBookingAdminContext } from "@/lib/booking/catalog";
-import { businessConfig } from "@/lib/config/business";
-import { SquareBookingProvider } from "@/lib/booking/square";
-import { addDays, weekdayForDate, zonedDateTimeToUtc } from "@/lib/booking/timezone";
-import type { AvailabilitySlot } from "@/lib/booking/types";
-
-function time(value: string | null | undefined) {
-  return value ? value.slice(0, 8) : null;
-}
-
-function overlaps(
-  start: Date,
-  end: Date,
-  otherStart: string,
-  otherEnd: string,
-) {
-  return start < new Date(otherEnd) && end > new Date(otherStart);
-}
-
-type ScheduleRow = {
-  barber_profile_id: string;
-  weekday: number | string;
-  starts_at: string | null;
-  ends_at: string | null;
-  effective_from: string;
-  effective_to: string | null;
-  active: boolean;
-};
-
-function scheduleWindowsForDate(
-  schedules: ScheduleRow[],
-  barberId: string,
-  weekday: number,
-  date: string,
-  shopOpen: string,
-  shopClose: string,
-) {
-  const windows = schedules.flatMap((item) => {
-    if (
-      item.barber_profile_id !== barberId ||
-      Number(item.weekday) !== weekday ||
-      item.effective_from > date ||
-      (item.effective_to && item.effective_to < date)
-    ) {
-      return [];
-    }
-
-    const startsAt = time(item.starts_at);
-    const endsAt = time(item.ends_at);
-    if (!startsAt || !endsAt) return [];
-
-    const open = startsAt > shopOpen ? startsAt : shopOpen;
-    const close = endsAt < shopClose ? endsAt : shopClose;
-    if (open >= close) return [];
-
-    return [{ open, close }];
-  });
-
-  windows.sort((a, b) => a.open.localeCompare(b.open) || a.close.localeCompare(b.close));
-
-  return windows.reduce<Array<{ open: string; close: string }>>((merged, window) => {
-    const previous = merged.at(-1);
-    if (!previous || window.open > previous.close) {
-      merged.push({ ...window });
-      return merged;
-    }
-    if (window.close > previous.close) previous.close = window.close;
-    return merged;
-  }, []);
-}
+import { composeFamilyBooking, type FamilyComposition } from "@/lib/booking/family";
+import {
+  BLOCKING_STATUSES,
+  BREAK_BLOCKING_STATUS,
+  COMPLETED_STATUS,
+  MAXIMUM_ADVANCE_DAYS,
+  MINIMUM_LEAD_MINUTES,
+  SCHEDULING_SOURCE_OF_TRUTH,
+  SLOT_GRID_MINUTES,
+  TIME_OFF_BLOCKING_KIND,
+  TIME_OFF_BLOCKING_STATUS,
+  appointmentOccupancy,
+  minutes,
+  resolveBufferMinutes,
+} from "@/lib/booking/rules";
+import {
+  evaluatePlacement,
+  generateStartTimes,
+  scheduleWindowsForDate,
+  shopDayFor,
+  toUtcWindows,
+  type BookingBlock,
+  type HardBlock,
+  type Interval,
+  type PlacementResult,
+  type ScheduleRow,
+} from "@/lib/booking/slots";
+import { addDays, dateInZone, weekdayForDate, zonedDateTimeToUtc } from "@/lib/booking/timezone";
+import type { AvailabilitySlot, BookingCatalog } from "@/lib/booking/types";
 
 /**
- * Search live Square Appointments availability.
+ * The ONE availability engine.
  *
- * The public website uses local Supabase UUIDs for services and barbers.
- * This function translates those local IDs to their verified Square mappings:
+ * Supabase is the scheduling source of truth (see src/lib/booking/rules.ts).
+ * Every surface calls into this module, which loads the facts once per request
+ * and delegates every decision to the pure slot engine in slots.ts:
  *
- * services.square_catalog_id -> Square service variation ID
- * barber_profiles.square_team_member_id -> Square team member ID
+ *   public booking page ........ searchSupabaseAvailability()
+ *   booking submit guard ....... searchSupabaseAvailability()
+ *   guest / client reschedule .. checkPlacement()
+ *   admin calendar move ........ checkPlacement() for the message, then the
+ *                                reschedule_appointment_atomic RPC decides
  *
- * Square then becomes the scheduling source of truth.
+ * The Postgres guard (migration 202610020001) enforces the same rules again
+ * inside the transaction, so nothing here can create a double booking.
  */
-export async function searchSquareBookingAvailability(input: {
+
+type AdminClient = NonNullable<ReturnType<typeof createUntypedAdminSupabase>>;
+
+/** High enough that a full day for every barber is never silently truncated. */
+const MAX_SLOTS_PER_RESPONSE = 2000;
+
+export type ScheduleContext = {
+  source: typeof SCHEDULING_SOURCE_OF_TRUTH;
+  timezone: string;
+  bufferMinutes: number;
+  nowMs: number;
+  dates: string[];
+  barbers: Map<string, { windowsByDate: Map<string, Interval[]>; bookings: BookingBlock[]; hardBlocks: HardBlock[] }>;
+};
+
+export type ScheduleContextInput = {
   locationId: string;
-  serviceId: string;
-  addonIds?: string[];
-  barberIds?: string[];
+  timezone: string;
+  barberIds: string[];
   startDate: string;
   days: number;
-}) {
-  const { admin, catalog } = await getBookingAdminContext();
+  /** The appointment being moved must not block its own destination. */
+  excludeAppointmentId?: string;
+  nowMs?: number;
+};
 
-  if (input.locationId !== catalog.location.id) {
-    return {
-      source: "square" as const,
-      slots: [] as AvailabilitySlot[],
-    };
-  }
+/**
+ * Loads everything that can affect availability for the given barbers and
+ * dates in one round of parallel queries (no per-barber or per-day queries).
+ */
+export async function loadScheduleContext(admin: AdminClient, input: ScheduleContextInput): Promise<ScheduleContext> {
+  const nowMs = input.nowMs ?? Date.now();
+  const endDate = addDays(input.startDate, input.days);
+  const rangeStart = zonedDateTimeToUtc(input.startDate, "00:00:00", input.timezone);
+  const rangeEnd = zonedDateTimeToUtc(endDate, "00:00:00", input.timezone);
+  // Appointments just outside the range can still matter through the buffer.
+  const queryStart = new Date(rangeStart.getTime() - minutes(120)).toISOString();
+  const queryEnd = new Date(rangeEnd.getTime() + minutes(120)).toISOString();
+  const barberIds = input.barberIds.length ? input.barberIds : ["00000000-0000-0000-0000-000000000000"];
 
-  const service = catalog.services.find(
-    (item) => item.id === input.serviceId,
-  );
-
-  if (!service) {
-    return {
-      source: "square" as const,
-      slots: [] as AvailabilitySlot[],
-    };
-  }
-
-  /**
-   * Add-ons are still locally managed and do not yet have a verified
-   * Square booking-duration mapping.
-   *
-   * Until that mapping exists, do not offer a Square slot whose duration
-   * only represents the base service.
-   */
-  if (input.addonIds?.length) {
-    return {
-      source: "square" as const,
-      slots: [] as AvailabilitySlot[],
-    };
-  }
-
-  const eligibleBarbers = catalog.barbers.filter(
-    (barber) =>
-      barber.serviceIds.includes(service.id) &&
-      (!input.barberIds?.length ||
-        input.barberIds.includes(barber.id)),
-  );
-
-  if (!eligibleBarbers.length) {
-    return {
-      source: "square" as const,
-      slots: [] as AvailabilitySlot[],
-    };
-  }
-
-  const [
-    { data: serviceRow, error: serviceError },
-    { data: barberRows, error: barberError },
-  ] = await Promise.all([
+  const [businessHours, holidayHours, schedules, breaks, timeOff, appointments, holds, settings] = await Promise.all([
+    admin.from("business_hours").select("weekday,opens_at,closes_at,closed").eq("location_id", input.locationId),
     admin
-      .from("services")
-      .select("id,square_catalog_id")
-      .eq("id", service.id)
-      .maybeSingle(),
-
+      .from("holiday_hours")
+      .select("service_date,opens_at,closes_at,closed")
+      .eq("location_id", input.locationId)
+      .gte("service_date", input.startDate)
+      .lt("service_date", endDate),
     admin
-      .from("barber_profiles")
-      .select("id,square_team_member_id")
-      .in(
-        "id",
-        eligibleBarbers.map((barber) => barber.id),
-      ),
+      .from("barber_schedules")
+      .select("barber_profile_id,weekday,starts_at,ends_at,effective_from,effective_to,active")
+      .in("barber_profile_id", barberIds)
+      .eq("location_id", input.locationId)
+      .eq("active", true),
+    admin
+      .from("barber_breaks")
+      .select("id,barber_profile_id,starts_at,ends_at,status")
+      .in("barber_profile_id", barberIds)
+      .lt("starts_at", queryEnd)
+      .gt("ends_at", queryStart)
+      .eq("status", BREAK_BLOCKING_STATUS),
+    admin
+      .from("barber_time_off")
+      .select("id,barber_profile_id,starts_at,ends_at,status,availability_kind")
+      .in("barber_profile_id", barberIds)
+      .lt("starts_at", queryEnd)
+      .gt("ends_at", queryStart)
+      .eq("status", TIME_OFF_BLOCKING_STATUS)
+      .eq("availability_kind", TIME_OFF_BLOCKING_KIND),
+    admin
+      .from("appointments")
+      .select("id,barber_profile_id,starts_at,ends_at,status,deposit_status,hold_expires_at,completed_at")
+      .in("barber_profile_id", barberIds)
+      .lt("starts_at", queryEnd)
+      .gt("ends_at", queryStart)
+      .in("status", [...BLOCKING_STATUSES, COMPLETED_STATUS]),
+    admin
+      .from("slot_holds")
+      .select("id,barber_profile_id,starts_at,ends_at,status,expires_at")
+      .in("barber_profile_id", barberIds)
+      .lt("starts_at", queryEnd)
+      .gt("ends_at", queryStart)
+      .eq("status", "active")
+      .gt("expires_at", new Date(nowMs).toISOString()),
+    admin.from("location_settings").select("default_buffer_minutes").eq("location_id", input.locationId).maybeSingle(),
   ]);
 
-  if (serviceError || barberError) {
-    console.error("square-booking-mapping", {
-      serviceCode: serviceError?.code,
-      barberCode: barberError?.code,
-    });
-
-    throw new BookingCatalogError(
-      "SQUARE_BOOKING_MAPPING_UNAVAILABLE",
-    );
+  const failed = [businessHours, holidayHours, schedules, breaks, timeOff, appointments, holds, settings].find((result) => result.error);
+  if (failed?.error) {
+    console.error("booking-availability-lookup", { code: failed.error.code, message: failed.error.message?.slice(0, 240) });
+    throw new BookingCatalogError("BOOKING_MIGRATIONS_REQUIRED");
   }
 
-  const squareServiceId = String(
-    serviceRow?.square_catalog_id ?? "",
-  );
+  const bufferMinutes = resolveBufferMinutes(settings.data?.default_buffer_minutes);
+  const dates = Array.from({ length: input.days }, (_, index) => addDays(input.startDate, index));
+  const scheduleRows = (schedules.data ?? []) as ScheduleRow[];
+  const barbers: ScheduleContext["barbers"] = new Map();
 
-  if (!squareServiceId) {
-    return {
-      source: "square" as const,
-      slots: [] as AvailabilitySlot[],
-    };
+  for (const barberId of input.barberIds) {
+    const windowsByDate = new Map<string, Interval[]>();
+    for (const date of dates) {
+      const weekday = weekdayForDate(date);
+      const shop = shopDayFor(date, weekday, businessHours.data ?? [], holidayHours.data ?? []);
+      windowsByDate.set(date, toUtcWindows(date, scheduleWindowsForDate(scheduleRows, barberId, weekday, date, shop), input.timezone));
+    }
+
+    const bookings: BookingBlock[] = [];
+    for (const row of appointments.data ?? []) {
+      if (row.barber_profile_id !== barberId || row.id === input.excludeAppointmentId) continue;
+      const occupancy = appointmentOccupancy(row, nowMs);
+      if (occupancy) bookings.push({ ...occupancy, id: String(row.id) });
+    }
+    for (const row of holds.data ?? []) {
+      if (row.barber_profile_id !== barberId) continue;
+      bookings.push({ kind: "hold", id: String(row.id), startMs: new Date(row.starts_at).getTime(), endMs: new Date(row.ends_at).getTime() });
+    }
+
+    const hardBlocks: HardBlock[] = [
+      ...(timeOff.data ?? []).filter((row) => row.barber_profile_id === barberId).map((row) => ({ kind: "time_off" as const, id: String(row.id), startMs: new Date(row.starts_at).getTime(), endMs: new Date(row.ends_at).getTime() })),
+      ...(breaks.data ?? []).filter((row) => row.barber_profile_id === barberId).map((row) => ({ kind: "break" as const, id: String(row.id), startMs: new Date(row.starts_at).getTime(), endMs: new Date(row.ends_at).getTime() })),
+    ];
+
+    barbers.set(barberId, { windowsByDate, bookings, hardBlocks });
   }
 
-  const localBarberById = new Map(
-    eligibleBarbers.map((barber) => [
-      barber.id,
-      barber,
-    ]),
-  );
+  return { source: SCHEDULING_SOURCE_OF_TRUTH, timezone: input.timezone, bufferMinutes, nowMs, dates, barbers };
+}
 
-  const localBarberBySquareId = new Map<
-    string,
-    (typeof eligibleBarbers)[number]
-  >();
-
-  for (const row of barberRows ?? []) {
-    const squareTeamMemberId = String(
-      row.square_team_member_id ?? "",
-    );
-
-    if (!squareTeamMemberId) continue;
-
-    const localBarber = localBarberById.get(
-      String(row.id),
-    );
-
-    if (!localBarber) continue;
-
-    localBarberBySquareId.set(
-      squareTeamMemberId,
-      localBarber,
-    );
-  }
-
-  const squareTeamMemberIds = [
-    ...localBarberBySquareId.keys(),
-  ];
-
-  if (!squareTeamMemberIds.length) {
-    return {
-      source: "square" as const,
-      slots: [] as AvailabilitySlot[],
-    };
-  }
-
-  const startAt = zonedDateTimeToUtc(
-    input.startDate,
-    "00:00:00",
-    catalog.location.timezone,
-  );
-
-  const endAt = zonedDateTimeToUtc(
-    addDays(input.startDate, input.days),
-    "00:00:00",
-    catalog.location.timezone,
-  );
-
-  const provider = new SquareBookingProvider();
-
-  const availability = await provider.searchAvailability({
-    locationId: input.locationId,
-    serviceId: squareServiceId,
-    startAt: startAt.toISOString(),
-    endAt: endAt.toISOString(),
-    teamMemberIds: squareTeamMemberIds,
-  });
-
-  const slots: AvailabilitySlot[] =
-    availability.flatMap((slot) => {
-      if (!slot.teamMemberId) return [];
-
-      const barber = localBarberBySquareId.get(
-        slot.teamMemberId,
-      );
-
-      if (!barber) return [];
-
-      const startsAt = new Date(slot.startsAt);
-      const endsAt = new Date(slot.endsAt);
-
-      const durationMinutes = Math.max(
-        1,
-        Math.round(
-          (endsAt.getTime() - startsAt.getTime()) /
-            60_000,
-        ),
-      );
-
-      return [
-        {
-          id: `${barber.id}-${slot.startsAt}`,
-          startsAt: slot.startsAt,
-          endsAt: slot.endsAt,
-          barberId: barber.id,
-          barberName: barber.name,
-          serviceId: service.id,
-          durationMinutes,
-          estimatedPriceCents: service.priceCents,
-        },
-      ];
-    });
-
-  // Square availability must also satisfy the lounge's local operational
-  // rules (barber schedules, breaks, time off, existing appointments,
-  // active holds, and the configured post-appointment buffer). This keeps
-  // the public slot list identical to what the final Supabase booking guard
-  // will accept instead of making clients discover a conflict at checkout.
-  const localAvailability = await searchSupabaseAvailability({
-    ...input,
-  });
-  const locallyBookable = new Set(
-    localAvailability.slots.map(
-      (slot) => `${slot.barberId}:${slot.startsAt}`,
-    ),
-  );
-
+function bounds(context: ScheduleContext) {
   return {
-    source: "square" as const,
-    slots: slots
-      .filter((slot) =>
-        locallyBookable.has(
-          `${slot.barberId}:${slot.startsAt}`,
-        ),
-      )
-      .sort(
-        (a, b) =>
-          a.startsAt.localeCompare(b.startsAt) ||
-          a.barberName.localeCompare(b.barberName),
-      )
-      .slice(0, 240),
+    earliestMs: context.nowMs + minutes(MINIMUM_LEAD_MINUTES),
+    latestMs: context.nowMs + minutes(MAXIMUM_ADVANCE_DAYS * 24 * 60),
   };
 }
 
+/** Decides one exact placement for one barber using an already loaded context. */
+export function evaluateInContext(context: ScheduleContext, barberId: string, startsAt: string, durationMinutes: number): PlacementResult {
+  const barber = context.barbers.get(barberId);
+  const startMs = new Date(startsAt).getTime();
+  if (!barber || !Number.isFinite(startMs)) return { ok: false, reason: "outside_schedule" };
+  const date = dateInZone(new Date(startMs), context.timezone);
+  return evaluatePlacement({
+    startMs,
+    durationMinutes,
+    bufferMinutes: context.bufferMinutes,
+    windows: barber.windowsByDate.get(date) ?? [],
+    bookings: barber.bookings,
+    hardBlocks: barber.hardBlocks,
+    ...bounds(context),
+  });
+}
+
 /**
- * Existing Supabase availability engine.
- *
- * We are keeping this in place as the non-Square path until the public
- * Square feature flag is enabled.
+ * Validates moving or placing one appointment at an exact time. Used by the
+ * guest, client and admin reschedule paths so they report the same reason the
+ * database guard would give.
  */
-export async function searchSupabaseAvailability(input: {
+export async function checkPlacement(admin: AdminClient, input: {
+  locationId: string;
+  timezone: string;
+  barberId: string;
+  startsAt: string;
+  durationMinutes: number;
+  excludeAppointmentId?: string;
+}): Promise<PlacementResult & { bufferMinutes: number }> {
+  const startDate = dateInZone(new Date(input.startsAt), input.timezone);
+  const context = await loadScheduleContext(admin, {
+    locationId: input.locationId,
+    timezone: input.timezone,
+    barberIds: [input.barberId],
+    startDate,
+    days: 1,
+    excludeAppointmentId: input.excludeAppointmentId,
+  });
+  return { ...evaluateInContext(context, input.barberId, input.startsAt, input.durationMinutes), bufferMinutes: context.bufferMinutes };
+}
+
+/**
+ * Every valid start for placing one booking of a given length on one barber's
+ * day. Used by the staff "move appointment" picker, with the appointment being
+ * moved excluded so it does not block its own new time.
+ */
+export async function listPlacements(admin: AdminClient, input: {
+  locationId: string;
+  timezone: string;
+  barberId: string;
+  date: string;
+  durationMinutes: number;
+  excludeAppointmentId?: string;
+}): Promise<{ bufferMinutes: number; starts: string[] }> {
+  const context = await loadScheduleContext(admin, {
+    locationId: input.locationId,
+    timezone: input.timezone,
+    barberIds: [input.barberId],
+    startDate: input.date,
+    days: 1,
+    excludeAppointmentId: input.excludeAppointmentId,
+  });
+  const barber = context.barbers.get(input.barberId);
+  if (!barber) return { bufferMinutes: context.bufferMinutes, starts: [] };
+  const starts = generateStartTimes({
+    durationMinutes: input.durationMinutes,
+    bufferMinutes: context.bufferMinutes,
+    gridMinutes: SLOT_GRID_MINUTES,
+    windows: barber.windowsByDate.get(input.date) ?? [],
+    bookings: barber.bookings,
+    hardBlocks: barber.hardBlocks,
+    ...bounds(context),
+  });
+  return { bufferMinutes: context.bufferMinutes, starts: starts.map((value) => new Date(value).toISOString()) };
+}
+
+export type AvailabilitySearchInput = {
   locationId: string;
   serviceId: string;
   addonIds?: string[];
@@ -323,446 +268,139 @@ export async function searchSupabaseAvailability(input: {
   barberIds?: string[];
   startDate: string;
   days: number;
-}) {
-  const { admin, catalog } =
-    await getBookingAdminContext();
+  /** Family booking: serviceId is the adult's service and this is the number of Kids Haircuts (1-5). */
+  familyChildren?: number;
+  excludeAppointmentId?: string;
+};
 
-  if (input.locationId !== catalog.location.id) {
-    return {
-      source: "supabase" as const,
-      slots: [] as AvailabilitySlot[],
-    };
+export type AvailabilitySearchResult = {
+  source: typeof SCHEDULING_SOURCE_OF_TRUTH;
+  slots: AvailabilitySlot[];
+  bufferMinutes: number;
+  durationMinutes: number;
+  family: FamilyComposition | null;
+};
+
+const EMPTY = (bufferMinutes = resolveBufferMinutes(undefined)): AvailabilitySearchResult => ({
+  source: SCHEDULING_SOURCE_OF_TRUTH,
+  slots: [],
+  bufferMinutes,
+  durationMinutes: 0,
+  family: null,
+});
+
+/** Resolves the family composition for an adult service from the live catalog. */
+export function resolveFamilyComposition(catalog: BookingCatalog, adultServiceId: string, familyChildren: number, bufferMinutes: number): FamilyComposition | null {
+  const tier = catalog.family.tiers.find((item) => item.childrenCount === familyChildren);
+  const adult = catalog.services.find((item) => item.id === adultServiceId);
+  const child = tier ? catalog.services.find((item) => item.id === tier.childServiceId) : undefined;
+  if (!tier || !adult || !child || !adult.familyAdultEligible || adult.id === child.id) return null;
+  try {
+    return composeFamilyBooking({ adult, child, childCount: familyChildren, bufferMinutes });
+  } catch {
+    return null;
   }
+}
 
-  const service = catalog.services.find(
-    (item) => item.id === input.serviceId,
-  );
+/**
+ * Bookable start times for a service (or a whole family sequence) from the
+ * Supabase scheduling records. A family start is returned only when the entire
+ * consecutive sequence fits.
+ */
+export async function searchSupabaseAvailability(input: AvailabilitySearchInput): Promise<AvailabilitySearchResult> {
+  const { admin, catalog } = await getBookingAdminContext();
+  if (input.locationId !== catalog.location.id) return EMPTY();
 
-  if (!service) {
-    return {
-      source: "supabase" as const,
-      slots: [] as AvailabilitySlot[],
-    };
-  }
+  const service = catalog.services.find((item) => item.id === input.serviceId);
+  if (!service) return EMPTY();
 
   const addonIds = input.addonIds ?? [];
+  const addons = catalog.addons.filter((item) => addonIds.includes(item.id));
+  if (input.durationMinutesOverride === undefined && addons.length !== addonIds.length) return EMPTY();
 
-  const addons = catalog.addons.filter((item) =>
-    addonIds.includes(item.id),
-  );
-
-  if (
-    input.durationMinutesOverride === undefined &&
-    addons.length !== addonIds.length
-  ) {
-    return {
-      source: "supabase" as const,
-      slots: [] as AvailabilitySlot[],
-    };
+  const requiredServiceIds = [service.id];
+  let childService: BookingCatalog["services"][number] | undefined;
+  if (input.familyChildren) {
+    // Family bookings never combine with add-ons; the composition is fixed.
+    const tier = catalog.family.tiers.find((item) => item.childrenCount === input.familyChildren);
+    childService = tier ? catalog.services.find((item) => item.id === tier.childServiceId) : undefined;
+    if (addonIds.length || !tier || !childService || !service.familyAdultEligible || childService.id === service.id) return EMPTY();
+    requiredServiceIds.push(childService.id);
   }
-
-  const durationMinutes =
-    input.durationMinutesOverride ??
-    (service.durationMinutes +
-      addons.reduce(
-        (sum, item) => sum + item.durationMinutes,
-        0,
-      ));
-
-  const priceCents =
-    service.priceCents +
-    addons.reduce(
-      (sum, item) => sum + item.priceCents,
-      0,
-    );
 
   const eligible = catalog.barbers.filter(
     (barber) =>
-      barber.serviceIds.includes(service.id) &&
-      (!input.barberIds?.length ||
-        input.barberIds.includes(barber.id)),
+      requiredServiceIds.every((id) => barber.serviceIds.includes(id)) &&
+      (!input.barberIds?.length || input.barberIds.includes(barber.id)),
   );
+  if (!eligible.length) return EMPTY();
 
-  if (!eligible.length) {
-    return {
-      source: "supabase" as const,
-      slots: [] as AvailabilitySlot[],
-    };
+  const context = await loadScheduleContext(admin, {
+    locationId: input.locationId,
+    timezone: catalog.location.timezone,
+    barberIds: eligible.map((item) => item.id),
+    startDate: input.startDate,
+    days: input.days,
+    excludeAppointmentId: input.excludeAppointmentId,
+  });
+
+  // The family sequence is composed with the live buffer setting, the same
+  // value the database uses when it re-derives the composition at creation.
+  let family: FamilyComposition | null = null;
+  if (input.familyChildren && childService) {
+    try {
+      family = composeFamilyBooking({ adult: service, child: childService, childCount: input.familyChildren, bufferMinutes: context.bufferMinutes });
+    } catch {
+      return EMPTY(context.bufferMinutes);
+    }
   }
 
-  const rangeStart = zonedDateTimeToUtc(
-    input.startDate,
-    "00:00:00",
-    catalog.location.timezone,
-  );
-
-  const rangeEnd = zonedDateTimeToUtc(
-    addDays(input.startDate, input.days),
-    "00:00:00",
-    catalog.location.timezone,
-  );
-
-  const barberIds = eligible.map(
-    (item) => item.id,
-  );
-
-  const [
-    businessHoursResult,
-    holidayHoursResult,
-    schedulesResult,
-    breaksResult,
-    timeOffResult,
-    appointmentsResult,
-    holdsResult,
-    settingsResult,
-  ] = await Promise.all([
-    admin
-      .from("business_hours")
-      .select(
-        "weekday,opens_at,closes_at,closed",
-      )
-      .eq("location_id", input.locationId),
-
-    admin
-      .from("holiday_hours")
-      .select(
-        "service_date,opens_at,closes_at,closed",
-      )
-      .eq("location_id", input.locationId)
-      .gte("service_date", input.startDate)
-      .lt(
-        "service_date",
-        addDays(input.startDate, input.days),
-      ),
-
-    admin
-      .from("barber_schedules")
-      .select(
-        "barber_profile_id,weekday,starts_at,ends_at,effective_from,effective_to,active",
-      )
-      .in("barber_profile_id", barberIds)
-      .eq("location_id", input.locationId)
-      .eq("active", true),
-
-    admin
-      .from("barber_breaks")
-      .select(
-        "barber_profile_id,starts_at,ends_at,status",
-      )
-      .in("barber_profile_id", barberIds)
-      .lt("starts_at", rangeEnd.toISOString())
-      .gt("ends_at", rangeStart.toISOString())
-      .neq("status", "cancelled"),
-
-    admin
-      .from("barber_time_off")
-      .select(
-        "barber_profile_id,starts_at,ends_at,status",
-      )
-      .in("barber_profile_id", barberIds)
-      .lt("starts_at", rangeEnd.toISOString())
-      .gt("ends_at", rangeStart.toISOString())
-      .eq("status", "approved"),
-
-    admin
-      .from("appointments")
-      .select(
-        "barber_profile_id,starts_at,ends_at,status",
-      )
-      .in("barber_profile_id", barberIds)
-      .lt("starts_at", rangeEnd.toISOString())
-      .gt("ends_at", rangeStart.toISOString())
-      .in("status", [
-        "slot_held",
-        "pending_confirmation",
-        "confirmed",
-        "checked_in",
-        "assigned",
-        "in_service",
-      ]),
-
-    admin
-      .from("slot_holds")
-      .select(
-        "barber_profile_id,starts_at,ends_at,status,expires_at",
-      )
-      .in("barber_profile_id", barberIds)
-      .lt("starts_at", rangeEnd.toISOString())
-      .gt("ends_at", rangeStart.toISOString())
-      .eq("status", "active")
-      .gt(
-        "expires_at",
-        new Date().toISOString(),
-      ),
-
-    admin
-      .from("location_settings")
-      .select(
-        "default_buffer_minutes,settings",
-      )
-      .eq("location_id", input.locationId)
-      .maybeSingle(),
-  ]);
-
-  const failedLookup = [
-    businessHoursResult,
-    holidayHoursResult,
-    schedulesResult,
-    breaksResult,
-    timeOffResult,
-    appointmentsResult,
-    holdsResult,
-    settingsResult,
-  ].find((result) => result.error);
-
-  if (failedLookup?.error) {
-    console.error("booking-availability-lookup", {
-      code: failedLookup.error.code,
-      message:
-        failedLookup.error.message?.slice(
-          0,
-          240,
-        ),
-    });
-
-    throw new BookingCatalogError(
-      "BOOKING_MIGRATIONS_REQUIRED",
-    );
-  }
-
-  const businessHours =
-    businessHoursResult.data;
-
-  const holidayHours =
-    holidayHoursResult.data;
-
-  const schedules =
-    (schedulesResult.data ?? []) as ScheduleRow[];
-
-  const breaks =
-    breaksResult.data;
-
-  const timeOff =
-    timeOffResult.data;
-
-  const appointments =
-    appointmentsResult.data;
-
-  const holds =
-    holdsResult.data;
-
-  const settings =
-    settingsResult.data;
-
-  const bufferMinutes = Number(
-    settings?.default_buffer_minutes ??
-      businessConfig.defaultBufferMinutes,
-  );
-
-  const now = Date.now();
-
-  const minimum =
-    now +
-    businessConfig.minimumLeadMinutes *
-      60_000;
-
-  const maximum =
-    now +
-    businessConfig.maximumAdvanceDays *
-      24 *
-      60 *
-      60_000;
+  const durationMinutes = family
+    ? family.totalDurationMinutes
+    : input.durationMinutesOverride ?? service.durationMinutes + addons.reduce((sum, item) => sum + item.durationMinutes, 0);
+  const priceCents = family
+    ? family.totalPriceCents
+    : service.priceCents + addons.reduce((sum, item) => sum + item.priceCents, 0);
 
   const slots: AvailabilitySlot[] = [];
-
-  for (
-    let dayOffset = 0;
-    dayOffset < input.days;
-    dayOffset += 1
-  ) {
-    const date = addDays(
-      input.startDate,
-      dayOffset,
-    );
-
-    const weekday =
-      weekdayForDate(date);
-
-    const holiday = (
-      holidayHours ?? []
-    ).find(
-      (item) =>
-        item.service_date === date,
-    );
-
-    const regular = (
-      businessHours ?? []
-    ).find(
-      (item) =>
-        Number(item.weekday) === weekday,
-    );
-
-    if (
-      holiday?.closed ||
-      (!holiday &&
-        (!regular || regular.closed))
-    ) {
-      continue;
-    }
-
-    const shopOpen = time(
-      holiday?.opens_at ??
-        regular?.opens_at,
-    );
-
-    const shopClose = time(
-      holiday?.closes_at ??
-        regular?.closes_at,
-    );
-
-    if (!shopOpen || !shopClose) {
-      continue;
-    }
-
-    for (const barber of eligible) {
-      const windows = scheduleWindowsForDate(
-        schedules,
-        barber.id,
-        weekday,
-        date,
-        shopOpen,
-        shopClose,
-      );
-
+  for (const barber of eligible) {
+    const state = context.barbers.get(barber.id);
+    if (!state) continue;
+    for (const date of context.dates) {
+      const windows = state.windowsByDate.get(date) ?? [];
       if (!windows.length) continue;
-
-      for (const window of windows) {
-        let cursor =
-          zonedDateTimeToUtc(
-            date,
-            window.open,
-            catalog.location.timezone,
-          );
-
-        const closeAt =
-          zonedDateTimeToUtc(
-            date,
-            window.close,
-            catalog.location.timezone,
-          );
-
-        while (
-          cursor.getTime() +
-            (durationMinutes +
-              bufferMinutes) *
-              60_000 <=
-          closeAt.getTime()
-        ) {
-          const end = new Date(
-            cursor.getTime() +
-              durationMinutes * 60_000,
-          );
-
-          const occupiedEnd =
-            new Date(
-              end.getTime() +
-                bufferMinutes * 60_000,
-            );
-
-          // Breaks and approved time off block their exact windows.
-          // Appointments and active holds additionally reserve the configured
-          // post-service buffer. Both sides of an appointment are therefore
-          // evaluated consistently with the database trigger: a 12:30-1:30
-          // appointment with a 10-minute buffer makes 1:40 the earliest next
-          // start, never 1:30.
-          const blockedByCalendar = [
-            ...(breaks ?? []),
-            ...(timeOff ?? []),
-          ].some(
-            (item) =>
-              item.barber_profile_id ===
-                barber.id &&
-              overlaps(
-                cursor,
-                occupiedEnd,
-                item.starts_at,
-                item.ends_at,
-              ),
-          );
-
-          const blockedByBooking = [
-            ...(appointments ?? []),
-            ...(holds ?? []),
-          ].some((item) => {
-            if (
-              item.barber_profile_id !==
-              barber.id
-            ) {
-              return false;
-            }
-
-            const existingOccupiedEnd =
-              new Date(
-                new Date(
-                  item.ends_at,
-                ).getTime() +
-                  bufferMinutes * 60_000,
-              );
-
-            return overlaps(
-              cursor,
-              occupiedEnd,
-              item.starts_at,
-              existingOccupiedEnd.toISOString(),
-            );
-          });
-
-          const unavailable =
-            blockedByCalendar ||
-            blockedByBooking;
-
-          if (
-            !unavailable &&
-            cursor.getTime() >= minimum &&
-            cursor.getTime() <= maximum
-          ) {
-            slots.push({
-              id: `${barber.id}-${cursor.toISOString()}`,
-              startsAt:
-                cursor.toISOString(),
-              endsAt: end.toISOString(),
-              barberId: barber.id,
-              barberName: barber.name,
-              serviceId: service.id,
-              durationMinutes,
-              estimatedPriceCents:
-                priceCents,
-            });
-          }
-
-          cursor = new Date(
-            cursor.getTime() +
-              businessConfig
-                .slotIntervalMinutes *
-                60_000,
-          );
-        }
+      const starts = generateStartTimes({
+        windows,
+        durationMinutes,
+        bufferMinutes: context.bufferMinutes,
+        gridMinutes: SLOT_GRID_MINUTES,
+        bookings: state.bookings,
+        hardBlocks: state.hardBlocks,
+        ...bounds(context),
+      });
+      for (const startMs of starts) {
+        const startsAt = new Date(startMs).toISOString();
+        slots.push({
+          id: `${barber.id}-${startsAt}`,
+          startsAt,
+          endsAt: new Date(startMs + minutes(durationMinutes)).toISOString(),
+          barberId: barber.id,
+          barberName: barber.name,
+          serviceId: service.id,
+          durationMinutes,
+          estimatedPriceCents: priceCents,
+        });
       }
     }
   }
 
   return {
-    source: "supabase" as const,
+    source: SCHEDULING_SOURCE_OF_TRUTH,
+    bufferMinutes: context.bufferMinutes,
+    durationMinutes,
+    family,
     slots: slots
-      .sort(
-        (a, b) =>
-          a.startsAt.localeCompare(
-            b.startsAt,
-          ) ||
-          a.barberName.localeCompare(
-            b.barberName,
-          ),
-      )
-      .slice(0, 240),
+      .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.barberName.localeCompare(b.barberName))
+      .slice(0, MAX_SLOTS_PER_RESPONSE),
   };
 }
