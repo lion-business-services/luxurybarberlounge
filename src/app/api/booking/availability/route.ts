@@ -13,6 +13,31 @@ export const revalidate = 0;
 const NO_STORE = { "Cache-Control": "private, no-store, max-age=0" };
 
 export async function POST(request: NextRequest) {
+  return respond(request, await request.json().catch(() => null));
+}
+
+/**
+ * The same search as POST, addressed by URL, for monitoring and support:
+ * /api/booking/availability?locationId=...&serviceId=...&startDate=YYYY-MM-DD
+ * Optional: days, barberIds (comma separated), familyChildren.
+ * Identical validation, rate limit and no-store rules apply.
+ */
+export async function GET(request: NextRequest) {
+  const params = request.nextUrl.searchParams;
+  const barberIds = (params.get("barberIds") ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+  const familyChildren = params.get("familyChildren");
+  return respond(request, {
+    locationId: params.get("locationId") ?? undefined,
+    serviceId: params.get("serviceId") ?? undefined,
+    startDate: params.get("startDate") ?? undefined,
+    days: params.get("days") ? Number(params.get("days")) : 1,
+    addonIds: [],
+    barberIds: barberIds.length ? barberIds : undefined,
+    familyChildren: familyChildren ? Number(familyChildren) : undefined,
+  });
+}
+
+async function respond(request: NextRequest, body: unknown) {
   const correlationId = requestCorrelationId(request.headers);
   const limited = rateLimit({
     key: `availability:${requestFingerprint(request.headers)}`,
@@ -27,7 +52,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const parsed = availabilityRequestSchema.safeParse(await request.json().catch(() => null));
+  const parsed = availabilityRequestSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { ok: false, message: "Choose a valid service and date." },
