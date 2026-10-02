@@ -508,13 +508,43 @@ export async function POST(request: NextRequest) {
         throw new Error("CLIENT_UPDATE_FAILED");
       }
     } else {
-      const { data, error } = await admin
+      let { data, error } = await admin
         .from("clients")
         .insert(clientPayload)
         .select("id,square_customer_id")
         .single();
 
+      // A signed-in person can book with contact details that belong to
+      // nobody yet (a parent booking for a relative, staff booking for a
+      // guest). Their login is already linked to their own client record, and
+      // one login can only own one. Create the new client without a login
+      // link instead of refusing the booking: the appointment itself still
+      // records who booked it.
+      if (
+        (error || !data?.id) &&
+        clientPayload.auth_user_id
+      ) {
+        console.warn("booking-submit", {
+          code: "CLIENT_CREATE_RETRY_WITHOUT_LOGIN_LINK",
+          dbCode: error?.code ?? null,
+        });
+
+        const unlinked = await admin
+          .from("clients")
+          .insert({
+            ...clientPayload,
+            auth_user_id: null,
+          })
+          .select("id,square_customer_id")
+          .single();
+
+        data = unlinked.data;
+        error = unlinked.error;
+      }
+
       if (error || !data?.id) {
+        // Two requests for the same new client at the same moment: the other
+        // one created the record, so use it.
         const { data: retry } = await admin
           .from("clients")
           .select("id,square_customer_id")
@@ -523,6 +553,10 @@ export async function POST(request: NextRequest) {
           .maybeSingle();
 
         if (!retry?.id) {
+          console.error("booking-submit", {
+            code: "CLIENT_CREATE_FAILED",
+            dbCode: error?.code ?? null,
+          });
           throw new Error("CLIENT_CREATE_FAILED");
         }
 

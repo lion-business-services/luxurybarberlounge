@@ -168,6 +168,17 @@ test("guest management and calendar links require a secure token", async () => {
   assert.match(submit, /BOOKING_MANAGE_SECRET_REQUIRED/);
 });
 
+test("a signed-in person can book for contact details that are not on file yet", async () => {
+  const submit = await source("src/app/api/booking/submit/route.ts");
+  // One login owns one client record. Booking for a new person must create an
+  // unlinked client record rather than fail on that rule.
+  assert.match(submit, /CLIENT_CREATE_RETRY_WITHOUT_LOGIN_LINK/);
+  assert.match(submit, /\.\.\.clientPayload,\s*auth_user_id: null,/);
+  const retry = submit.indexOf("CLIENT_CREATE_RETRY_WITHOUT_LOGIN_LINK");
+  const failure = submit.indexOf('throw new Error("CLIENT_CREATE_FAILED")');
+  assert.ok(retry > 0 && retry < failure, "the unlinked retry must run before the booking is refused");
+});
+
 test("queue display is privacy-safe and appointments synchronize with queue operations", async () => {
   const display = await source("src/app/api/queue/display/route.ts");
   const queue = await source("src/app/api/operations/queue/route.ts");
