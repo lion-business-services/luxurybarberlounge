@@ -43,6 +43,26 @@ export default async function BookingConfirmationPage({ params, searchParams }: 
     .in("purpose", ["deposit", "balance"]);
   const paidPrincipalCents = (paidLinks ?? []).reduce((sum, link) => sum + Math.max(0, Number(link.amount_cents ?? 0)), 0);
   const remainingCents = Math.max(0, requiredPaymentCents - paidPrincipalCents);
+  // Square can close a checkout for less than the required service payment
+  // (a discount code, a cash tender). The booking stays unconfirmed, and the
+  // client is told why instead of being left waiting for a payment to appear.
+  const { data: openLinks } = await admin
+    .from("appointment_payment_links")
+    .select("square_order_id")
+    .eq("appointment_id", appointment.id)
+    .neq("status", "paid")
+    .in("purpose", ["deposit", "balance"]);
+  const openOrderIds = (openLinks ?? []).map((link) => String(link.square_order_id ?? "")).filter(Boolean);
+  const { data: closedCheckouts } = openOrderIds.length
+    ? await admin
+        .from("square_payments")
+        .select("square_id")
+        .eq("business_id", appointment.business_id)
+        .in("square_order_id", openOrderIds)
+        .eq("status", "COMPLETED")
+        .limit(1)
+    : { data: [] };
+  const closedBelowRequired = remainingCents > 0 && (closedCheckouts ?? []).length > 0;
   const released = ["expired", "declined", "failed"].includes(appointment.status);
   // Money was received for a reservation that no longer holds its time. The
   // client must never be told they were not charged.
@@ -110,7 +130,13 @@ export default async function BookingConfirmationPage({ params, searchParams }: 
         ) : released ? (
           <>
             <p className="mt-5 text-sm leading-7 text-[var(--color-bone-muted)]">Payment was not completed within {CHECKOUT_HOLD_MINUTES} minutes, so the time was released for other clients. If you did not finish paying, you have not been charged. Choose a new time to book again.</p>
-            <DepositStatusWatcher awaitingDeposit />
+            {closedBelowRequired ? (
+              <div className="mt-6 flex items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4" role="status">
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+                <p className="text-sm leading-6 text-amber-100">Your Square checkout was completed, but it did not collect the full service payment by card (for example, a discount code was applied). A website appointment is confirmed only after the full service payment, so this appointment is not confirmed. Please call {businessConfig.phone} and we will help you.</p>
+              </div>
+            ) : null}
+            <DepositStatusWatcher awaitingDeposit={!closedBelowRequired} />
           </>
         ) : cancelled || noShow ? (
           <p className="mt-5 text-sm leading-7 text-[var(--color-bone-muted)]">This appointment is no longer on the schedule. Call {businessConfig.phone} with any question, or book a new time.</p>
@@ -122,7 +148,13 @@ export default async function BookingConfirmationPage({ params, searchParams }: 
               <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
               <p className="text-sm leading-6 text-amber-100">Full service payment is required before a website appointment is confirmed. If payment is not completed within {CHECKOUT_HOLD_MINUTES} minutes the time is released. You will not be charged again for service principal already paid.</p>
             </div>
-            <DepositStatusWatcher awaitingDeposit={awaitingDeposit} />
+            {closedBelowRequired ? (
+              <div className="mt-6 flex items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4" role="status">
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+                <p className="text-sm leading-6 text-amber-100">Your Square checkout was completed, but it did not collect the full service payment by card (for example, a discount code was applied). A website appointment is confirmed only after the full service payment, so this appointment is not confirmed. Please call {businessConfig.phone} and we will help you.</p>
+              </div>
+            ) : null}
+            <DepositStatusWatcher awaitingDeposit={awaitingDeposit && !closedBelowRequired} />
           </>
         ) : (
           <p className="mt-5 text-sm leading-7 text-[var(--color-bone-muted)]">Keep your reference number for your appointment details.</p>

@@ -440,6 +440,13 @@ export function AdminAppointmentsWorkspace() {
     return Boolean(result?.ok);
   }
 
+  // One barber is shown as seven days side by side, so an appointment can be
+  // dragged to another day. All barbers are shown side by side for one day.
+  function chooseBarber(barberId: string) {
+    setBarberFilter(barberId);
+    setView(barberId ? "week" : "day");
+  }
+
   function handleDrop(drop: BoardDrop) {
     if (!drop.result.ok) {
       // Nothing was sent to the server and the card stays where it was.
@@ -494,7 +501,7 @@ export function AdminAppointmentsWorkspace() {
       <div>
         <p className="text-[10px] uppercase tracking-[.24em] text-[var(--color-brass)]">Live schedule · {payload.location}</p>
         <h1 className="font-display mt-2 text-4xl sm:text-5xl">Appointments Calendar</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--color-bone-muted)]">Each barber&apos;s working hours, open time, appointments, checkouts in progress and unavailable time, exactly as the booking page sees them. Drag a confirmed appointment to move it, or open it for full details.</p>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--color-bone-muted)]">Each barber&apos;s working hours, open time, appointments, checkouts in progress and unavailable time, exactly as the booking page sees them. Choose a barber to see seven days side by side, then drag an appointment to another time or another day. Open it for full details.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         <Link href="/book" target="_blank" className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-5 py-3 text-[10px] uppercase tracking-[.14em] text-black"><CalendarDays className="h-4 w-4" />New booking</Link>
@@ -526,11 +533,11 @@ export function AdminAppointmentsWorkspace() {
           </div>
         </div>
         <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Search<span className="relative"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4" /><input value={search} onChange={(event) => setSearch(event.target.value)} className="min-h-12 w-full rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] pl-10 pr-4 text-sm normal-case tracking-normal" placeholder="Client, reference, service or barber" /></span></label>
-        <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Barber<select value={view === "week" ? weekBarber?.id ?? "" : barberFilter} onChange={(event) => setBarberFilter(event.target.value)} className="min-h-12 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal">{view === "day" ? <option value="">All barbers</option> : null}{payload.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select></label>
+        <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Barber<select value={view === "week" ? weekBarber?.id ?? "" : barberFilter} onChange={(event) => chooseBarber(event.target.value)} className="min-h-12 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal"><option value="">{view === "day" ? "All barbers" : "All barbers (one day)"}</option>{payload.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select></label>
         <button type="button" onClick={() => void load()} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-[var(--color-ink-line)] px-5 text-[10px] uppercase tracking-[.14em]"><RefreshCw className="h-4 w-4" />Refresh</button>
       </div>
       <div className="mt-4 flex flex-col gap-3 border-t border-[var(--color-ink-line)] pt-4 lg:flex-row lg:items-center lg:justify-between">
-        <p className="text-sm"><strong className="font-medium">{view === "day" ? longDayLabel(date) : `${dayLabel(payload.days[0] ?? date)} to ${dayLabel(payload.days.at(-1) ?? date)}${weekBarber ? ` · ${weekBarber.display_name}` : ""}`}</strong><span className="ml-3 text-[10px] uppercase tracking-[.12em] text-[var(--color-bone-muted)]">{live ? "Live updates on" : "Refreshing every 20 seconds"}</span></p>
+        <p className="text-sm"><strong className="font-medium">{view === "day" ? longDayLabel(date) : `${dayLabel(payload.days[0] ?? date)} to ${dayLabel(payload.days.at(-1) ?? date)}${weekBarber ? ` · ${weekBarber.display_name}` : ""}`}</strong><span className="ml-3 text-[10px] uppercase tracking-[.12em] text-[var(--color-bone-muted)]">{live ? "Live updates on" : "Refreshing every 20 seconds"}</span><span className="mt-1 block text-xs text-[var(--color-bone-muted)]">{view === "day" ? "Drag a card to another time or another barber. Hold it on the left or right edge to change the day." : "Drag a card to another time or another day. Hold it on the left or right edge to see earlier or later days."}</span></p>
         <ScheduleLegend bufferMinutes={payload.rules.bufferMinutes} />
       </div>
     </section>
@@ -549,6 +556,8 @@ export function AdminAppointmentsWorkspace() {
       onPaidHoldSelect={(item) => setPaidHoldId(item.id)}
       movable={(item) => !savingMoveId && (RESCHEDULABLE_STATUSES as readonly string[]).includes(item.status)}
       onDrop={handleDrop}
+      onPage={(direction) => setDate((current) => shiftDate(current, direction * step))}
+      pageLabels={view === "day" ? { previous: "Previous day", next: "Next day" } : { previous: "Earlier days", next: "Later days" }}
     />
 
     {offTimeline.length ? <section className="rounded-2xl border border-[var(--color-ink-line)] bg-white/[.02] p-4 sm:p-5">
