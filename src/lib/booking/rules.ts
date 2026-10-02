@@ -68,6 +68,26 @@ export const NON_BLOCKING_STATUSES = [
   "failed",
 ] as const;
 
+/** Statuses drawn on a staff timeline: they occupy, or occupied, a barber's time. */
+export const TIMELINE_STATUSES = [...ACTIVE_STATUSES, COMPLETED_STATUS] as const;
+
+/**
+ * What a staff calendar must list.
+ *
+ * An appointment that occupies a barber's time is ALWAYS listed, whatever its
+ * payment state, because the booking engine blocks that time whatever the
+ * payment state. A calendar that hid it would show time as open that nobody
+ * can book. Everything else (cancelled, no-show, a paid booking waiting for a
+ * new time) is history and is listed only when it was paid, which keeps
+ * abandoned checkouts out of the staff view.
+ */
+export function showsOnStaffSchedule(status: string, depositStatus?: string | null) {
+  return (TIMELINE_STATUSES as readonly string[]).includes(status) || depositStatus === "paid";
+}
+
+/** showsOnStaffSchedule as a PostgREST `or` filter, for the queries behind the staff calendars. */
+export const STAFF_SCHEDULE_FILTER = `deposit_status.eq.paid,status.in.(${TIMELINE_STATUSES.join(",")})`;
+
 export const RESCHEDULABLE_STATUSES = ["confirmed", "rescheduled"] as const;
 
 /**

@@ -558,6 +558,9 @@ export function ScheduleBoard({
                   const paymentReceived = hold && (item.deposit_status === "paid" || !item.hold_expires_at);
                   const dragging = carrying?.id === item.id;
                   const canMove = Boolean(onDrop && movable?.(item));
+                  // It holds the time like any other appointment, and staff can
+                  // see at a glance that no payment is on file for it.
+                  const unpaid = !hold && item.deposit_status !== "paid";
                   const timeText = `${clock(occupancy.startMs, timeZone)} – ${clock(occupancy.endMs, timeZone)}${finishedBeforeStart ? " (finished early, time released)" : ""}`;
                   const compact = box.height < 46;
                   return (
@@ -579,10 +582,10 @@ export function ScheduleBoard({
                           type="button"
                           onClick={() => { if (!suppressClick.current) onSelect?.(item); }}
                           onPointerDown={(event) => pointerDown(event, item)}
-                          aria-label={`${timeText}, ${item.client_name_snapshot ?? "Client"}, ${serviceLine(item)}, ${label(item.status)}`}
-                          title={`${timeText} · ${item.client_name_snapshot ?? "Client"} · ${serviceLine(item)}${canMove ? " · drag to move" : ""}`}
+                          aria-label={`${timeText}, ${item.client_name_snapshot ?? "Client"}, ${serviceLine(item)}, ${label(item.status)}${unpaid ? ", no payment recorded" : ""}`}
+                          title={`${timeText} · ${item.client_name_snapshot ?? "Client"} · ${serviceLine(item)}${unpaid ? " · no payment recorded" : ""}${canMove ? " · drag to move" : ""}`}
                           className={`absolute inset-x-1 overflow-hidden rounded-md border border-l-[3px] border-white/10 px-2 text-left transition-shadow hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-brass-light)] ${STATUS_STYLE[item.status] ?? STATUS_STYLE.confirmed} ${finishedBeforeStart ? "border-dashed opacity-70" : ""} ${selectedId === item.id ? "ring-1 ring-[var(--color-brass-light)]" : ""} ${canMove ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${dragging || pendingId === item.id ? "opacity-45" : ""} ${dimmed?.has(item.id) ? "opacity-25" : ""}`}
-                          style={{ ...box, paddingTop: compact ? 2 : 5, zIndex: 5 }}
+                          style={{ ...box, paddingTop: compact ? 2 : 5, zIndex: 5, ...(unpaid ? { borderLeftColor: "#fcd34d" } : {}) }}
                         >
                           {compact ? (
                             <p className="truncate text-[10px] leading-4"><span className="tabular-nums">{clock(occupancy.startMs, timeZone)}</span> · {item.client_name_snapshot ?? "Client"}</p>
@@ -591,7 +594,7 @@ export function ScheduleBoard({
                               <p className="truncate text-[10px] tabular-nums leading-4 text-[var(--color-brass-light)]">{timeText}</p>
                               <p className="truncate text-xs font-medium leading-4">{item.client_name_snapshot ?? "Client"}</p>
                               {box.height >= 62 ? <p className="truncate text-[10px] leading-4 text-[var(--color-bone-muted)]">{serviceLine(item)}</p> : null}
-                              {box.height >= 82 ? <p className="mt-0.5 truncate text-[8px] uppercase tracking-[.1em] text-[var(--color-bone-muted)]">{pendingId === item.id ? "Saving…" : label(item.status)}</p> : null}
+                              {box.height >= 82 ? <p className="mt-0.5 truncate text-[8px] uppercase tracking-[.1em] text-[var(--color-bone-muted)]">{pendingId === item.id ? "Saving…" : label(item.status)}{unpaid ? <span className="text-amber-300"> · No payment</span> : null}</p> : null}
                             </>
                           )}
                         </button>

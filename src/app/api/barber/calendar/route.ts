@@ -4,12 +4,12 @@ import { z } from "zod";
 import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
 import { requestCorrelationId, schedulingErrorMessage, schedulingErrorReason, schedulingErrorStatus } from "@/lib/booking/observability";
 import {
-  ACTIVE_STATUSES,
   BREAK_BLOCKING_STATUS,
   COMPLETED_STATUS,
   EARLY_FINISH_GUARD_MINUTES,
   HOLD_STATUSES,
   SCHEDULING_SOURCE_OF_TRUTH,
+  TIMELINE_STATUSES,
   TIME_OFF_BLOCKING_KIND,
   TIME_OFF_BLOCKING_STATUS,
   holdIsLive,
@@ -72,8 +72,8 @@ export async function GET(request: NextRequest) {
       .from("appointments")
       .select("id,public_reference,barber_profile_id,client_name_snapshot,service_name_snapshot,starts_at,ends_at,status,deposit_status,completed_at,hold_expires_at,booking_kind,party_size")
       .eq("barber_profile_id", profileId)
-      .eq("deposit_status", "paid")
-      .in("status", [...ACTIVE_STATUSES, COMPLETED_STATUS])
+      // Everything that holds this barber's time, whatever its payment state.
+      .in("status", [...TIMELINE_STATUSES])
       .lt("starts_at", rangeEnd)
       .gt("ends_at", rangeStart)
       .order("starts_at"),

@@ -361,3 +361,25 @@ test("only confirmed bookings, and paid bookings that lost their time, can be mo
     assert.equal(isReschedulable(status, "paid"), false, status);
   }
 });
+
+test("a staff calendar lists every appointment that holds a barber's time, whatever its payment state", async () => {
+  const rules = await import("../../src/lib/booking/rules.ts");
+  const depositStates = ["not_required", "pending", "paid", "refunded", "failed", null];
+  const now = Date.parse("2026-10-06T12:00:00Z");
+  const base = { starts_at: "2026-10-06T13:00:00Z", ends_at: "2026-10-06T14:00:00Z", hold_expires_at: null, completed_at: null };
+  for (const status of [...rules.ACTIVE_STATUSES, rules.COMPLETED_STATUS]) {
+    for (const deposit of depositStates) {
+      // The engine blocks this time...
+      assert.ok(rules.appointmentOccupancy({ ...base, status, deposit_status: deposit }, now), `${status}/${deposit} should occupy time`);
+      // ...so staff must be able to see it.
+      assert.equal(rules.showsOnStaffSchedule(status, deposit), true, `${status}/${deposit} must be listed`);
+    }
+  }
+  // Abandoned checkouts and unpaid history stay out of the staff view.
+  for (const status of ["expired", "cancelled_by_client", "cancelled_by_business", "no_show", "declined", "failed"]) {
+    assert.equal(rules.showsOnStaffSchedule(status, "pending"), false);
+    assert.equal(rules.showsOnStaffSchedule(status, "paid"), true);
+  }
+  // The database filter is the same rule.
+  assert.equal(rules.STAFF_SCHEDULE_FILTER, "deposit_status.eq.paid,status.in.(confirmed,checked_in,assigned,in_service,completed)");
+});

@@ -1,15 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
-import {
-  BREAK_BLOCKING_STATUS,
-  CALENDAR_SNAP_MINUTES,
-  EARLY_FINISH_GUARD_MINUTES,
-  HOLD_STATUSES,
-  SCHEDULING_SOURCE_OF_TRUTH,
-  TIME_OFF_BLOCKING_STATUS,
-  holdIsLive,
-  resolveBufferMinutes,
-} from "@/lib/booking/rules";
+import { BREAK_BLOCKING_STATUS, CALENDAR_SNAP_MINUTES, EARLY_FINISH_GUARD_MINUTES, HOLD_STATUSES, SCHEDULING_SOURCE_OF_TRUTH, STAFF_SCHEDULE_FILTER, TIME_OFF_BLOCKING_STATUS, holdIsLive, resolveBufferMinutes } from "@/lib/booking/rules";
 import { addDays, dateInZone, zonedDateTimeToUtc } from "@/lib/booking/timezone";
 import { businessConfig } from "@/lib/config/business";
 
@@ -65,13 +56,16 @@ export async function GET(request: NextRequest) {
   const rangeStart = zonedDateTimeToUtc(startDate, "00:00:00", businessConfig.timezone).toISOString();
   const rangeEnd = zonedDateTimeToUtc(endDate, "00:00:00", businessConfig.timezone).toISOString();
 
+  // Every appointment that holds a barber's time is listed, whatever its
+  // payment state (STAFF_SCHEDULE_FILTER). The booking engine blocks that time
+  // either way, so hiding it would show time as open that cannot be booked.
   // Expired checkout holds are filtered with the same rule the booking page
   // and the database guard use (holdIsLive), so the calendar never shows time
   // as taken that the booking page offers as free.
   const nowIso = new Date().toISOString();
   const [{ data: barbers, error: barberError }, { data: appointments, error: appointmentError }, { data: schedules, error: scheduleError }, { data: timeOff, error: timeOffError }, holdsResult, breaksResult, businessHoursResult, holidayHoursResult, settingsResult] = await Promise.all([
     admin.from("barber_profiles").select("id,staff_user_id,display_name,availability_status,accepting_walk_ins,active,status,sort_order").eq("business_id", business.id).eq("active", true).neq("status", "archived").order("sort_order"),
-    admin.from("appointments").select("id,public_reference,client_id,auth_user_id,client_name_snapshot,client_email_snapshot,client_phone_snapshot,service_name_snapshot,service_price_snapshot_cents,service_duration_snapshot_minutes,addon_snapshot,barber_profile_id,barber_name_snapshot,starts_at,ends_at,timezone,status,deposit_status,deposit_required_cents,booking_source,campaign_source,campaign_medium,campaign_name,referral_source,client_declared_status,client_notes,internal_notes,policy_version,policy_accepted_at,email_consent,sms_consent,formsubmit_status,client_confirmation_status,barber_notification_status,sync_status,created_at,updated_at,service_id,booking_kind,party_size,completed_at,occupied_until,hold_expires_at,reschedule_count").eq("business_id", business.id).eq("location_id", location.id).eq("deposit_status", "paid").in("status", visibleStatuses).gte("starts_at", rangeStart).lt("starts_at", rangeEnd).order("starts_at"),
+    admin.from("appointments").select("id,public_reference,client_id,auth_user_id,client_name_snapshot,client_email_snapshot,client_phone_snapshot,service_name_snapshot,service_price_snapshot_cents,service_duration_snapshot_minutes,addon_snapshot,barber_profile_id,barber_name_snapshot,starts_at,ends_at,timezone,status,deposit_status,deposit_required_cents,booking_source,campaign_source,campaign_medium,campaign_name,referral_source,client_declared_status,client_notes,internal_notes,policy_version,policy_accepted_at,email_consent,sms_consent,formsubmit_status,client_confirmation_status,barber_notification_status,sync_status,created_at,updated_at,service_id,booking_kind,party_size,completed_at,occupied_until,hold_expires_at,reschedule_count").eq("business_id", business.id).eq("location_id", location.id).or(STAFF_SCHEDULE_FILTER).in("status", visibleStatuses).gte("starts_at", rangeStart).lt("starts_at", rangeEnd).order("starts_at"),
     admin.from("barber_schedules").select("id,barber_profile_id,barber_user_id,weekday,starts_at,ends_at,effective_from,effective_to,active").eq("location_id", location.id).eq("active", true),
     admin.from("barber_time_off").select("id,barber_profile_id,starts_at,ends_at,reason,status,availability_kind").eq("location_id", location.id).eq("status", TIME_OFF_BLOCKING_STATUS).lt("starts_at", rangeEnd).gt("ends_at", rangeStart).order("starts_at"),
     // Website checkouts that are reserving a time right now. They are shown
@@ -110,7 +104,7 @@ export async function GET(request: NextRequest) {
     clientIds.length
       ? admin.from("clients").select("id,first_name,last_name,email,phone,preferred_language,referral_source,acquisition_source,status,created_at,updated_at").in("id", clientIds)
       : Promise.resolve({ data: [], error: null }),
-    admin.from("appointments").select("id,client_id,client_email_snapshot,client_phone_snapshot,starts_at,status,deposit_status").eq("business_id", business.id).eq("deposit_status", "paid").in("status", historyStatuses).lt("starts_at", rangeEnd).order("starts_at", { ascending: false }).limit(2000),
+    admin.from("appointments").select("id,client_id,client_email_snapshot,client_phone_snapshot,starts_at,status,deposit_status").eq("business_id", business.id).or(STAFF_SCHEDULE_FILTER).in("status", historyStatuses).lt("starts_at", rangeEnd).order("starts_at", { ascending: false }).limit(2000),
     admin.from("queue_entries").select("id,client_record_id,client_email,client_phone,walk_in_at,joined_at,completed_at,status").eq("business_id", business.id).is("appointment_id", null).eq("status", "completed").not("completed_at", "is", null).lt("completed_at", rangeEnd).order("completed_at", { ascending: false }).limit(2000),
     appointmentIds.length
       ? admin.from("appointment_service_items").select("appointment_id,sequence,role,label,service_name_snapshot,price_snapshot_cents,duration_snapshot_minutes,offset_minutes").in("appointment_id", appointmentIds).order("sequence")

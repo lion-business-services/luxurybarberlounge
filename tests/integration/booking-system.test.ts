@@ -197,6 +197,20 @@ test("booking checkouts cannot be closed below the full service payment without 
   assert.match(page, /closedBelowRequired/);
 });
 
+test("no staff calendar hides an appointment because of its payment state", async () => {
+  const adminCalendar = await source("src/app/api/admin/calendar/route.ts");
+  const barberCalendar = await source("src/app/api/barber/calendar/route.ts");
+  const adminList = await source("src/app/api/admin/appointments/route.ts");
+  // The booking engine blocks time by status alone. These queries must list
+  // the same appointments, so none of them may require a paid deposit.
+  for (const route of [adminCalendar, barberCalendar, adminList]) {
+    assert.doesNotMatch(route, /\.eq\("deposit_status", "paid"\)/);
+  }
+  assert.match(adminCalendar, /\.or\(STAFF_SCHEDULE_FILTER\)\.in\("status", visibleStatuses\)/);
+  assert.match(adminList, /\.or\(STAFF_SCHEDULE_FILTER\)/);
+  assert.match(barberCalendar, /\.in\("status", \[\.\.\.TIMELINE_STATUSES\]\)/);
+});
+
 test("the staff calendar lets an appointment be dragged to another day", async () => {
   const board = await source("src/components/schedule/ScheduleBoard.tsx");
   const workspace = await source("src/components/admin/AdminAppointmentsWorkspace.tsx");
