@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 import { environment } from "@/lib/config/environment";
+import { BOOKING_BUFFER_MINUTES, CHECKOUT_HOLD_MINUTES, SCHEDULING_SOURCE_OF_TRUTH } from "@/lib/booking/rules";
 import { features } from "@/lib/config/features";
 
 export async function GET() {
-  const bookingMode = features.squareLiveBooking
-    ? "square"
-    : environment.squareConfigured
-      ? "supabase+square-payments"
-      : "supabase";
+  // Scheduling always comes from Supabase; Square only handles payments.
+  const bookingMode = environment.squareConfigured ? "supabase+square-payments" : SCHEDULING_SOURCE_OF_TRUTH;
 
   return NextResponse.json({
     status: "ok",
@@ -16,6 +14,9 @@ export async function GET() {
     features: {
       publicWebsite: true,
       bookingMode,
+      schedulingSource: SCHEDULING_SOURCE_OF_TRUTH,
+      bookingBufferMinutes: BOOKING_BUFFER_MINUTES,
+      checkoutHoldMinutes: CHECKOUT_HOLD_MINUTES,
       queue: features.walkInQueue,
       memberships: features.memberships,
       portalDemo: features.portalDemoMode,

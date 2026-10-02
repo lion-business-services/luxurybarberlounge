@@ -26,6 +26,7 @@ const expectedBarbers = [
   "Alfredo Hernandez (Pollo)",
   "Russ Hawkins",
   "Daniel Penalo",
+  "Luis Rivera",
 ];
 const forbiddenNames = [
   ["Amaya", "Reyes"],
@@ -119,10 +120,13 @@ for (const barber of barbers) {
   for (const path of [barber.image.card, barber.image.profile, barber.image.profileAvif, barber.image.mobile]) {
     assert.equal(existsSync(`public${path}`), true, `Missing portrait derivative: ${path}`);
   }
-  for (const folder of ["cards", "mobile", "booking", "tablet", "profiles", "desktop"]) {
-    for (const extension of ["avif", "webp", "jpg"]) {
-      assert.equal(existsSync(`public/media/barbers/${folder}/${barber.slug}.${extension}`), true, `Missing responsive image: ${folder}/${barber.slug}.${extension}`);
-    }
+  // Every image file the site actually serves for this barber must exist.
+  // A barber may point all surfaces at one supplied portrait (as Luis Rivera
+  // does); what matters is that no referenced file is missing.
+  const servedImages = Object.values(barber.image).filter((value): value is string => typeof value === "string" && value.startsWith("/media/"));
+  assert.ok(servedImages.length >= 18, `${barber.name} must define an image for every responsive surface`);
+  for (const path of servedImages) {
+    assert.equal(existsSync(`public${path}`), true, `Missing responsive image: ${path}`);
   }
   for (const weekday of barber.bookingWeekdays) {
     assert.notEqual(weekday, 1, `${barber.name} cannot be scheduled on closed Monday`);

@@ -3,7 +3,7 @@ import type { createUntypedAdminSupabase } from "@/lib/auth/server";
 import { absoluteUrl, businessConfig } from "@/lib/config/business";
 
 type AdminClient = NonNullable<ReturnType<typeof createUntypedAdminSupabase>>;
-type Appointment = {
+export type BookingNotificationAppointment = {
   id: string;
   business_id: string;
   deposit_required_cents?: number | null;
@@ -25,11 +25,11 @@ type Appointment = {
   assigned_staff_user_id: string | null;
 };
 
-function visit(appointment: Appointment) {
+function visit(appointment: BookingNotificationAppointment) {
   return new Intl.DateTimeFormat("en-US", { timeZone: appointment.timezone, dateStyle: "full", timeStyle: "short" }).format(new Date(appointment.starts_at));
 }
 
-function clientHtml(appointment: Appointment, manageToken: string) {
+function clientHtml(appointment: BookingNotificationAppointment, manageToken: string) {
   const manageUrl = manageToken
     ? absoluteUrl(`/booking/confirmation/${encodeURIComponent(appointment.public_reference)}?token=${encodeURIComponent(manageToken)}`)
     : absoluteUrl(`/login?next=/client/appointments`);
@@ -46,7 +46,7 @@ function clientHtml(appointment: Appointment, manageToken: string) {
   })()}<p style="margin:26px 0"><a href="${manageUrl}" style="display:inline-block;background:#c99a3e;color:#090909;padding:14px 22px;text-decoration:none;text-transform:uppercase;letter-spacing:2px;font-size:12px">Manage appointment</a></p><p style="color:#999;font-size:13px;line-height:1.6">Questions? Call ${businessConfig.phone}.</p></div></div>`;
 }
 
-export async function queueBookingNotifications(admin: AdminClient, appointment: Appointment, manageToken: string) {
+export async function queueBookingNotifications(admin: AdminClient, appointment: BookingNotificationAppointment, manageToken: string) {
   // Client/admin "confirmed" notifications are permitted only when the stored
   // appointment is actually confirmed AND the required website prepayment is
   // marked paid. This closes a subtle webhook race where a partial historical

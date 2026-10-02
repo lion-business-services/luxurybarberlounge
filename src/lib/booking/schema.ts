@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_FAMILY_CHILDREN } from "@/lib/booking/rules";
 
 const phonePattern = /^[+()\-\s.0-9]{7,24}$/;
 
@@ -6,6 +7,8 @@ export const bookingSubmissionSchema = z.object({
   serviceId: z.string().uuid(),
   serviceSlug: z.string().trim().min(1).max(100),
   addonIds: z.array(z.string().uuid()).max(6).default([]),
+  /** Family booking: serviceId is the adult's service; this many Kids Haircuts follow it. */
+  familyChildren: z.number().int().min(1).max(MAX_FAMILY_CHILDREN).optional(),
   barberId: z.string().uuid().nullable(),
   barberSlug: z.string().trim().max(100).nullable(),
   firstAvailable: z.boolean().default(false),
@@ -39,6 +42,7 @@ export const availabilityRequestSchema = z.object({
   serviceId: z.string().uuid(),
   addonIds: z.array(z.string().uuid()).max(6).default([]),
   barberIds: z.array(z.string().uuid()).max(20).optional(),
+  familyChildren: z.number().int().min(1).max(MAX_FAMILY_CHILDREN).optional(),
   startDate: z.string().date(),
   days: z.number().int().min(1).max(14).default(7),
 });

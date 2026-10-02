@@ -3,6 +3,7 @@ import "server-only";
 import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
 import { barbers as publicBarbers } from "@/lib/content/site";
 import { localizedName } from "./format";
+import { resolveBufferMinutes } from "@/lib/booking/rules";
 
 const activeQueueStatuses = ["waiting", "confirmed", "checked_in", "assigned", "called", "ready", "in_service"];
 
@@ -137,10 +138,8 @@ export async function loadBarberPortalData(): Promise<BarberPortalData> {
         .eq("location_id", locationId)
         .maybeSingle()
     : { data: null };
-  const bufferMinutes = Math.max(
-    0,
-    number(locationSettings?.default_buffer_minutes),
-  );
+  // The gap between appointments is defined once, in src/lib/booking/rules.ts.
+  const bufferMinutes = resolveBufferMinutes(locationSettings?.default_buffer_minutes);
 
   const appointments: BarberPortalAppointment[] = (appointmentsResult.data ?? []).map((row) => ({
     id: String(row.id),

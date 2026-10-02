@@ -3,21 +3,16 @@ import { createHash, createHmac, randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getServerAuthSession } from "@/lib/auth/server";
-import {
-  searchSquareBookingAvailability,
-  searchSupabaseAvailability,
-} from "@/lib/booking/availability";
+import { checkPlacement, searchSupabaseAvailability } from "@/lib/booking/availability";
 import { getBookingAdminContext } from "@/lib/booking/catalog";
 import { queueBookingNotifications } from "@/lib/booking/notifications";
+import { requestCorrelationId, schedulingErrorMessage, schedulingErrorReason } from "@/lib/booking/observability";
 import { bookingSubmissionSchema } from "@/lib/booking/schema";
-import { SquareBookingProvider } from "@/lib/booking/square";
 import { dateInZone } from "@/lib/booking/timezone";
 import { businessConfig } from "@/lib/config/business";
-import { features } from "@/lib/config/features";
 import { sendFormSubmitBooking } from "@/lib/email/formsubmit";
 import { processNotificationJobs } from "@/lib/notifications/process";
 import { rateLimit, requestFingerprint } from "@/lib/security/rateLimit";
-import { squareConfig, squareIsConfigured } from "@/lib/square/config";
 
 function manageToken(idempotencyKey: string) {
   const secret =
@@ -69,6 +64,7 @@ function normalizePhone(value: string) {
 }
 
 export async function POST(request: NextRequest) {
+  const correlationId = requestCorrelationId(request.headers);
   const limited = rateLimit({
     key: `booking-submit:${requestFingerprint(request.headers)}`,
     limit: 5,
@@ -115,19 +111,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const useSquare = features.squareLiveBooking;
-
     /*
-     * If live Square booking is enabled, Square must be configured.
-     * Never silently fall back to the local scheduling engine.
+     * Supabase is the scheduling source of truth and Square is the payment
+     * source of truth (see src/lib/booking/rules.ts). There is one
+     * availability engine; this route never consults a second calendar.
      */
-    if (
-      useSquare &&
-      (!squareIsConfigured || !squareConfig.locationId)
-    ) {
-      throw new Error("SQUARE_BOOKING_NOT_CONFIGURED");
-    }
-
     const { admin, catalog } =
       await getBookingAdminContext();
 
@@ -261,10 +249,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (input.familyChildren && input.addonIds.length) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message:
+            "Family bookings cannot be combined with add-ons.",
+        },
+        { status: 422 },
+      );
+    }
+
     const availabilityInput = {
       locationId: input.locationId,
       serviceId: input.serviceId,
       addonIds: input.addonIds,
+      familyChildren: input.familyChildren,
       barberIds: input.barberId
         ? [input.barberId]
         : undefined,
@@ -276,25 +276,57 @@ export async function POST(request: NextRequest) {
     };
 
     /*
-     * Final authoritative availability check immediately before
-     * creating the appointment.
+     * Application-level availability check with the shared slot engine.
+     * The database guard inside create_appointment_atomic is the final
+     * authority and re-validates the same rules atomically.
      */
-    const availability = useSquare
-      ? await searchSquareBookingAvailability(
-          availabilityInput,
-        )
-      : await searchSupabaseAvailability(
-          availabilityInput,
-        );
+    const availability =
+      await searchSupabaseAvailability(availabilityInput);
+
+    if (input.familyChildren && !availability.family) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message:
+            "That family booking is no longer available. Please choose again.",
+        },
+        { status: 409 },
+      );
+    }
+
+    const family = availability.family;
 
     const exact = availability.slots.find(
       (slot) =>
-        slot.startsAt === input.startsAt &&
+        slot.startsAt === new Date(input.startsAt).toISOString() &&
         (!input.barberId ||
           slot.barberId === input.barberId),
     );
 
     if (!exact) {
+      const diagnosis = input.barberId
+        ? await checkPlacement(admin, {
+            locationId: input.locationId,
+            timezone: catalog.location.timezone,
+            barberId: input.barberId,
+            startsAt: input.startsAt,
+            durationMinutes: availability.durationMinutes || service.durationMinutes,
+          }).catch(() => null)
+        : null;
+
+      console.warn("booking-submit-slot-rejected", {
+        correlationId,
+        locationId: input.locationId,
+        barberId: input.barberId,
+        serviceId: input.serviceId,
+        familyChildren: input.familyChildren ?? 0,
+        requestedStart: input.startsAt,
+        durationMinutes: availability.durationMinutes,
+        bufferMinutes: availability.bufferMinutes,
+        reason: diagnosis && !diagnosis.ok ? diagnosis.reason : "not_offered",
+        conflictId: diagnosis && !diagnosis.ok ? diagnosis.conflictId ?? null : null,
+      });
+
       return NextResponse.json(
         {
           ok: false,
@@ -320,70 +352,6 @@ export async function POST(request: NextRequest) {
         },
         { status: 409 },
       );
-    }
-
-    /*
-     * Resolve local -> Square mappings before performing remote writes.
-     */
-    let squareServiceId: string | undefined;
-    let squareTeamMemberId: string | undefined;
-
-    if (useSquare) {
-      const [
-        {
-          data: serviceMapping,
-          error: serviceMappingError,
-        },
-        {
-          data: barberMapping,
-          error: barberMappingError,
-        },
-      ] = await Promise.all([
-        admin
-          .from("services")
-          .select("id,square_catalog_id")
-          .eq("id", service.id)
-          .maybeSingle(),
-
-        admin
-          .from("barber_profiles")
-          .select("id,square_team_member_id")
-          .eq("id", barber.id)
-          .maybeSingle(),
-      ]);
-
-      if (
-        serviceMappingError ||
-        barberMappingError
-      ) {
-        throw new Error(
-          "SQUARE_BOOKING_MAPPING_LOOKUP_FAILED",
-        );
-      }
-
-      squareServiceId =
-        String(
-          serviceMapping?.square_catalog_id ?? "",
-        ) || undefined;
-
-      squareTeamMemberId =
-        String(
-          barberMapping?.square_team_member_id ?? "",
-        ) || undefined;
-
-      if (
-        !squareServiceId ||
-        !squareTeamMemberId
-      ) {
-        return NextResponse.json(
-          {
-            ok: false,
-            message:
-              "This service or barber is not yet available for online booking. Please call the lounge.",
-          },
-          { status: 409 },
-        );
-      }
     }
 
     const {
@@ -578,102 +546,34 @@ export async function POST(request: NextRequest) {
       throw new Error("CLIENT_CREATE_FAILED");
     }
 
-    let squareBookingId: string | undefined;
-
-    if (useSquare) {
-      const provider =
-        new SquareBookingProvider();
-
-      /*
-       * Reuse the mapped Square customer when possible.
-       * Otherwise create it with a deterministic idempotency key.
-       */
-      if (!squareCustomerId) {
-        const squareCustomer =
-          await provider.createCustomer({
-            givenName: input.firstName,
-            familyName: input.lastName,
-            email,
-            phone,
-            idempotencyKey:
-              `${input.idempotencyKey}:customer`,
-          });
-
-        squareCustomerId = squareCustomer.id;
-
-        const {
-          error: customerMappingError,
-        } = await admin
-          .from("clients")
-          .update({
-            square_customer_id:
-              squareCustomerId,
-          })
-          .eq("id", clientId);
-
-        if (customerMappingError) {
-          throw new Error(
-            "SQUARE_CUSTOMER_MAPPING_SAVE_FAILED",
-          );
-        }
-      }
-
-      if (
-        !squareConfig.locationId ||
-        !squareServiceId ||
-        !squareTeamMemberId ||
-        !squareCustomerId
-      ) {
-        throw new Error(
-          "SQUARE_BOOKING_MAPPING_INCOMPLETE",
+    // A family booking is ONE appointment: the adult's service followed by
+    // the Kids Haircuts. Price and duration come from the live catalog and
+    // are re-derived by the database, which refuses any mismatch.
+    const priceCents = family
+      ? family.totalPriceCents
+      : service.priceCents +
+        addons.reduce(
+          (sum, addon) =>
+            sum + addon.priceCents,
+          0,
         );
-      }
 
-      /*
-       * Square is the scheduling source of truth in live mode.
-       * Create the Square booking before confirming it locally.
-       */
-      const squareBooking =
-        await provider.createBooking({
-          locationId:
-            squareConfig.locationId,
-          serviceId: squareServiceId,
-          customerId: squareCustomerId,
-          startsAt: exact.startsAt,
-          teamMemberId:
-            squareTeamMemberId,
-          notes: input.notes || undefined,
-          idempotencyKey:
-            `${input.idempotencyKey}:booking`,
-        });
-
-      if (
-        !squareBooking.id ||
-        !squareBooking.live
-      ) {
-        throw new Error(
-          "SQUARE_BOOKING_CREATE_FAILED",
+    const durationMinutes = family
+      ? family.totalDurationMinutes
+      : service.durationMinutes +
+        addons.reduce(
+          (sum, addon) =>
+            sum + addon.durationMinutes,
+          0,
         );
-      }
 
-      squareBookingId = squareBooking.id;
-    }
+    const depositCents = family
+      ? family.totalPriceCents
+      : service.depositCents;
 
-    const priceCents =
-      service.priceCents +
-      addons.reduce(
-        (sum, addon) =>
-          sum + addon.priceCents,
-        0,
-      );
-
-    const durationMinutes =
-      service.durationMinutes +
-      addons.reduce(
-        (sum, addon) =>
-          sum + addon.durationMinutes,
-        0,
-      );
+    const serviceName = family
+      ? family.summary
+      : service.name;
 
     /*
      * Keep this call shape compact because integration tests verify
@@ -692,14 +592,19 @@ export async function POST(request: NextRequest) {
       manage_token_hash:
         tokenHash(token),
 
-      square_booking_id:
-        squareBookingId ?? null,
+      square_booking_id: null,
 
       square_customer_id:
         squareCustomerId ?? null,
 
+      booking_kind: family
+        ? "family"
+        : "single",
+      family_children_count:
+        family?.childCount ?? null,
+
       service_name_snapshot:
-        service.name,
+        serviceName,
       service_price_snapshot_cents:
         priceCents,
       service_duration_snapshot_minutes:
@@ -732,7 +637,7 @@ export async function POST(request: NextRequest) {
         catalog.location.timezone,
 
       status:
-        service.depositCents > 0
+        depositCents > 0
           ? "pending_confirmation"
           : "confirmed",
 
@@ -747,10 +652,10 @@ export async function POST(request: NextRequest) {
         input.referralSource,
 
       deposit_required_cents:
-        service.depositCents,
+        depositCents,
 
       deposit_status:
-        service.depositCents > 0
+        depositCents > 0
           ? "pending"
           : "not_required",
 
@@ -780,10 +685,7 @@ export async function POST(request: NextRequest) {
           ? "disabled"
           : "queued",
 
-      sync_status:
-        useSquare
-          ? "square_synced"
-          : "supabase_primary",
+      sync_status: "supabase_primary",
 
       created_by:
         session.user?.id ?? null,
@@ -793,31 +695,53 @@ export async function POST(request: NextRequest) {
       bookingError ||
       !appointment
     ) {
-      if (
-        bookingError?.code === "23P01" ||
-        /SLOT_CONFLICT/.test(
-          bookingError?.message ?? "",
-        )
-      ) {
-        /*
-         * If Square already accepted the appointment, don't create
-         * another remote booking. The deterministic Square key lets
-         * retries recover the same booking.
-         */
-        console.error(
-          "booking-local-slot-conflict-after-square",
-          {
-            squareBookingId:
-              squareBookingId ?? null,
-          },
-        );
+      const reason = schedulingErrorReason(bookingError);
 
+      console.warn("booking-submit-guard-rejected", {
+        correlationId,
+        locationId: input.locationId,
+        barberId: barber.id,
+        serviceId: service.id,
+        familyChildren: family?.childCount ?? 0,
+        requestedStart: exact.startsAt,
+        durationMinutes,
+        reason,
+        dbCode: bookingError?.code ?? null,
+        dbMessage: bookingError?.message?.slice(0, 160) ?? null,
+      });
+
+      if (
+        [
+          "appointment",
+          "hold",
+          "buffer",
+          "time_off",
+          "break",
+          "outside_schedule",
+          "outside_business_hours",
+        ].includes(reason)
+      ) {
         return NextResponse.json(
           {
             ok: false,
             code: "SLOT_TAKEN",
             message:
               "That time was just reserved. Please refresh your booking.",
+          },
+          { status: 409 },
+        );
+      }
+
+      if (
+        reason === "catalog_changed" ||
+        reason === "invalid_family_booking" ||
+        reason === "barber_not_eligible"
+      ) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: "CATALOG_CHANGED",
+            message: schedulingErrorMessage(reason),
           },
           { status: 409 },
         );
@@ -871,7 +795,7 @@ export async function POST(request: NextRequest) {
             preferred_language: input.preferredLanguage,
             policy_version: input.policyVersion,
             deposit_status:
-              service.depositCents > 0 ? "pending" : "not_required",
+              depositCents > 0 ? "pending" : "not_required",
             reference_code: record.public_reference,
             service_snapshot: {
               id: service.id,
@@ -879,6 +803,24 @@ export async function POST(request: NextRequest) {
               name: service.name,
               priceCents: service.priceCents,
               depositCents: service.depositCents,
+              ...(family
+                ? {
+                    bookingKind: "family",
+                    familyTier: family.tierSlug,
+                    partySize: family.partySize,
+                    totalPriceCents: family.totalPriceCents,
+                    totalDurationMinutes: family.totalDurationMinutes,
+                    items: family.items.map((item) => ({
+                      sequence: item.sequence,
+                      role: item.role,
+                      serviceId: item.serviceId,
+                      name: item.serviceName,
+                      priceCents: item.priceCents,
+                      durationMinutes: item.durationMinutes,
+                      offsetMinutes: item.offsetMinutes,
+                    })),
+                  }
+                : {}),
             },
             addon_snapshot: addons.map((a) => ({
               id: a.id,
@@ -1180,8 +1122,7 @@ export async function POST(request: NextRequest) {
           durationMinutes,
           estimatedPriceCents:
             priceCents,
-          depositCents:
-            service.depositCents,
+          depositCents,
           manageToken: token,
           notificationState,
         },
@@ -1195,6 +1136,7 @@ export async function POST(request: NextRequest) {
     console.error(
       "booking-submit",
       {
+        correlationId,
         code:
           error instanceof Error
             ? error.message.slice(0, 120)

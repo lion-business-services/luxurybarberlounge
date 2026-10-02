@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getManagedAppointment } from "@/lib/booking/manage";
-import { searchSupabaseAvailability } from "@/lib/booking/availability";
+import { requestCorrelationId } from "@/lib/booking/observability";
+import { moveAppointment } from "@/lib/booking/reschedule";
 import { queueAppointmentChangeNotifications } from "@/lib/booking/change-notifications";
 import { businessConfig } from "@/lib/config/business";
 
@@ -45,17 +46,16 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ r
 
   if (!parsed.data.startsAt) return NextResponse.json({ ok: false, message: "Choose a new date and time." }, { status: 422 });
   const startsAt = new Date(parsed.data.startsAt);
-  const duration = Number(appointment.service_duration_snapshot_minutes || 30);
-  const endsAt = new Date(startsAt.getTime() + duration * 60_000);
-  const date = new Intl.DateTimeFormat("en-CA", { timeZone: appointment.timezone || businessConfig.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(startsAt);
-  const availability = await searchSupabaseAvailability({ locationId: appointment.location_id, serviceId: appointment.service_id, addonIds: [], durationMinutesOverride: duration, barberIds: [appointment.barber_profile_id], startDate: date, days: 1 });
-  if (!availability.slots.some((slot) => slot.startsAt === startsAt.toISOString() && slot.barberId === appointment.barber_profile_id)) return NextResponse.json({ ok: false, code: "SLOT_TAKEN", message: "That time is no longer available." }, { status: 409 });
-  const { data, error } = await admin.rpc("reschedule_appointment_atomic", { p_appointment_id: appointment.id, p_starts_at: startsAt.toISOString(), p_ends_at: endsAt.toISOString(), p_actor: null, p_actor_role: "guest", p_reason: "Guest rescheduled through secure manage link" });
-  if (error || !data) return NextResponse.json({ ok: false, message: /SLOT_CONFLICT/.test(error?.message ?? "") ? "That time is no longer available." : "The appointment could not be rescheduled." }, { status: /SLOT_CONFLICT/.test(error?.message ?? "") ? 409 : 503 });
-  await queueAppointmentChangeNotifications(
-    admin,
-    { ...appointment, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString() } as Parameters<typeof queueAppointmentChangeNotifications>[1],
-    "rescheduled",
-  );
+  if (!Number.isFinite(startsAt.getTime())) return NextResponse.json({ ok: false, message: "Choose a new date and time." }, { status: 422 });
+  const result = await moveAppointment(admin, {
+    appointment,
+    startsAt: startsAt.toISOString(),
+    actorUserId: null,
+    actorRole: "guest",
+    reason: "Guest rescheduled through secure manage link",
+    correlationId: requestCorrelationId(request.headers),
+    locationName: managed.location?.name ?? null,
+  });
+  if (!result.ok) return NextResponse.json({ ok: false, code: result.reason, message: result.message }, { status: result.status });
   return NextResponse.json({ ok: true, startsAt: startsAt.toISOString() });
 }

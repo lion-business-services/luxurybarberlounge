@@ -1,3 +1,4 @@
+import { BOOKING_BUFFER_MINUTES, MAXIMUM_ADVANCE_DAYS, MINIMUM_LEAD_MINUTES, SLOT_GRID_MINUTES } from "@/lib/booking/rules";
 import { business as siteBusiness, hours as siteHours } from "@/lib/content/site";
 
 export const businessConfig = {
@@ -19,10 +20,11 @@ export const businessConfig = {
   bookingPath: "/book",
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? siteBusiness.domain,
   mapsUrl: siteBusiness.mapsUrl,
-  minimumLeadMinutes: 0,
-  maximumAdvanceDays: 90,
-  slotIntervalMinutes: 15,
-  defaultBufferMinutes: 0,
+  // Scheduling values are defined once in src/lib/booking/rules.ts.
+  minimumLeadMinutes: MINIMUM_LEAD_MINUTES,
+  maximumAdvanceDays: MAXIMUM_ADVANCE_DAYS,
+  slotIntervalMinutes: SLOT_GRID_MINUTES,
+  defaultBufferMinutes: BOOKING_BUFFER_MINUTES,
   cancellationCutoffHours: 4,
   bookingPolicyVersion: "booking-policy-2026-10-01",
   hours: siteHours,

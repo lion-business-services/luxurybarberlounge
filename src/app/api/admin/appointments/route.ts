@@ -2,14 +2,19 @@ import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
-import { searchSupabaseAvailability } from "@/lib/booking/availability";
-import { ensureBookingCatalog } from "@/lib/booking/catalog";
+import { requestCorrelationId, schedulingErrorMessage, schedulingErrorReason, schedulingErrorStatus } from "@/lib/booking/observability";
+import { moveAppointment } from "@/lib/booking/reschedule";
 import { addDays, zonedDateTimeToUtc } from "@/lib/booking/timezone";
 import { businessConfig } from "@/lib/config/business";
 import { sendFormSubmitBooking } from "@/lib/email/formsubmit";
 
+export const dynamic = "force-dynamic";
+
+const NO_STORE = { "Cache-Control": "private, no-store, max-age=0" };
 const operatingRoles = ["receptionist", "manager", "owner", "super_admin"] as const;
-const adminVisibleStatuses = ["confirmed", "checked_in", "assigned", "in_service", "completed", "cancelled_by_client", "cancelled_by_business", "no_show", "rescheduled"] as const;
+// "expired" is listed only together with deposit_status = paid (see GET): a
+// paid booking that holds no time yet and needs staff to place it.
+const adminVisibleStatuses = ["confirmed", "checked_in", "assigned", "in_service", "completed", "cancelled_by_client", "cancelled_by_business", "no_show", "rescheduled", "expired"] as const;
 type OperationalAppointmentRecord = {
   id: string;
   business_id: string;
@@ -61,7 +66,7 @@ export async function GET(request: NextRequest) {
   }
   let query = value.admin
     .from("appointments")
-    .select("id,public_reference,client_id,auth_user_id,service_id,barber_profile_id,assigned_staff_user_id,service_name_snapshot,service_price_snapshot_cents,service_duration_snapshot_minutes,addon_snapshot,barber_name_snapshot,client_name_snapshot,client_email_snapshot,client_phone_snapshot,starts_at,ends_at,timezone,status,client_declared_status,booking_source,campaign_source,referral_source,deposit_required_cents,deposit_status,client_notes,internal_notes,formsubmit_status,client_confirmation_status,barber_notification_status,sync_status,created_at,updated_at")
+    .select("id,public_reference,client_id,auth_user_id,service_id,barber_profile_id,assigned_staff_user_id,service_name_snapshot,service_price_snapshot_cents,service_duration_snapshot_minutes,addon_snapshot,barber_name_snapshot,client_name_snapshot,client_email_snapshot,client_phone_snapshot,starts_at,ends_at,timezone,status,client_declared_status,booking_source,campaign_source,referral_source,deposit_required_cents,deposit_status,client_notes,internal_notes,formsubmit_status,client_confirmation_status,barber_notification_status,sync_status,created_at,updated_at,booking_kind,party_size,completed_at,reschedule_count")
     .eq("business_id", value.businessId)
     // The operational Appointments workspace is the paid schedule, not the
     // checkout-hold inbox. Unpaid/pending website bookings remain in the
@@ -101,6 +106,7 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const value = await context();
   if (!value) return NextResponse.json({ ok: false, message: "Shop access is required." }, { status: 403 });
+  const correlationId = requestCorrelationId(request.headers);
   const parsed = actionSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Review the requested appointment change." }, { status: 422 });
   const input = parsed.data;
@@ -146,44 +152,74 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: result.status === "sent", status: result.status, message: result.status === "sent" ? "Administrative email sent." : "The booking remains saved; delivery will retry." }, { status: result.status === "sent" ? 200 : 202 });
   }
 
-  if (input.action === "reschedule") {
-    if (!input.startsAt) return NextResponse.json({ ok: false, message: "Choose a new date and time." }, { status: 422 });
-    const { catalog } = await ensureBookingCatalog();
-    const durationMinutes = Number(appointment.service_duration_snapshot_minutes || 30);
-    const start = new Date(input.startsAt);
-    const end = new Date(start.getTime() + durationMinutes * 60_000);
-    const availability = await searchSupabaseAvailability({ locationId: appointment.location_id, serviceId: appointment.service_id, addonIds: [], durationMinutesOverride: durationMinutes, barberIds: [appointment.barber_profile_id], startDate: new Intl.DateTimeFormat("en-CA", { timeZone: appointment.timezone }).format(start), days: 1 });
-    if (!availability.slots.some((slot) => slot.startsAt === start.toISOString() && slot.barberId === appointment.barber_profile_id)) return NextResponse.json({ ok: false, code: "SLOT_TAKEN", message: "That time is no longer available." }, { status: 409 });
-    const { data, error } = await value.admin.rpc("reschedule_appointment_atomic", { p_appointment_id: appointment.id, p_starts_at: start.toISOString(), p_ends_at: end.toISOString(), p_actor: value.session.user.id, p_actor_role: value.actorRole, p_reason: input.reason || "Rescheduled by shop" });
-    if (error || !data) return NextResponse.json({ ok: false, message: /SLOT_CONFLICT/.test(error?.message ?? "") ? "That time is no longer available." : "The appointment could not be rescheduled." }, { status: /SLOT_CONFLICT/.test(error?.message ?? "") ? 409 : 503 });
-    return NextResponse.json({ ok: true, appointment: data, location: catalog.location.name });
+  if (input.action === "reschedule" || input.action === "reassign") {
+    // Both actions go through the same atomic move: the old time is released
+    // and the new time is blocked in one transaction, or nothing changes.
+    if (input.action === "reschedule" && !input.startsAt) return NextResponse.json({ ok: false, message: "Choose a new date and time." }, { status: 422 });
+    if (input.action === "reassign" && !input.barberProfileId) return NextResponse.json({ ok: false, message: "Choose an active barber." }, { status: 422 });
+    if (input.action === "reassign" && input.barberProfileId && ["checked_in", "assigned", "in_service"].includes(String(appointment.status))) {
+      return reassignInService(value, appointment, input.barberProfileId, input.reason, correlationId);
+    }
+    const { data: location } = await value.admin.from("locations").select("name").eq("id", appointment.location_id).maybeSingle();
+    const result = await moveAppointment(value.admin, {
+      appointment,
+      startsAt: input.startsAt ?? appointment.starts_at,
+      barberProfileId: input.barberProfileId ?? null,
+      actorUserId: value.session.user.id,
+      actorRole: value.actorRole,
+      reason: input.reason || (input.action === "reassign" ? "Reassigned by shop" : "Rescheduled by shop"),
+      correlationId,
+      locationName: typeof location?.name === "string" ? location.name : null,
+    });
+    if (!result.ok) return NextResponse.json({ ok: false, code: result.reason, message: result.message }, { status: result.status, headers: NO_STORE });
+    return NextResponse.json({ ok: true, changed: result.changed, appointment: result.appointment, clientNotified: result.notificationQueued }, { headers: NO_STORE });
   }
 
-  if (input.action === "reassign") {
-    if (!input.barberProfileId) return NextResponse.json({ ok: false, message: "Choose an active barber." }, { status: 422 });
-    const [{ data: barber }, { data: eligible }] = await Promise.all([
-      value.admin.from("barber_profiles").select("id,display_name,staff_user_id,active,status").eq("business_id", value.businessId).eq("id", input.barberProfileId).eq("active", true).neq("status", "archived").maybeSingle(),
-      value.admin.from("barber_profile_services").select("barber_profile_id").eq("barber_profile_id", input.barberProfileId).eq("service_id", appointment.service_id).eq("active", true).maybeSingle(),
-    ]);
-    if (!barber?.id || !eligible) return NextResponse.json({ ok: false, message: "That barber is not available for this service." }, { status: 409 });
-    const before = { barber_profile_id: appointment.barber_profile_id, barber_name_snapshot: appointment.barber_name_snapshot };
-    const displayName = typeof barber.display_name === "string" ? barber.display_name : String((barber.display_name as Record<string, unknown> | null)?.en ?? "Barber");
-    const { error } = await value.admin.from("appointments").update({ barber_profile_id: barber.id, assigned_staff_user_id: barber.staff_user_id ?? null, barber_name_snapshot: displayName }).eq("id", appointment.id);
-    if (error) return NextResponse.json({ ok: false, message: error.code === "23P01" ? "That barber already has an overlapping appointment." : "The barber could not be reassigned." }, { status: error.code === "23P01" ? 409 : 503 });
-    await value.admin.from("appointment_assignments").update({ active: false, released_at: new Date().toISOString() }).eq("appointment_id", appointment.id).eq("active", true);
-    await value.admin.from("appointment_assignments").insert({ appointment_id: appointment.id, barber_profile_id: barber.id, assigned_staff_user_id: barber.staff_user_id ?? null, assignment_source: "admin", reason: input.reason || "Reassigned by shop", assigned_by: value.session.user.id });
-    await audit(value, appointment, "booking.barber_reassigned", input.reason || "Barber reassigned", before, { barber_profile_id: barber.id, barber_name_snapshot: displayName });
-    return NextResponse.json({ ok: true });
+  if (input.action === "complete") {
+    // Finish: records the real completion time and releases the unused part of
+    // the reservation. A second click returns the same row and changes nothing.
+    const { data, error } = await value.admin.rpc("complete_appointment_atomic", {
+      p_appointment_id: appointment.id,
+      p_actor: value.session.user.id,
+      p_actor_role: value.actorRole,
+      p_reason: input.reason || null,
+    });
+    if (error || !data) {
+      const reason = schedulingErrorReason(error);
+      console.warn("booking-finish", { correlationId, appointmentId: appointment.id, actorRole: value.actorRole, reason, code: error?.code ?? null });
+      return NextResponse.json({ ok: false, code: reason, message: schedulingErrorMessage(reason) }, { status: schedulingErrorStatus(reason), headers: NO_STORE });
+    }
+    const completed = (Array.isArray(data) ? data[0] : data) as Record<string, unknown>;
+    console.info("booking-finish", { correlationId, appointmentId: appointment.id, actorRole: value.actorRole, duplicate: appointment.status === "completed", completedAt: completed.completed_at, availableAgainAt: completed.occupied_until });
+    return NextResponse.json({ ok: true, status: "completed", duplicate: appointment.status === "completed", completedAt: completed.completed_at, availableAgainAt: completed.occupied_until }, { headers: NO_STORE });
+  }
+
+  if (input.action === "confirm") {
+    // Payment was verified above. The database decides whether the time is
+    // still free, so an expired hold can never be confirmed on top of someone.
+    const { data, error } = await value.admin.rpc("confirm_paid_appointment", { p_appointment_id: appointment.id, p_actor: value.session.user.id, p_source: "admin_dashboard" });
+    if (error || !data) {
+      const reason = schedulingErrorReason(error);
+      console.warn("booking-confirm", { correlationId, appointmentId: appointment.id, reason, code: error?.code ?? null });
+      return NextResponse.json({ ok: false, code: reason, message: schedulingErrorMessage(reason) }, { status: schedulingErrorStatus(reason), headers: NO_STORE });
+    }
+    const outcome = data as { promoted?: boolean; conflict?: boolean; appointment?: { status?: string } };
+    if (outcome.conflict) {
+      // Nothing was double-booked. The booking stays paid and is listed for staff to place.
+      console.warn("booking-confirm", { correlationId, appointmentId: appointment.id, reason: "conflict" });
+      return NextResponse.json({ ok: false, code: "appointment", message: "That time is no longer free. The booking is saved as paid: open it and move it to an open time." }, { status: 409, headers: NO_STORE });
+    }
+    if (outcome.promoted) await audit(value, appointment, "booking.confirmed", input.reason || "Appointment confirmed", { status: appointment.status }, { status: "confirmed" });
+    if (outcome.appointment?.status !== "confirmed") return NextResponse.json({ ok: false, message: `The appointment cannot move from ${String(appointment.status).replaceAll("_", " ")} to confirmed.` }, { status: 409, headers: NO_STORE });
+    return NextResponse.json({ ok: true, status: "confirmed", duplicate: !outcome.promoted }, { headers: NO_STORE });
   }
 
   const nextStatus: Record<string, string> = {
-    confirm: "confirmed",
     decline: "declined",
     cancel: "cancelled_by_business",
     check_in: "checked_in",
     assign: "assigned",
     in_service: "in_service",
-    complete: "completed",
     no_show: "no_show",
   };
   const status = nextStatus[input.action];
@@ -197,6 +233,31 @@ export async function PATCH(request: NextRequest) {
   ]);
   if (input.action === "check_in") await checkInQueue(value, appointment);
   return NextResponse.json({ ok: true, status });
+}
+
+/**
+ * A client who is already in the lounge keeps the same time and status and is
+ * handed to another barber. The database guard validates the new barber's
+ * calendar inside the same statement, so this cannot double-book either.
+ */
+async function reassignInService(value: NonNullable<Awaited<ReturnType<typeof context>>>, appointment: OperationalAppointmentRecord & Record<string, unknown>, barberProfileId: string, reasonText: string | undefined, correlationId: string) {
+  const [{ data: barber }, { data: eligible }] = await Promise.all([
+    value.admin.from("barber_profiles").select("id,display_name,staff_user_id,active,status").eq("business_id", value.businessId).eq("id", barberProfileId).eq("active", true).neq("status", "archived").maybeSingle(),
+    value.admin.from("barber_profile_services").select("barber_profile_id").eq("barber_profile_id", barberProfileId).eq("service_id", appointment.service_id).eq("active", true).maybeSingle(),
+  ]);
+  if (!barber?.id || !eligible) return NextResponse.json({ ok: false, code: "barber_not_eligible", message: schedulingErrorMessage("barber_not_eligible") }, { status: 409, headers: NO_STORE });
+  const before = { barber_profile_id: appointment.barber_profile_id, barber_name_snapshot: appointment.barber_name_snapshot };
+  const displayName = typeof barber.display_name === "string" ? barber.display_name : String((barber.display_name as Record<string, unknown> | null)?.en ?? "Barber");
+  const { error } = await value.admin.from("appointments").update({ barber_profile_id: barber.id, assigned_staff_user_id: barber.staff_user_id ?? null, barber_name_snapshot: displayName }).eq("id", appointment.id);
+  if (error) {
+    const reason = schedulingErrorReason(error);
+    console.warn("booking-reassign", { correlationId, appointmentId: appointment.id, toBarber: barberProfileId, reason, code: error.code ?? null });
+    return NextResponse.json({ ok: false, code: reason, message: schedulingErrorMessage(reason) }, { status: schedulingErrorStatus(reason), headers: NO_STORE });
+  }
+  await value.admin.from("appointment_assignments").update({ active: false, released_at: new Date().toISOString() }).eq("appointment_id", appointment.id).eq("active", true);
+  await value.admin.from("appointment_assignments").insert({ appointment_id: appointment.id, barber_profile_id: barber.id, assigned_staff_user_id: barber.staff_user_id ?? null, assignment_source: "admin", reason: reasonText || "Reassigned by shop", assigned_by: value.session.user.id });
+  await audit(value, appointment, "booking.barber_reassigned", reasonText || "Barber reassigned", before, { barber_profile_id: barber.id, barber_name_snapshot: displayName });
+  return NextResponse.json({ ok: true, changed: true }, { headers: NO_STORE });
 }
 
 async function checkInQueue(value: NonNullable<Awaited<ReturnType<typeof context>>>, appointment: OperationalAppointmentRecord) {

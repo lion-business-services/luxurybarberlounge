@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createUntypedAdminSupabase, createUserServerSupabase, getServerAuthSession } from "@/lib/auth/server";
-import { searchSupabaseAvailability } from "@/lib/booking/availability";
+import { requestCorrelationId } from "@/lib/booking/observability";
+import { moveAppointment } from "@/lib/booking/reschedule";
 import { businessConfig } from "@/lib/config/business";
 
 const mutationSchema = z.object({ appointmentId: z.string().uuid(), startsAt: z.string().datetime().optional() });
@@ -41,16 +42,20 @@ export async function PATCH(request: NextRequest) {
   if (immutableStatuses.has(String(appointment.status))) return NextResponse.json({ ok: false, message: "This appointment can no longer be changed online." }, { status: 409 });
   const startsAt = new Date(parsed.data.startsAt);
   if (!Number.isFinite(startsAt.getTime()) || startsAt.getTime() <= Date.now()) return NextResponse.json({ ok: false, message: "Choose a future appointment time." }, { status: 422 });
-  const durationMinutes = Number(appointment.service_duration_snapshot_minutes || 30);
-  const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
-  const date = new Intl.DateTimeFormat("en-CA", { timeZone: appointment.timezone || businessConfig.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(startsAt);
-  const availability = await searchSupabaseAvailability({ locationId: appointment.location_id, serviceId: appointment.service_id, addonIds: [], durationMinutesOverride: durationMinutes, barberIds: [appointment.barber_profile_id], startDate: date, days: 1 });
-  if (!availability.slots.some((slot) => slot.startsAt === startsAt.toISOString() && slot.barberId === appointment.barber_profile_id)) return NextResponse.json({ ok: false, code: "SLOT_TAKEN", message: "That time is no longer available. Choose another open time." }, { status: 409 });
   const admin = createUntypedAdminSupabase();
   if (!admin) return NextResponse.json({ ok: false, message: "Booking service is unavailable." }, { status: 503 });
-  const { data, error } = await admin.rpc("reschedule_appointment_atomic", { p_appointment_id: appointment.id, p_starts_at: startsAt.toISOString(), p_ends_at: endsAt.toISOString(), p_actor: value.session.user.id, p_actor_role: "client", p_reason: "Client rescheduled through the portal" });
-  if (error || !data) return NextResponse.json({ ok: false, message: /SLOT_CONFLICT/.test(error?.message ?? "") ? "That time is no longer available." : "The appointment could not be rescheduled." }, { status: /SLOT_CONFLICT/.test(error?.message ?? "") ? 409 : 503 });
-  await queueClientUpdate(admin, appointment, "booking_rescheduled", `Your appointment ${appointment.public_reference} was rescheduled to ${new Intl.DateTimeFormat("en-US", { timeZone: appointment.timezone, dateStyle: "full", timeStyle: "short" }).format(startsAt)}.`);
+  // Same atomic move the lounge uses: the whole booking keeps its length, the
+  // old time is released and the new time is blocked together, and exactly one
+  // notification is queued after the change is saved.
+  const result = await moveAppointment(admin, {
+    appointment,
+    startsAt: startsAt.toISOString(),
+    actorUserId: value.session.user.id,
+    actorRole: "client",
+    reason: "Client rescheduled through the portal",
+    correlationId: requestCorrelationId(request.headers),
+  });
+  if (!result.ok) return NextResponse.json({ ok: false, code: result.reason, message: result.message }, { status: result.status });
   return NextResponse.json({ ok: true, startsAt: startsAt.toISOString() });
 }
 

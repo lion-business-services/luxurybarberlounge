@@ -11,7 +11,7 @@ const expected = new Map([
   ["/api/cron/square-sync", "*/10 * * * *"],
   ["/api/cron/webhooks", "*/2 * * * *"],
   ["/api/cron/notifications", "*/5 * * * *"],
-  ["/api/cron/appointments", "*/15 * * * *"],
+  ["/api/cron/appointments", "*/5 * * * *"],
   ["/api/cron/queue", "*/5 * * * *"],
   ["/api/cron/commissions", "*/5 * * * *"],
   ["/api/cron/formsubmit", "*/10 * * * *"],

@@ -19,7 +19,7 @@ export async function getManagedAppointment(reference: string, token: string) {
 
   const { data, error } = await admin
     .from("appointments")
-    .select("id,business_id,location_id,client_id,auth_user_id,service_id,barber_profile_id,public_reference,square_booking_id,square_customer_id,square_order_id,status,starts_at,ends_at,timezone,service_name_snapshot,service_price_snapshot_cents,service_duration_snapshot_minutes,addon_snapshot,barber_name_snapshot,client_name_snapshot,client_email_snapshot,client_phone_snapshot,internal_notes,deposit_required_cents,deposit_status,manage_token_hash,balance_token_hash,created_at")
+    .select("id,business_id,location_id,client_id,auth_user_id,service_id,barber_profile_id,public_reference,square_booking_id,square_customer_id,square_order_id,status,starts_at,ends_at,timezone,service_name_snapshot,service_price_snapshot_cents,service_duration_snapshot_minutes,addon_snapshot,barber_name_snapshot,client_name_snapshot,client_email_snapshot,client_phone_snapshot,internal_notes,deposit_required_cents,deposit_status,manage_token_hash,balance_token_hash,created_at,booking_kind,party_size,hold_expires_at,completed_at,reschedule_count,sms_consent")
     .eq("public_reference", reference)
     .maybeSingle();
 

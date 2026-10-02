@@ -1,6 +1,8 @@
 import "server-only";
 
 import { createUntypedAdminSupabase } from "@/lib/auth/server";
+import type { BookingNotificationAppointment } from "@/lib/booking/notifications";
+import { businessConfig } from "@/lib/config/business";
 import {
   squareRequest,
   SquareConfigurationError,
@@ -433,15 +435,41 @@ async function syncPayment(
       // Membership first-month payments have no appointment link; handled below.
       if (checkoutLink.purpose === "deposit") {
         await admin.from("appointments").update({ deposit_status: "paid" }).eq("id", checkoutLink.appointment_id).neq("deposit_status", "refunded");
-        // Deposit settled -> promote the held booking to confirmed.
-        // Scoped to pending_confirmation so cancelled/completed rows are never resurrected.
-        const { data: promoted } = await admin
-          .from("appointments")
-          .update({ status: "confirmed" })
-          .eq("id", checkoutLink.appointment_id)
-          .eq("status", "pending_confirmation")
-          .select("*")
-          .maybeSingle();
+        // Deposit settled -> promote the held booking to confirmed through
+        // the atomic RPC. It takes the barber-calendar lock, never resurrects
+        // cancelled/completed rows, and re-validates the slot when the
+        // checkout hold had already expired.
+        const confirmation = await admin.rpc("confirm_paid_appointment", {
+          p_appointment_id: checkoutLink.appointment_id,
+          p_actor: null,
+          p_source: "square_webhook",
+        });
+        const confirmationResult = (confirmation.data ?? null) as { promoted?: boolean; conflict?: boolean; reason?: string; appointment?: AnyRecord } | null;
+        const confirmedRow = confirmationResult?.appointment ?? null;
+        // "promoted" is true only for the single call that changed the status,
+        // so a repeated webhook never re-sends the confirmation.
+        const promoted = !confirmation.error && confirmationResult?.promoted === true && confirmedRow?.status === "confirmed"
+          ? (confirmedRow as unknown as BookingNotificationAppointment)
+          : null;
+
+        if (confirmation.error || confirmationResult?.conflict === true) {
+          // Money was taken but the booking could not be confirmed. This must
+          // reach a person: it is never silently dropped and never
+          // double-books the barber. Two different situations:
+          //  - conflict: the hold had lapsed and the time is no longer free.
+          //    The booking is kept as "expired, paid" for staff to place.
+          //  - error: the confirmation itself failed (for example a database
+          //    problem). Staff are told to confirm it from the Admin Portal.
+          await recordPaidButUnconfirmedBooking(admin, {
+            businessId: business,
+            appointmentId: String(checkoutLink.appointment_id),
+            squareOrderId: orderId,
+            squarePaymentId: id,
+            kind: confirmationResult?.conflict === true ? "time_taken" : "confirmation_failed",
+            dbCode: confirmation.error?.code ?? null,
+            dbMessage: (confirmation.error?.message ?? confirmationResult?.reason ?? null)?.slice(0, 160) ?? null,
+          });
+        }
 
         // Confirmation email/SMS were withheld at booking time because the
         // deposit was outstanding. Now that it has settled, send them.
@@ -496,6 +524,98 @@ async function syncPayment(
     resource: "payment",
     squareId: id,
   };
+}
+
+/**
+ * A verified payment arrived for a booking that could not be confirmed.
+ * "time_taken": the checkout hold had lapsed and the time is no longer free;
+ * the booking is kept as paid for staff to place at a new time.
+ * "confirmation_failed": the confirmation step itself failed.
+ * Records an open failure for the Sync Health screen, alerts the lounge by
+ * email, and logs it. Each step is idempotent so webhook retries are safe.
+ */
+async function recordPaidButUnconfirmedBooking(
+  admin: NonNullable<ReturnType<typeof createUntypedAdminSupabase>>,
+  input: { businessId: string; appointmentId: string; squareOrderId: string; squarePaymentId: string; kind: "time_taken" | "confirmation_failed"; dbCode: string | null; dbMessage: string | null },
+) {
+  const timeTaken = input.kind === "time_taken";
+  const errorCode = timeTaken ? "PAID_AFTER_HOLD_EXPIRED" : "PAID_CONFIRMATION_FAILED";
+  const instruction = timeTaken
+    ? "In the Admin Portal, open the Appointments Calendar on the appointment's date, find it under \"Not on the calendar\" marked \"Paid, needs a new time\", and move it to an open time. Or refund the payment in Square."
+    : "In the Admin Portal, open the Appointments Calendar on the appointment's date, select the block marked \"Payment received\" and confirm it. If it cannot be confirmed, contact the client or refund the payment in Square.";
+  const summary = timeTaken
+    ? "A client paid after their checkout hold had ended and the time is no longer free."
+    : "A client's payment was received but the booking could not be confirmed automatically.";
+  const { data: appointment } = await admin
+    .from("appointments")
+    .select("public_reference,starts_at,barber_profile_id,barber_name_snapshot,service_name_snapshot,status,timezone")
+    .eq("id", input.appointmentId)
+    .maybeSingle();
+
+  console.error("booking-paid-but-unconfirmed", {
+    kind: input.kind,
+    appointmentId: input.appointmentId,
+    barberId: appointment?.barber_profile_id ?? null,
+    requestedStart: appointment?.starts_at ?? null,
+    status: appointment?.status ?? null,
+    squareOrderId: input.squareOrderId,
+    dbCode: input.dbCode,
+    dbMessage: input.dbMessage,
+  });
+
+  const { data: existing } = await admin
+    .from("sync_failures")
+    .select("id")
+    .eq("provider", "booking")
+    .eq("resource_type", "appointment")
+    .eq("resource_id", input.appointmentId)
+    .eq("error_code", errorCode)
+    .in("status", ["open", "retrying"])
+    .maybeSingle();
+
+  if (!existing?.id) {
+    await admin.from("sync_failures").insert({
+      business_id: input.businessId,
+      provider: "booking",
+      resource_type: "appointment",
+      resource_id: input.appointmentId,
+      error_code: errorCode,
+      message: `${summary} ${instruction}`,
+      details: {
+        reference: appointment?.public_reference ?? null,
+        requested_start: appointment?.starts_at ?? null,
+        barber: appointment?.barber_name_snapshot ?? null,
+        service: appointment?.service_name_snapshot ?? null,
+        square_order_id: input.squareOrderId,
+        square_payment_id: input.squarePaymentId,
+        guard_code: input.dbCode,
+      },
+      status: "open",
+    });
+  }
+
+  const when = appointment?.starts_at
+    ? new Intl.DateTimeFormat("en-US", { timeZone: String(appointment.timezone || "America/New_York"), dateStyle: "full", timeStyle: "short" }).format(new Date(String(appointment.starts_at)))
+    : "the requested time";
+  await admin.from("notification_jobs").upsert(
+    {
+      business_id: input.businessId,
+      channel: "email",
+      template_key: "booking_paid_after_hold_expired",
+      locale: "en",
+      recipient: businessConfig.bookingEmail,
+      payload: {
+        subject: `Action needed: paid booking ${appointment?.public_reference ?? ""} could not be confirmed`,
+        body: `${summary} Booking: ${appointment?.service_name_snapshot ?? "a service"} with ${appointment?.barber_name_snapshot ?? "a barber"} on ${when}. Reference ${appointment?.public_reference ?? "unknown"}. ${instruction}`,
+        transactional: true,
+        appointmentId: input.appointmentId,
+      },
+      idempotency_key: `booking-paid-unconfirmed:${input.kind}:${input.appointmentId}`,
+      scheduled_for: new Date().toISOString(),
+      status: "queued",
+    },
+    { onConflict: "channel,idempotency_key", ignoreDuplicates: true },
+  );
 }
 
 async function syncRefund(

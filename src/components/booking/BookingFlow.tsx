@@ -4,8 +4,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, Loader2, MapPin, Phone, Scissors, UserRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, Loader2, MapPin, Phone, Scissors, UserRound, UsersRound } from "lucide-react";
+import { composeFamilyBooking, familyTierDescription, type FamilyComposition } from "@/lib/booking/family";
 import { businessConfig } from "@/lib/config/business";
+import { getBrowserSupabase } from "@/lib/supabase/client";
 import type { AvailabilitySlot, BookingCatalog, BookingConfirmation } from "@/lib/booking/types";
 
 const steps = ["Service", "Barber", "Date & time", "Your details", "Review"] as const;
@@ -14,6 +16,8 @@ const storageKey = "lbl-booking-draft-v3";
 type Draft = {
   serviceId: string;
   addonIds: string[];
+  /** 0 = a single appointment. 1-5 = Family 1-5 (one adult plus that many kids). */
+  familyChildren: number;
   barberId: string | null;
   firstAvailable: boolean;
   date: string;
@@ -41,7 +45,7 @@ function localToday() {
 }
 
 function newDraft(): Draft {
-  return { serviceId: "", addonIds: [], barberId: null, firstAvailable: true, date: localToday(), startsAt: "", firstName: "", lastName: "", email: "", phone: "", preferredLanguage: "en", existingClient: "unsure", notes: "", emailConsent: true, smsConsent: false, policyAccepted: false, idempotencyKey: globalThis.crypto.randomUUID() };
+  return { serviceId: "", addonIds: [], familyChildren: 0, barberId: null, firstAvailable: true, date: localToday(), startsAt: "", firstName: "", lastName: "", email: "", phone: "", preferredLanguage: "en", existingClient: "unsure", notes: "", emailConsent: true, smsConsent: false, policyAccepted: false, idempotencyKey: globalThis.crypto.randomUUID() };
 }
 
 export function BookingFlow() {
@@ -57,8 +61,11 @@ export function BookingFlow() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const [availabilityTick, setAvailabilityTick] = useState(0);
   const initialized = useRef(false);
   const analyticsSession = useRef("");
+  const lastAvailabilityKey = useRef("");
+  const selectedStart = useRef("");
 
   const track = useCallback((eventName: string, metadata: Record<string, string | number | boolean | null> = {}, appointmentId?: string) => {
     if (typeof window === "undefined" || navigator.doNotTrack === "1" || localStorage.getItem("analytics-consent") === "denied") return;
@@ -111,29 +118,80 @@ export function BookingFlow() {
   useEffect(() => { const pop = (event: PopStateEvent) => setStep(Math.max(0, Math.min(4, typeof event.state?.bookingStep === "number" ? event.state.bookingStep : 0))); window.addEventListener("popstate", pop); return () => window.removeEventListener("popstate", pop); }, []);
 
   const service = catalog?.services.find((item) => item.id === draft.serviceId);
-  const addons = catalog?.addons.filter((item) => draft.addonIds.includes(item.id)) ?? [];
+  const family = catalog ? familyFor(catalog, draft.serviceId, draft.familyChildren) : null;
+  const familyTier = catalog?.family.tiers.find((item) => item.childrenCount === draft.familyChildren);
+  const familyRequested = draft.familyChildren > 0;
+  // Family bookings are the adult service plus Kids Haircuts; add-ons do not apply.
+  const addons = familyRequested ? [] : catalog?.addons.filter((item) => draft.addonIds.includes(item.id)) ?? [];
   const selectedSlot = slots.find((item) => item.startsAt === draft.startsAt);
   const selectedBarber = catalog?.barbers.find((item) => item.id === (selectedSlot?.barberId ?? draft.barberId));
-  const eligibleBarbers = catalog?.barbers.filter((barber) => barber.serviceIds.includes(draft.serviceId)) ?? [];
-  const estimatedPrice = (service?.priceCents ?? 0) + addons.reduce((sum, item) => sum + item.priceCents, 0);
-  const duration = (service?.durationMinutes ?? 0) + addons.reduce((sum, item) => sum + item.durationMinutes, 0);
+  // The same barber serves the whole family, so they must offer both services.
+  const eligibleBarbers = catalog?.barbers.filter((barber) => barber.serviceIds.includes(draft.serviceId) && (!familyRequested || (familyTier ? barber.serviceIds.includes(familyTier.childServiceId) : false))) ?? [];
+  const estimatedPrice = family ? family.totalPriceCents : (service?.priceCents ?? 0) + addons.reduce((sum, item) => sum + item.priceCents, 0);
+  const duration = family ? family.totalDurationMinutes : (service?.durationMinutes ?? 0) + addons.reduce((sum, item) => sum + item.durationMinutes, 0);
+  const serviceLabel = family ? family.summary : service?.name;
+  const availabilityKey = `${service?.id ?? ""}|${familyRequested ? "" : draft.addonIds.join(",")}|${draft.familyChildren}|${draft.firstAvailable || !draft.barberId ? "any" : draft.barberId}|${draft.date}`;
+
+  useEffect(() => { selectedStart.current = draft.startsAt; }, [draft.startsAt]);
 
   useEffect(() => {
-    if (!catalog || !service || step !== 2) return;
+    if (!catalog || !service || step !== 2) { lastAvailabilityKey.current = ""; return; }
+    // Same question as last time (same service, barber and date) means this is
+    // a live refresh: the list is updated in place without a loading flash.
+    // The key is recorded only once a load for it has succeeded, so an
+    // interrupted first load is never mistaken for an empty day.
+    const silent = lastAvailabilityKey.current === availabilityKey;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      setLoadingSlots(true); setError(""); setSlots([]); setDraft((current) => ({ ...current, startsAt: "" }));
-      fetch("/api/booking/availability", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locationId: catalog.location.id, serviceId: service.id, addonIds: draft.addonIds, barberIds: draft.firstAvailable || !draft.barberId ? undefined : [draft.barberId], startDate: draft.date, days: 1 }), signal: controller.signal }).then(async (response) => {
+      if (!silent) { setLoadingSlots(true); setError(""); setSlots([]); setDraft((current) => ({ ...current, startsAt: "" })); }
+      fetch("/api/booking/availability", { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify({ locationId: catalog.location.id, serviceId: service.id, addonIds: draft.familyChildren > 0 ? [] : draft.addonIds, familyChildren: draft.familyChildren > 0 ? draft.familyChildren : undefined, barberIds: draft.firstAvailable || !draft.barberId ? undefined : [draft.barberId], startDate: draft.date, days: 1 }), signal: controller.signal }).then(async (response) => {
         const payload = await response.json() as { ok: boolean; slots?: AvailabilitySlot[]; message?: string };
-        if (!response.ok) throw new Error(payload.message || "Availability could not be loaded.");
-        setSlots(payload.slots ?? []); setAnnouncement(`${payload.slots?.length ?? 0} appointment times available.`);
-      }).catch((caught) => { if ((caught as Error).name !== "AbortError") setError(caught instanceof Error ? caught.message : "Availability could not be loaded."); }).finally(() => setLoadingSlots(false));
+        if (!response.ok) {
+          if (silent) return;
+          throw new Error(payload.message || "Availability could not be loaded.");
+        }
+        const next = payload.slots ?? [];
+        lastAvailabilityKey.current = availabilityKey;
+        setSlots(next);
+        if (!silent) { setAnnouncement(`${next.length} appointment times available.`); return; }
+        // If the chosen time was just taken, it is deselected and the client is told.
+        if (selectedStart.current && !next.some((slot) => slot.startsAt === selectedStart.current)) {
+          setDraft((current) => ({ ...current, startsAt: "" }));
+          setAnnouncement("The time you selected was just taken. Please choose another time.");
+          setError("The time you selected was just taken. Please choose another time.");
+        }
+      }).catch((caught) => { if (!silent && (caught as Error).name !== "AbortError") setError(caught instanceof Error ? caught.message : "Availability could not be loaded."); }).finally(() => { if (!silent) setLoadingSlots(false); });
     }, 0);
     return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [catalog, service, draft.addonIds, draft.barberId, draft.firstAvailable, draft.date, step]);
+  }, [catalog, service, draft.addonIds, draft.familyChildren, draft.barberId, draft.firstAvailable, draft.date, step, availabilityKey, availabilityTick]);
+
+  // While the client is choosing a time, the list follows the live schedule:
+  // the database announces every change (a new booking, a move, a finished
+  // appointment, a barber marking time unavailable) and the open times are
+  // quietly refreshed. A periodic refresh covers a dropped connection.
+  useEffect(() => {
+    if (!catalog || !service || step !== 2) return;
+    let disposed = false;
+    let debounce: number | null = null;
+    const refresh = () => { if (!disposed && document.visibilityState === "visible") setAvailabilityTick((value) => value + 1); };
+    const queue = () => { if (debounce !== null) window.clearTimeout(debounce); debounce = window.setTimeout(refresh, 500); };
+    const interval = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    const supabase = getBrowserSupabase();
+    const channel = supabase ? supabase.channel("booking-availability:northfield", { config: { private: false } }).on("broadcast", { event: "availability_changed" }, queue).subscribe() : null;
+    return () => {
+      disposed = true;
+      if (debounce !== null) window.clearTimeout(debounce);
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+      if (supabase && channel) void supabase.removeChannel(channel);
+    };
+  }, [catalog, service, step]);
 
   const canContinue = (() => {
-    if (step === 0) return Boolean(service);
+    if (step === 0) return familyRequested ? Boolean(family) : Boolean(service);
     if (step === 1) {
       if (draft.firstAvailable) return eligibleBarbers.some((barber) => barber.bookable);
       return Boolean(eligibleBarbers.find((barber) => barber.id === draft.barberId)?.bookable);
@@ -164,7 +222,7 @@ export function BookingFlow() {
     if (!catalog || !service || !selectedSlot || !selectedBarber || submitting) return;
     setSubmitting(true); setError(""); setFieldErrors({}); track("booking_submitted");
     try {
-      const response = await fetch("/api/booking/submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceId: service.id, serviceSlug: service.slug, addonIds: draft.addonIds, barberId: selectedBarber.id, barberSlug: selectedBarber.slug, firstAvailable: draft.firstAvailable, locationId: catalog.location.id, startsAt: selectedSlot.startsAt, firstName: draft.firstName, lastName: draft.lastName, email: draft.email, phone: draft.phone, preferredLanguage: draft.preferredLanguage, existingClient: draft.existingClient, notes: draft.notes, emailConsent: draft.emailConsent, smsConsent: draft.smsConsent, policyAccepted: draft.policyAccepted, policyVersion: businessConfig.bookingPolicyVersion, idempotencyKey: draft.idempotencyKey, source: searchParams.get("utm_source") === "business_card" ? "qr_business_card" : "website", campaignSource: searchParams.get("utm_source"), campaignMedium: searchParams.get("utm_medium"), campaignName: searchParams.get("utm_campaign"), referralSource: searchParams.get("ref"), pageUrl: window.location.href, company: "" }) });
+      const response = await fetch("/api/booking/submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceId: service.id, serviceSlug: service.slug, addonIds: family ? [] : draft.addonIds, familyChildren: family ? family.childCount : undefined, barberId: selectedBarber.id, barberSlug: selectedBarber.slug, firstAvailable: draft.firstAvailable, locationId: catalog.location.id, startsAt: selectedSlot.startsAt, firstName: draft.firstName, lastName: draft.lastName, email: draft.email, phone: draft.phone, preferredLanguage: draft.preferredLanguage, existingClient: draft.existingClient, notes: draft.notes, emailConsent: draft.emailConsent, smsConsent: draft.smsConsent, policyAccepted: draft.policyAccepted, policyVersion: businessConfig.bookingPolicyVersion, idempotencyKey: draft.idempotencyKey, source: searchParams.get("utm_source") === "business_card" ? "qr_business_card" : "website", campaignSource: searchParams.get("utm_source"), campaignMedium: searchParams.get("utm_medium"), campaignName: searchParams.get("utm_campaign"), referralSource: searchParams.get("ref"), pageUrl: window.location.href, company: "" }) });
       const result = await response.json() as { ok: boolean; confirmation?: BookingConfirmation; message?: string; fields?: Record<string, string[]>; alternatives?: AvailabilitySlot[] };
       if (!response.ok || !result.confirmation) {
         if (result.fields) setFieldErrors(result.fields);
@@ -185,34 +243,91 @@ export function BookingFlow() {
     <section className="min-w-0 border border-[var(--color-ink-line)] bg-[var(--color-ink-soft)]/75 p-5 sm:p-8">
       <ol className="grid grid-cols-5 gap-2" aria-label="Booking progress">{steps.map((label, index) => <li key={label} aria-current={index === step ? "step" : undefined}><div className={index <= step ? "h-px bg-[var(--color-brass)]" : "h-px bg-[var(--color-ink-line)]"} /><span className={index === step ? "mt-2 block text-[9px] tracking-[.12em] uppercase text-[var(--color-brass)]" : "mt-2 hidden text-[9px] tracking-[.12em] uppercase text-[var(--color-bone-muted)] sm:block"}>{index + 1}. {label}</span></li>)}</ol>
       <p className="sr-only" aria-live="polite">{announcement}</p>
-      <div className="mt-8">{step === 0 ? <ServiceStep catalog={catalog} draft={draft} update={update} /> : null}{step === 1 ? <BarberStep barbers={eligibleBarbers} draft={draft} update={update} /> : null}{step === 2 ? <TimeStep draft={draft} update={update} slots={slots} loading={loadingSlots} timezone={catalog.location.timezone} /> : null}{step === 3 ? <DetailsStep draft={draft} update={update} fieldErrors={fieldErrors} image={referenceImage} setImage={setReferenceImage} /> : null}{step === 4 ? <ReviewStep draft={draft} service={service} addons={addons} barber={selectedBarber} slot={selectedSlot} location={catalog.location} duration={duration} estimatedPrice={estimatedPrice} /> : null}</div>
+      <div className="mt-8">{step === 0 ? <ServiceStep catalog={catalog} draft={draft} update={update} /> : null}{step === 1 ? <BarberStep barbers={eligibleBarbers} draft={draft} update={update} /> : null}{step === 2 ? <TimeStep draft={draft} update={update} slots={slots} loading={loadingSlots} timezone={catalog.location.timezone} /> : null}{step === 3 ? <DetailsStep draft={draft} update={update} fieldErrors={fieldErrors} image={referenceImage} setImage={setReferenceImage} /> : null}{step === 4 ? <ReviewStep draft={draft} serviceLabel={serviceLabel} family={family} addons={addons} barber={selectedBarber} slot={selectedSlot} location={catalog.location} duration={duration} estimatedPrice={estimatedPrice} /> : null}</div>
       {error ? <p role="alert" className="mt-6 rounded-lg border border-red-800/50 bg-red-950/25 p-4 text-sm text-red-100">{error}</p> : null}
       <div className="mt-8 flex items-center justify-between border-t border-[var(--color-ink-line)] pt-6"><button type="button" onClick={() => go(Math.max(0, step - 1))} disabled={step === 0 || submitting} className="inline-flex min-h-11 items-center gap-2 text-[10px] tracking-[.18em] uppercase text-[var(--color-bone-muted)] disabled:opacity-30"><ArrowLeft className="h-4 w-4" />Back</button>{step < 4 ? <button type="button" onClick={() => canContinue && go(step + 1)} disabled={!canContinue} className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[var(--color-brass)] px-6 text-[10px] tracking-[.18em] uppercase text-black disabled:opacity-35">Continue<ArrowRight className="h-4 w-4" /></button> : <button type="submit" disabled={!canContinue || submitting} className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[var(--color-brass)] px-6 text-[10px] tracking-[.18em] uppercase text-black disabled:opacity-35">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}Confirm appointment</button>}</div>
     </section>
-    <BookingSummary service={service} barber={selectedBarber} slot={selectedSlot} location={catalog.location} duration={duration} estimatedPrice={estimatedPrice} />
+    <BookingSummary serviceLabel={serviceLabel} family={family} barber={selectedBarber} slot={selectedSlot} location={catalog.location} duration={duration} estimatedPrice={estimatedPrice} />
   </form>;
 }
 
 function StepTitle({ number, title, copy }: { number: string; title: string; copy: string }) { return <header><p className="text-[10px] tracking-[.28em] uppercase text-[var(--color-brass)]">Step {number}</p><h2 className="font-display mt-3 text-3xl sm:text-5xl">{title}</h2><p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--color-bone-muted)]">{copy}</p></header>; }
+function familyFor(catalog: BookingCatalog, serviceId: string, familyChildren: number): FamilyComposition | null {
+  if (familyChildren <= 0) return null;
+  const tier = catalog.family.tiers.find((item) => item.childrenCount === familyChildren);
+  const adult = catalog.services.find((item) => item.id === serviceId);
+  const child = tier ? catalog.services.find((item) => item.id === tier.childServiceId) : undefined;
+  if (!tier || !adult || !child || !adult.familyAdultEligible || adult.id === child.id) return null;
+  try {
+    // Prices and durations come from the live catalog; the server recomputes them when reserving.
+    return composeFamilyBooking({ adult, child, childCount: familyChildren, bufferMinutes: catalog.family.bufferMinutes });
+  } catch {
+    return null;
+  }
+}
+
+function dollars(cents: number) {
+  return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
+}
+
 function ServiceStep({ catalog, draft, update }: { catalog: BookingCatalog; draft: Draft; update: <K extends keyof Draft>(key: K, value: Draft[K]) => void }) {
+  const familyMode = draft.familyChildren > 0;
+  const family = familyFor(catalog, draft.serviceId, draft.familyChildren);
+  const tier = catalog.family.tiers.find((item) => item.childrenCount === draft.familyChildren);
+  const childService = tier ? catalog.services.find((item) => item.id === tier.childServiceId) : undefined;
+  const services = familyMode ? catalog.services.filter((item) => item.familyAdultEligible && item.id !== childService?.id) : catalog.services;
+  const selectedAdultInvalid = familyMode && Boolean(draft.serviceId) && !services.some((item) => item.id === draft.serviceId);
+
   return <div>
     <StepTitle number="1" title="Choose your service" copy="Review the exact duration, price, and required full payment before choosing a chair." />
-    <div className="mt-7 grid gap-3 sm:grid-cols-2">
-      {catalog.services.map((item) => <label key={item.id} className={draft.serviceId === item.id ? "cursor-pointer rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5 p-4" : "cursor-pointer rounded-xl border border-[var(--color-ink-line)] p-4 hover:border-[var(--color-brass)]/50"}>
+
+    {catalog.family.tiers.length ? <fieldset className="mt-7 rounded-xl border border-[var(--color-brass)]/25 bg-[var(--color-brass)]/[.03] p-4 sm:p-5">
+      <legend className="flex items-center gap-2 px-2 text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]"><UsersRound className="h-4 w-4" />Family services</legend>
+      <p className="text-sm leading-6 text-[var(--color-bone-muted)]">Bringing the kids? Book one adult and up to {catalog.family.tiers.length} kids as a single appointment, back to back with the same barber.</p>
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <label className={!familyMode ? "cursor-pointer rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5 p-3" : "cursor-pointer rounded-xl border border-[var(--color-ink-line)] p-3 hover:border-[var(--color-brass)]/50"}>
+          <input type="radio" name="family-tier" checked={!familyMode} onChange={() => update("familyChildren", 0)} className="sr-only" />
+          <span className="font-display text-lg">Just me</span>
+          <span className="mt-1 block text-[10px] leading-4 text-[var(--color-bone-muted)]">One person</span>
+        </label>
+        {catalog.family.tiers.map((item) => <label key={item.slug} className={draft.familyChildren === item.childrenCount ? "cursor-pointer rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5 p-3" : "cursor-pointer rounded-xl border border-[var(--color-ink-line)] p-3 hover:border-[var(--color-brass)]/50"}>
+          <input type="radio" name="family-tier" checked={draft.familyChildren === item.childrenCount} onChange={() => update("familyChildren", item.childrenCount)} className="sr-only" />
+          <span className="font-display text-lg">{item.name}</span>
+          <span className="mt-1 block text-[10px] leading-4 text-[var(--color-bone-muted)]">{familyTierDescription(item.childrenCount)}</span>
+        </label>)}
+      </div>
+    </fieldset> : null}
+
+    {familyMode ? <p className="mt-6 text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Choose the adult&apos;s service{childService ? ` · each child receives a ${childService.name}` : ""}</p> : null}
+    {selectedAdultInvalid ? <p role="alert" className="mt-3 rounded-lg border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-100">Choose a service for the adult to continue.</p> : null}
+
+    <div className={familyMode ? "mt-3 grid gap-3 sm:grid-cols-2" : "mt-7 grid gap-3 sm:grid-cols-2"}>
+      {services.map((item) => <label key={item.id} className={draft.serviceId === item.id ? "cursor-pointer rounded-xl border border-[var(--color-brass)] bg-[var(--color-brass)]/5 p-4" : "cursor-pointer rounded-xl border border-[var(--color-ink-line)] p-4 hover:border-[var(--color-brass)]/50"}>
         <input type="radio" name="service" value={item.id} checked={draft.serviceId === item.id} onChange={() => update("serviceId", item.id)} className="sr-only" />
         <span className="font-display text-xl">{item.name}</span>
         <span className="mt-2 block text-xs leading-5 text-[var(--color-bone-muted)]">{item.description}</span>
         <span className="mt-4 grid grid-cols-3 gap-2 text-[9px] tracking-[.12em] uppercase">
           <span>{item.durationMinutes} min</span>
           <span className="text-center text-[var(--color-brass)]">${(item.priceCents / 100).toFixed(0)}</span>
-          <span className="text-right">Pay ${(item.depositCents / 100).toFixed(0)}</span>
+          <span className="text-right">{familyMode ? "Adult" : `Pay $${(item.depositCents / 100).toFixed(0)}`}</span>
         </span>
       </label>)}
     </div>
-    <fieldset className="mt-8">
+
+    {family ? <div className="mt-6 rounded-xl border border-[var(--color-brass)]/30 p-4 sm:p-5" aria-live="polite">
+      <p className="text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">{family.tierName} · {family.partySize} people · one appointment</p>
+      <ul className="mt-3 grid gap-2">
+        {family.items.map((item) => <li key={item.sequence} className="flex items-center justify-between gap-4 text-sm"><span>{item.label} · {item.serviceName}</span><span className="shrink-0 tabular-nums text-[var(--color-bone-muted)]">{item.durationMinutes} min · {dollars(item.priceCents)}</span></li>)}
+      </ul>
+      <div className="mt-4 flex items-center justify-between gap-4 border-t border-[var(--color-ink-line)] pt-3 text-sm"><span>Total time, including a {catalog.family.bufferMinutes}-minute changeover between each person</span><span className="shrink-0 tabular-nums">{family.totalDurationMinutes} min</span></div>
+      <div className="mt-2 flex items-center justify-between gap-4 text-sm"><span>Total due to confirm</span><span className="shrink-0 font-display text-xl text-[var(--color-brass)]">{dollars(family.totalPriceCents)}</span></div>
+      <p className="mt-3 text-xs leading-5 text-[var(--color-bone-muted)]">Only times that fit the whole family in a row are offered. The booking is reserved, paid and rescheduled as one appointment.</p>
+    </div> : null}
+
+    {familyMode ? null : <fieldset className="mt-8">
       <legend className="text-[10px] tracking-[.2em] uppercase text-[var(--color-brass)]">Optional enhancements</legend>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">{catalog.addons.map((item) => <label key={item.id} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-[var(--color-ink-line)] px-4"><input type="checkbox" checked={draft.addonIds.includes(item.id)} onChange={(event) => update("addonIds", event.target.checked ? [...draft.addonIds, item.id] : draft.addonIds.filter((id) => id !== item.id))} className="h-5 w-5 accent-[var(--color-brass)]" /><span className="flex-1 text-sm">{item.name}</span><span className="text-xs text-[var(--color-brass)]">+${(item.priceCents / 100).toFixed(0)}</span></label>)}</div>
-    </fieldset>
+    </fieldset>}
   </div>;
 }
 function BarberStep({ barbers, draft, update }: { barbers: BookingCatalog["barbers"]; draft: Draft; update: <K extends keyof Draft>(key: K, value: Draft[K]) => void }) {
@@ -282,12 +397,12 @@ function setErrorForFile(input: HTMLInputElement, message: string) {
   window.setTimeout(() => input.setCustomValidity(""), 2500);
 }
 
-function ReviewStep({ draft, service, addons, barber, slot, location, duration, estimatedPrice }: { draft: Draft; service: BookingCatalog["services"][number] | undefined; addons: BookingCatalog["addons"]; barber: BookingCatalog["barbers"][number] | undefined; slot: AvailabilitySlot | undefined; location: BookingCatalog["location"]; duration: number; estimatedPrice: number }) {
+function ReviewStep({ draft, serviceLabel, family, addons, barber, slot, location, duration, estimatedPrice }: { draft: Draft; serviceLabel: string | undefined; family: FamilyComposition | null; addons: BookingCatalog["addons"]; barber: BookingCatalog["barbers"][number] | undefined; slot: AvailabilitySlot | undefined; location: BookingCatalog["location"]; duration: number; estimatedPrice: number }) {
   return <div>
     <StepTitle number="5" title="Review your appointment" copy="The selected time is revalidated and reserved atomically when you confirm. A success message appears only after the booking is saved." />
     <dl className="mt-7 grid gap-4 sm:grid-cols-2">
-      <Review label="Service" value={service?.name ?? "—"} />
-      <Review label="Add-ons" value={addons.length ? addons.map((item) => item.name).join(", ") : "None"} />
+      <Review label="Service" value={serviceLabel ?? "—"} />
+      {family ? <Review label="Family members" value={family.items.map((item) => `${item.label}: ${item.serviceName}`).join(" · ")} /> : <Review label="Add-ons" value={addons.length ? addons.map((item) => item.name).join(", ") : "None"} />}
       <Review label="Barber" value={barber?.name ?? "—"} />
       <Review label="Date and time" value={slot ? new Intl.DateTimeFormat("en-US", { timeZone: location.timezone, dateStyle: "full", timeStyle: "short" }).format(new Date(slot.startsAt)) : "—"} />
       <Review label="Duration" value={`${duration} minutes`} />
@@ -301,7 +416,7 @@ function ReviewStep({ draft, service, addons, barber, slot, location, duration, 
     </dl>
   </div>;
 }
-function BookingSummary({ service, barber, slot, location, duration, estimatedPrice }: { service: BookingCatalog["services"][number] | undefined; barber: BookingCatalog["barbers"][number] | undefined; slot: AvailabilitySlot | undefined; location: BookingCatalog["location"]; duration: number; estimatedPrice: number }) { return <aside className="h-fit border border-[var(--color-brass)]/25 bg-black/25 p-6 lg:sticky lg:top-24"><p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">Your appointment</p><dl className="mt-6 space-y-5"><Summary icon={<Scissors className="h-4 w-4" />} label="Service" value={service?.name ?? "Choose a service"} /><Summary icon={<UserRound className="h-4 w-4" />} label="Barber" value={barber?.name ?? "Choose a barber"} /><Summary icon={<CalendarDays className="h-4 w-4" />} label="Time" value={slot ? new Intl.DateTimeFormat("en-US", { timeZone: location.timezone, dateStyle: "medium", timeStyle: "short" }).format(new Date(slot.startsAt)) : "Choose a time"} /><Summary icon={<Clock3 className="h-4 w-4" />} label="Duration" value={duration ? `${duration} minutes` : "—"} /><Summary icon={<MapPin className="h-4 w-4" />} label="Location" value={location.address} /></dl><div className="mt-7 border-t border-[var(--color-ink-line)] pt-5"><p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-bone-muted)]">Estimated total</p><p className="font-display mt-2 text-3xl text-[var(--color-brass)]">{estimatedPrice ? `$${(estimatedPrice / 100).toFixed(2)}` : "—"}</p></div><a href={businessConfig.phoneHref} onClick={() => trackClick("call_action")} className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-[var(--color-ink-line)] text-[10px] tracking-[.18em] uppercase"><Phone className="h-4 w-4" />Need help? Call</a></aside>; }
+function BookingSummary({ serviceLabel, family, barber, slot, location, duration, estimatedPrice }: { serviceLabel: string | undefined; family: FamilyComposition | null; barber: BookingCatalog["barbers"][number] | undefined; slot: AvailabilitySlot | undefined; location: BookingCatalog["location"]; duration: number; estimatedPrice: number }) { return <aside className="h-fit border border-[var(--color-brass)]/25 bg-black/25 p-6 lg:sticky lg:top-24"><p className="text-[10px] tracking-[.3em] uppercase text-[var(--color-brass)]">Your appointment</p><dl className="mt-6 space-y-5"><Summary icon={<Scissors className="h-4 w-4" />} label="Service" value={serviceLabel ?? "Choose a service"} />{family ? <Summary icon={<UsersRound className="h-4 w-4" />} label="Family" value={`${family.partySize} people, one after another`} /> : null}<Summary icon={<UserRound className="h-4 w-4" />} label="Barber" value={barber?.name ?? "Choose a barber"} /><Summary icon={<CalendarDays className="h-4 w-4" />} label="Time" value={slot ? new Intl.DateTimeFormat("en-US", { timeZone: location.timezone, dateStyle: "medium", timeStyle: "short" }).format(new Date(slot.startsAt)) : "Choose a time"} /><Summary icon={<Clock3 className="h-4 w-4" />} label="Duration" value={duration ? `${duration} minutes` : "—"} /><Summary icon={<MapPin className="h-4 w-4" />} label="Location" value={location.address} /></dl><div className="mt-7 border-t border-[var(--color-ink-line)] pt-5"><p className="text-[9px] tracking-[.2em] uppercase text-[var(--color-bone-muted)]">Estimated total</p><p className="font-display mt-2 text-3xl text-[var(--color-brass)]">{estimatedPrice ? `$${(estimatedPrice / 100).toFixed(2)}` : "—"}</p></div><a href={businessConfig.phoneHref} onClick={() => trackClick("call_action")} className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-[var(--color-ink-line)] text-[10px] tracking-[.18em] uppercase"><Phone className="h-4 w-4" />Need help? Call</a></aside>; }
 function trackClick(eventName: string) {
   if (typeof window === "undefined" || navigator.doNotTrack === "1" || localStorage.getItem("analytics-consent") === "denied") return;
   const anonymousSessionId = sessionStorage.getItem("lbl-booking-session") || globalThis.crypto.randomUUID();

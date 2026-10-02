@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createUntypedAdminSupabase, getServerAuthSession } from "@/lib/auth/server";
+import {
+  BREAK_BLOCKING_STATUS,
+  CALENDAR_SNAP_MINUTES,
+  EARLY_FINISH_GUARD_MINUTES,
+  HOLD_STATUSES,
+  SCHEDULING_SOURCE_OF_TRUTH,
+  TIME_OFF_BLOCKING_STATUS,
+  holdIsLive,
+  resolveBufferMinutes,
+} from "@/lib/booking/rules";
 import { addDays, dateInZone, zonedDateTimeToUtc } from "@/lib/booking/timezone";
 import { businessConfig } from "@/lib/config/business";
 
@@ -7,7 +17,11 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const allowed = new Set(["receptionist", "manager", "owner", "super_admin"]);
-const visibleStatuses = ["confirmed", "checked_in", "assigned", "in_service", "completed", "cancelled_by_client", "cancelled_by_business", "no_show", "rescheduled"];
+// "expired" is included because the query below only returns paid records:
+// a paid booking whose time was taken before the payment arrived is listed
+// so staff can place it at a new time.
+const historyStatuses = ["confirmed", "checked_in", "assigned", "in_service", "completed", "cancelled_by_client", "cancelled_by_business", "no_show", "rescheduled"];
+const visibleStatuses = [...historyStatuses, "expired"];
 
 function text(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -51,15 +65,27 @@ export async function GET(request: NextRequest) {
   const rangeStart = zonedDateTimeToUtc(startDate, "00:00:00", businessConfig.timezone).toISOString();
   const rangeEnd = zonedDateTimeToUtc(endDate, "00:00:00", businessConfig.timezone).toISOString();
 
-  const [{ data: barbers, error: barberError }, { data: appointments, error: appointmentError }, { data: schedules, error: scheduleError }, { data: timeOff, error: timeOffError }] = await Promise.all([
+  // Expired checkout holds are filtered with the same rule the booking page
+  // and the database guard use (holdIsLive), so the calendar never shows time
+  // as taken that the booking page offers as free.
+  const nowIso = new Date().toISOString();
+  const [{ data: barbers, error: barberError }, { data: appointments, error: appointmentError }, { data: schedules, error: scheduleError }, { data: timeOff, error: timeOffError }, holdsResult, breaksResult, businessHoursResult, holidayHoursResult, settingsResult] = await Promise.all([
     admin.from("barber_profiles").select("id,staff_user_id,display_name,availability_status,accepting_walk_ins,active,status,sort_order").eq("business_id", business.id).eq("active", true).neq("status", "archived").order("sort_order"),
-    admin.from("appointments").select("id,public_reference,client_id,auth_user_id,client_name_snapshot,client_email_snapshot,client_phone_snapshot,service_name_snapshot,service_price_snapshot_cents,service_duration_snapshot_minutes,addon_snapshot,barber_profile_id,barber_name_snapshot,starts_at,ends_at,timezone,status,deposit_status,deposit_required_cents,booking_source,campaign_source,campaign_medium,campaign_name,referral_source,client_declared_status,client_notes,internal_notes,policy_version,policy_accepted_at,email_consent,sms_consent,formsubmit_status,client_confirmation_status,barber_notification_status,sync_status,created_at,updated_at").eq("business_id", business.id).eq("location_id", location.id).eq("deposit_status", "paid").in("status", visibleStatuses).gte("starts_at", rangeStart).lt("starts_at", rangeEnd).order("starts_at"),
+    admin.from("appointments").select("id,public_reference,client_id,auth_user_id,client_name_snapshot,client_email_snapshot,client_phone_snapshot,service_name_snapshot,service_price_snapshot_cents,service_duration_snapshot_minutes,addon_snapshot,barber_profile_id,barber_name_snapshot,starts_at,ends_at,timezone,status,deposit_status,deposit_required_cents,booking_source,campaign_source,campaign_medium,campaign_name,referral_source,client_declared_status,client_notes,internal_notes,policy_version,policy_accepted_at,email_consent,sms_consent,formsubmit_status,client_confirmation_status,barber_notification_status,sync_status,created_at,updated_at,service_id,booking_kind,party_size,completed_at,occupied_until,hold_expires_at,reschedule_count").eq("business_id", business.id).eq("location_id", location.id).eq("deposit_status", "paid").in("status", visibleStatuses).gte("starts_at", rangeStart).lt("starts_at", rangeEnd).order("starts_at"),
     admin.from("barber_schedules").select("id,barber_profile_id,barber_user_id,weekday,starts_at,ends_at,effective_from,effective_to,active").eq("location_id", location.id).eq("active", true),
-    admin.from("barber_time_off").select("id,barber_profile_id,starts_at,ends_at,reason,status,availability_kind").eq("location_id", location.id).eq("status", "approved").lt("starts_at", rangeEnd).gt("ends_at", rangeStart).order("starts_at"),
+    admin.from("barber_time_off").select("id,barber_profile_id,starts_at,ends_at,reason,status,availability_kind").eq("location_id", location.id).eq("status", TIME_OFF_BLOCKING_STATUS).lt("starts_at", rangeEnd).gt("ends_at", rangeStart).order("starts_at"),
+    // Website checkouts that are reserving a time right now. They are shown
+    // as holds (never as appointments) so staff can see why a time is taken.
+    admin.from("appointments").select("id,public_reference,barber_profile_id,starts_at,ends_at,status,deposit_status,hold_expires_at,service_name_snapshot,client_name_snapshot,booking_kind,party_size,created_at").eq("business_id", business.id).eq("location_id", location.id).in("status", [...HOLD_STATUSES]).lt("starts_at", rangeEnd).gt("ends_at", rangeStart).order("starts_at"),
+    admin.from("barber_breaks").select("id,barber_profile_id,starts_at,ends_at,status,reason").eq("location_id", location.id).eq("status", BREAK_BLOCKING_STATUS).lt("starts_at", rangeEnd).gt("ends_at", rangeStart).order("starts_at"),
+    admin.from("business_hours").select("weekday,opens_at,closes_at,closed").eq("location_id", location.id),
+    admin.from("holiday_hours").select("service_date,opens_at,closes_at,closed").eq("location_id", location.id).gte("service_date", startDate).lt("service_date", endDate),
+    admin.from("location_settings").select("default_buffer_minutes").eq("location_id", location.id).maybeSingle(),
   ]);
 
-  if (barberError || appointmentError || scheduleError || timeOffError) {
-    console.error("admin-calendar-load-failed", { barberError, appointmentError, scheduleError, timeOffError });
+  const schedulingError = holdsResult.error || breaksResult.error || businessHoursResult.error || holidayHoursResult.error || settingsResult.error;
+  if (barberError || appointmentError || scheduleError || timeOffError || schedulingError) {
+    console.error("admin-calendar-load-failed", { barberError, appointmentError, scheduleError, timeOffError, schedulingError });
     return NextResponse.json({ ok: false, message: "The appointment calendar could not be loaded." }, { status: 503 });
   }
 
@@ -67,7 +93,14 @@ export async function GET(request: NextRequest) {
   const appointmentIds = appointmentRows.map((row) => String(row.id));
   const clientIds = [...new Set(appointmentRows.map((row) => text(row.client_id)).filter((id): id is string => Boolean(id)))];
 
-  const [paymentLinksResult, notesResult, clientsResult, historyAppointmentsResult, historyQueueResult] = await Promise.all([
+  const nowMs = Date.parse(nowIso);
+  const liveHolds = ((holdsResult.data ?? []) as Array<Record<string, unknown>>).filter((row) =>
+    holdIsLive({ deposit_status: text(row.deposit_status), hold_expires_at: text(row.hold_expires_at) }, nowMs),
+  );
+  const barberIds = new Set((barbers ?? []).map((row) => String(row.id)));
+  const breaks = ((breaksResult.data ?? []) as Array<Record<string, unknown>>).filter((row) => barberIds.has(String(row.barber_profile_id)));
+
+  const [paymentLinksResult, notesResult, clientsResult, historyAppointmentsResult, historyQueueResult, serviceItemsResult] = await Promise.all([
     appointmentIds.length
       ? admin.from("appointment_payment_links").select("id,appointment_id,purpose,amount_cents,square_order_id,status,paid_at,created_at,updated_at").in("appointment_id", appointmentIds).order("created_at")
       : Promise.resolve({ data: [], error: null }),
@@ -77,11 +110,14 @@ export async function GET(request: NextRequest) {
     clientIds.length
       ? admin.from("clients").select("id,first_name,last_name,email,phone,preferred_language,referral_source,acquisition_source,status,created_at,updated_at").in("id", clientIds)
       : Promise.resolve({ data: [], error: null }),
-    admin.from("appointments").select("id,client_id,client_email_snapshot,client_phone_snapshot,starts_at,status,deposit_status").eq("business_id", business.id).eq("deposit_status", "paid").in("status", visibleStatuses).lt("starts_at", rangeEnd).order("starts_at", { ascending: false }).limit(2000),
+    admin.from("appointments").select("id,client_id,client_email_snapshot,client_phone_snapshot,starts_at,status,deposit_status").eq("business_id", business.id).eq("deposit_status", "paid").in("status", historyStatuses).lt("starts_at", rangeEnd).order("starts_at", { ascending: false }).limit(2000),
     admin.from("queue_entries").select("id,client_record_id,client_email,client_phone,walk_in_at,joined_at,completed_at,status").eq("business_id", business.id).is("appointment_id", null).eq("status", "completed").not("completed_at", "is", null).lt("completed_at", rangeEnd).order("completed_at", { ascending: false }).limit(2000),
+    appointmentIds.length
+      ? admin.from("appointment_service_items").select("appointment_id,sequence,role,label,service_name_snapshot,price_snapshot_cents,duration_snapshot_minutes,offset_minutes").in("appointment_id", appointmentIds).order("sequence")
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
-  const enrichmentErrors = [paymentLinksResult.error, notesResult.error, clientsResult.error, historyAppointmentsResult.error, historyQueueResult.error].filter(Boolean);
+  const enrichmentErrors = [paymentLinksResult.error, notesResult.error, clientsResult.error, historyAppointmentsResult.error, historyQueueResult.error, serviceItemsResult.error].filter(Boolean);
   if (enrichmentErrors.length) console.error("admin-calendar-enrichment-partial", enrichmentErrors);
 
   const paymentLinks = (paymentLinksResult.data ?? []) as Array<Record<string, unknown>>;
@@ -101,6 +137,11 @@ export async function GET(request: NextRequest) {
   for (const row of notesResult.data ?? []) {
     const id = String(row.appointment_id);
     notesByAppointment.set(id, [...(notesByAppointment.get(id) ?? []), row]);
+  }
+  const itemsByAppointment = new Map<string, Array<Record<string, unknown>>>();
+  for (const row of (serviceItemsResult.data ?? []) as Array<Record<string, unknown>>) {
+    const id = String(row.appointment_id);
+    itemsByAppointment.set(id, [...(itemsByAppointment.get(id) ?? []), row]);
   }
   const squareByOrder = new Map<string, Array<Record<string, unknown>>>();
   const seenSquareIds = new Set<string>();
@@ -156,6 +197,15 @@ export async function GET(request: NextRequest) {
 
     return {
       ...appointment,
+      serviceItems: (itemsByAppointment.get(appointmentId) ?? []).map((row) => ({
+        sequence: Number(row.sequence ?? 0),
+        role: text(row.role),
+        label: text(row.label),
+        serviceName: text(row.service_name_snapshot),
+        priceCents: cents(row.price_snapshot_cents),
+        durationMinutes: Number(row.duration_snapshot_minutes ?? 0),
+        offsetMinutes: Number(row.offset_minutes ?? 0),
+      })),
       payment: {
         status: text(appointment.deposit_status) === "paid" && paidPrincipalCents >= serviceTotalCents ? "paid_in_full" : text(appointment.deposit_status) ?? "unknown",
         paidPrincipalCents,
@@ -217,6 +267,29 @@ export async function GET(request: NextRequest) {
     appointments: enrichedAppointments,
     schedules: schedules ?? [],
     timeOff: timeOff ?? [],
+    breaks,
+    holds: liveHolds.map((row) => ({
+      id: String(row.id),
+      public_reference: text(row.public_reference),
+      barber_profile_id: String(row.barber_profile_id),
+      starts_at: String(row.starts_at),
+      ends_at: String(row.ends_at),
+      status: String(row.status),
+      deposit_status: text(row.deposit_status),
+      hold_expires_at: text(row.hold_expires_at),
+      service_name_snapshot: text(row.service_name_snapshot),
+      client_name_snapshot: text(row.client_name_snapshot),
+      booking_kind: text(row.booking_kind),
+      party_size: Number(row.party_size ?? 1),
+    })),
+    businessHours: businessHoursResult.data ?? [],
+    holidayHours: holidayHoursResult.data ?? [],
+    rules: {
+      source: SCHEDULING_SOURCE_OF_TRUTH,
+      bufferMinutes: resolveBufferMinutes(settingsResult.data?.default_buffer_minutes),
+      snapMinutes: CALENDAR_SNAP_MINUTES,
+      earlyFinishGuardMinutes: EARLY_FINISH_GUARD_MINUTES,
+    },
     enrichmentComplete: enrichmentErrors.length === 0 && !squarePaymentError,
   });
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
