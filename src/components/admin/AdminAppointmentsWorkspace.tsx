@@ -156,6 +156,8 @@ type Barber = {
   display_name: string;
   availability_status: string;
   accepting_walk_ins: boolean;
+  /** Deactivated or archived, listed only because appointments still exist in these days. */
+  inactive?: boolean;
 };
 
 type TimeBlock = {
@@ -393,7 +395,7 @@ export function AdminAppointmentsWorkspace() {
         barberId: barber.id,
         date,
         title: barber.display_name,
-        subtitle: `${pretty(barber.availability_status)}${barber.accepting_walk_ins ? " · Walk-ins" : ""}`,
+        subtitle: barber.inactive ? "Inactive barber · existing appointments" : `${pretty(barber.availability_status)}${barber.accepting_walk_ins ? " · Walk-ins" : ""}`,
       }));
     }
     if (!weekBarber) return [];
@@ -533,7 +535,7 @@ export function AdminAppointmentsWorkspace() {
           </div>
         </div>
         <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Search<span className="relative"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4" /><input value={search} onChange={(event) => setSearch(event.target.value)} className="min-h-12 w-full rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] pl-10 pr-4 text-sm normal-case tracking-normal" placeholder="Client, reference, service or barber" /></span></label>
-        <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Barber<select value={view === "week" ? weekBarber?.id ?? "" : barberFilter} onChange={(event) => chooseBarber(event.target.value)} className="min-h-12 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal"><option value="">{view === "day" ? "All barbers" : "All barbers (one day)"}</option>{payload.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}</option>)}</select></label>
+        <label className="grid gap-2 text-[9px] uppercase tracking-[.14em] text-[var(--color-bone-muted)]">Barber<select value={view === "week" ? weekBarber?.id ?? "" : barberFilter} onChange={(event) => chooseBarber(event.target.value)} className="min-h-12 rounded-xl border border-[var(--color-ink-line)] bg-[#0d0d0d] px-4 text-sm normal-case tracking-normal"><option value="">{view === "day" ? "All barbers" : "All barbers (one day)"}</option>{payload.barbers.map((barber) => <option key={barber.id} value={barber.id}>{barber.display_name}{barber.inactive ? " (inactive)" : ""}</option>)}</select></label>
         <button type="button" onClick={() => void load()} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-[var(--color-ink-line)] px-5 text-[10px] uppercase tracking-[.14em]"><RefreshCw className="h-4 w-4" />Refresh</button>
       </div>
       <div className="mt-4 flex flex-col gap-3 border-t border-[var(--color-ink-line)] pt-4 lg:flex-row lg:items-center lg:justify-between">

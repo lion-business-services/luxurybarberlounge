@@ -101,6 +101,11 @@ export function isReschedulable(status: string, depositStatus?: string | null) {
   return (RESCHEDULABLE_STATUSES as readonly string[]).includes(status) || (status === PAID_UNPLACED_STATUS && depositStatus === "paid");
 }
 
+/** A booking that is still ahead of the client: it holds, or is reserving, a time. */
+export function isOpenAppointmentStatus(status: string) {
+  return (BLOCKING_STATUSES as readonly string[]).includes(status);
+}
+
 export const FINISHABLE_STATUSES = ["confirmed", "checked_in", "assigned", "in_service"] as const;
 
 /** Only approved, "unavailable" barber time off removes time from booking. */

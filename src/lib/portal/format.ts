@@ -1,3 +1,5 @@
+import { businessConfig } from "@/lib/config/business";
+
 export function money(cents: number | null | undefined) {
   if (typeof cents !== "number" || !Number.isFinite(cents)) return "—";
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
@@ -7,12 +9,17 @@ export function dateTime(value: string | null | undefined, options?: Intl.DateTi
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("en-US", options ?? {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
+  // Always the lounge's time zone. These helpers run on the server, whose
+  // clock is UTC, so without it a 2:00 PM appointment would read as 6:00 PM.
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: businessConfig.timezone,
+    ...(options ?? {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }),
   }).format(date);
 }
 

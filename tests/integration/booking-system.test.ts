@@ -211,6 +211,35 @@ test("no staff calendar hides an appointment because of its payment state", asyn
   assert.match(barberCalendar, /\.in\("status", \[\.\.\.TIMELINE_STATUSES\]\)/);
 });
 
+test("screens that describe a booking use the same rules the booking engine enforces", async () => {
+  const format = await source("src/lib/portal/format.ts");
+  const clientPages = await source("src/components/client/ClientPages.tsx");
+  const clientDashboard = await source("src/components/client/ClientDashboard.tsx");
+  const barberPortal = await source("src/components/barber/BarberPortalLive.tsx");
+  const barberData = await source("src/lib/portal/barber-data.ts");
+  const processor = await source("src/lib/notifications/process.ts");
+  const changes = await source("src/lib/booking/change-notifications.ts");
+  const adminCalendar = await source("src/app/api/admin/calendar/route.ts");
+  const ics = await source("src/app/api/booking/calendar/[reference]/route.ts");
+  // Portal times are always lounge time, never the server's clock.
+  assert.match(format, /timeZone: businessConfig\.timezone/);
+  // "cancelled" is not an appointment status; the lists use the engine's sets.
+  for (const file of [clientPages, clientDashboard]) {
+    assert.doesNotMatch(file, /\["cancelled", "completed", "no_show"\]/);
+    assert.match(file, /isOpenAppointmentStatus/);
+  }
+  // An unpaid checkout is never listed to a barber as an appointment or a client.
+  assert.match(barberPortal, /TIMELINE_STATUSES/);
+  assert.match(barberData, /ABANDONED_STATUSES/);
+  // A reminder is decided again when it is due and follows a moved appointment.
+  assert.match(processor, /reminderDecision\(/);
+  assert.match(changes, /reminderKey\(appointment\.id\)/);
+  // Appointments of a deactivated barber stay on the Admin calendar.
+  assert.match(adminCalendar, /inactive: true/);
+  // A calendar file never says CONFIRMED for an unpaid or cancelled booking.
+  assert.doesNotMatch(ics, /"STATUS:CONFIRMED"/);
+});
+
 test("the staff calendar lets an appointment be dragged to another day", async () => {
   const board = await source("src/components/schedule/ScheduleBoard.tsx");
   const workspace = await source("src/components/admin/AdminAppointmentsWorkspace.tsx");

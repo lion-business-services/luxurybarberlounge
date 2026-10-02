@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RESCHEDULABLE_STATUSES, isOpenAppointmentStatus } from "@/lib/booking/rules";
 import {
   ArrowUpRight,
   Bell,
@@ -38,7 +39,7 @@ const moduleCopy: Record<string, { eyebrow: string; title: string; copy: string;
 export async function ClientAppointmentsPage() {
   const data = await loadClientPortalData();
   const now = Date.parse(data.generatedAt);
-  const upcoming = data.appointments.filter((item) => item.startsAt && new Date(item.startsAt).getTime() >= now && !["cancelled", "completed", "no_show"].includes(item.status.toLowerCase()));
+  const upcoming = data.appointments.filter((item) => item.startsAt && new Date(item.startsAt).getTime() >= now && isOpenAppointmentStatus(item.status));
   const history = data.appointments.filter((item) => !upcoming.some((next) => next.id === item.id));
   return <ClientPageHeader eyebrow="Your visits" title="Appointments" copy="Upcoming and completed appointments tied only to your verified account." action={{ href: "/book", label: "Book" }}>
     <Section title="Upcoming appointments">{upcoming.length ? <div className="grid gap-3">{upcoming.map((item) => <AppointmentCard key={item.id} item={item} />)}</div> : <Empty copy="You do not have an upcoming appointment." href="/book" label="Book a visit" />}</Section>
@@ -65,7 +66,7 @@ export async function ClientAppointmentDetail({ id }: { id: string }) {
         <a href={`/api/client/appointments/${item.id}/calendar`} className="rounded-full border border-[var(--color-ink-line)] px-5 py-3 text-[9px] tracking-[.16em] uppercase">Add to calendar</a>
         <Link href="/client/inspiration" className="rounded-full border border-[var(--color-ink-line)] px-5 py-3 text-[9px] tracking-[.16em] uppercase">Inspiration images</Link>
       </div>
-      <ClientAppointmentActions appointmentId={item.id} startsAt={item.startsAt} canChange={!['completed','cancelled','no_show'].includes(item.status.toLowerCase())} />
+      <ClientAppointmentActions appointmentId={item.id} startsAt={item.startsAt} canChange={(RESCHEDULABLE_STATUSES as readonly string[]).includes(item.status)} />
     </div> : <Empty copy="The record may not exist or may belong to another account." href="/client/appointments" label="Back to appointments" />}
   </ClientPageHeader>;
 }

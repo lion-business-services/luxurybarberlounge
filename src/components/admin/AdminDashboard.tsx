@@ -22,7 +22,7 @@ export async function AdminDashboard() {
   const metric = (label: string) => data.metrics.find((item) => item.label === label);
   const activeBarbers = data.barbers.filter((barber) => barber.active && barber.status !== "archived").length;
   const appointments = metric("Appointments today");
-  const queue = metric("Active queue");
+  const queue = metric("Active walk-ins");
   const issues = data.failures.length;
 
   return (
