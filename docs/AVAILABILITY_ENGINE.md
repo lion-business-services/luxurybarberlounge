@@ -18,7 +18,7 @@ Nothing else removes time. There is no lead time, no rounding of free time, and 
 
 - The value lives in `location_settings.default_buffer_minutes` (5) and is mirrored by `BOOKING_BUFFER_MINUTES` in `src/lib/booking/rules.ts`.
 - It is applied once between two neighbouring appointments. It is not required before closing time, before time off or before a break.
-- The database stores `appointments.occupied_until = end + buffer`, and the exclusion constraint `appointments_no_buffered_overlap` compares `[starts_at, occupied_until)` ranges. Two half-open ranges that include one buffer each can only stop overlapping when the real gap is at least one buffer, so the gap can never be doubled or skipped.
+- The database stores `appointments.occupied_until = end + buffer`, and the exclusion constraint `appointments_no_buffered_overlap` compares `[starts_at, occupied_until)` ranges. The earlier constraint `appointments_no_active_overlap` (no buffer) is weaker and remains alongside it. Two half-open ranges that include one buffer each can only stop overlapping when the real gap is at least one buffer, so the gap can never be doubled or skipped.
 
 ### What occupies time
 

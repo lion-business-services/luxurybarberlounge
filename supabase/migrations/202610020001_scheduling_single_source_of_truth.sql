@@ -15,9 +15,10 @@
 --   * family bookings are ONE appointment with itemized service components,
 --     priced and timed from the live catalog inside the database.
 --
--- Additive and backward compatible: the previously deployed application keeps
--- working against this schema. No appointment, client, payment or history row
--- is deleted.
+-- Strictly additive and backward compatible: the previously deployed
+-- application keeps working against this schema. Nothing is removed: no
+-- appointment, client, payment or history row, and no database object.
+-- Superseded objects are kept and neutralised instead (see sections 5 and 9).
 begin;
 
 -- Fail fast instead of queueing behind live traffic. If a lock cannot be
@@ -130,117 +131,119 @@ $$;
 --    are not disturbed for historical rows)
 -- ---------------------------------------------------------------------------
 
--- Triggers that were already switched off stay off afterwards.
-create temporary table lbl_disabled_appointment_triggers on commit drop as
-select tgname from pg_trigger
-where tgrelid = 'public.appointments'::regclass and not tgisinternal and tgenabled = 'D';
+-- One block so the triggers are switched back on in the same step. Triggers
+-- that were already switched off stay off afterwards.
+do $backfill$
+declare
+  v_disabled text[];
+  v_name text;
+begin
+  select coalesce(array_agg(tgname::text), '{}') into v_disabled
+  from pg_trigger
+  where tgrelid = 'public.appointments'::regclass and not tgisinternal and tgenabled = 'D';
 
-alter table public.appointments disable trigger user;
+  alter table public.appointments disable trigger user;
 
-update public.appointments a
-set hold_expires_at = a.created_at + make_interval(mins => public.booking_hold_minutes())
-where a.status in ('slot_held', 'pending_confirmation')
-  and a.deposit_status <> 'paid'
-  and a.hold_expires_at is null
-  and not exists (
-    select 1 from public.appointment_payment_links l
-    where l.appointment_id = a.id and l.status = 'paid'
-  );
-
--- A hold that already carries a verified payment never lapses on its own: it
--- keeps its place (hold_expires_at is null) until staff resolve it.
-update public.appointments a
-set hold_expires_at = null
-where a.status in ('slot_held', 'pending_confirmation')
-  and a.deposit_status <> 'paid'
-  and a.hold_expires_at is not null
-  and (
-    exists (
-      select 1 from public.appointment_payment_links l
-      where l.appointment_id = a.id and l.status = 'paid'
-    )
-    or exists (
-      select 1
-      from public.appointment_payment_links l
-      join public.square_payments sp
-        on sp.business_id = l.business_id and sp.square_order_id = l.square_order_id
-      where l.appointment_id = a.id and upper(coalesce(sp.status, '')) in ('COMPLETED', 'APPROVED')
-    )
-  );
-
--- Abandoned checkouts: unpaid holds whose 15-minute window has passed and that
--- have no verified payment of any kind. They are marked expired (never
--- deleted) with a history row, which releases the time they were blocking.
-with stale as (
-  select a.id, a.status as from_status
-  from public.appointments a
+  update public.appointments a
+  set hold_expires_at = a.created_at + make_interval(mins => public.booking_hold_minutes())
   where a.status in ('slot_held', 'pending_confirmation')
     and a.deposit_status <> 'paid'
-    and a.hold_expires_at <= now()
+    and a.hold_expires_at is null
     and not exists (
       select 1 from public.appointment_payment_links l
       where l.appointment_id = a.id and l.status = 'paid'
-    )
-    and not exists (
-      select 1
-      from public.appointment_payment_links l
-      join public.square_payments sp
-        on sp.business_id = l.business_id and sp.square_order_id = l.square_order_id
-      where l.appointment_id = a.id and upper(coalesce(sp.status, '')) in ('COMPLETED', 'APPROVED')
-    )
-), expired as (
+    );
+
+  -- A hold that already carries a verified payment never lapses on its own: it
+  -- keeps its place (hold_expires_at is null) until staff resolve it.
   update public.appointments a
-  set status = 'expired', updated_at = timezone('utc', now())
-  from stale
-  where a.id = stale.id
-  returning a.id, stale.from_status
-)
-insert into public.appointment_status_history (appointment_id, booking_metadata_id, from_status, to_status, changed_by, reason, metadata)
-select e.id, null, e.from_status, 'expired', null, 'Unpaid checkout hold expired',
-       jsonb_build_object('source', 'migration_202610020001', 'hold_minutes', public.booking_hold_minutes())
-from expired e;
+  set hold_expires_at = null
+  where a.status in ('slot_held', 'pending_confirmation')
+    and a.deposit_status <> 'paid'
+    and a.hold_expires_at is not null
+    and (
+      exists (
+        select 1 from public.appointment_payment_links l
+        where l.appointment_id = a.id and l.status = 'paid'
+      )
+      or exists (
+        select 1
+        from public.appointment_payment_links l
+        join public.square_payments sp
+          on sp.business_id = l.business_id and sp.square_order_id = l.square_order_id
+        where l.appointment_id = a.id and upper(coalesce(sp.status, '')) in ('COMPLETED', 'APPROVED')
+      )
+    );
 
--- Appointments that were booked back to back while the gap was zero keep
--- their place: each records the real gap to its next neighbour, so the new
--- constraint accepts the existing pair. New bookings never get an override.
-update public.appointments a
-set buffer_minutes_override = greatest(0, floor(extract(epoch from (n.next_start - a.ends_at)) / 60))::integer
-from (
-  select x.id,
-         (select min(b.starts_at)
-          from public.appointments b
-          where b.barber_profile_id = x.barber_profile_id
-            and b.id <> x.id
-            and b.status in ('slot_held', 'pending_confirmation', 'confirmed', 'checked_in', 'assigned', 'in_service')
-            and (b.starts_at, b.id) > (x.starts_at, x.id)
-            and b.starts_at < x.ends_at + make_interval(mins => public.booking_buffer_minutes(x.location_id))) as next_start
-  from public.appointments x
-  where x.status in ('slot_held', 'pending_confirmation', 'confirmed', 'checked_in', 'assigned', 'in_service')
-    and x.buffer_minutes_override is null
-) n
-where n.id = a.id and n.next_start is not null;
+  -- Abandoned checkouts: unpaid holds whose 15-minute window has passed and that
+  -- have no verified payment of any kind. They are marked expired (never
+  -- deleted) with a history row, which releases the time they were blocking.
+  with stale as (
+    select a.id, a.status as from_status
+    from public.appointments a
+    where a.status in ('slot_held', 'pending_confirmation')
+      and a.deposit_status <> 'paid'
+      and a.hold_expires_at <= now()
+      and not exists (
+        select 1 from public.appointment_payment_links l
+        where l.appointment_id = a.id and l.status = 'paid'
+      )
+      and not exists (
+        select 1
+        from public.appointment_payment_links l
+        join public.square_payments sp
+          on sp.business_id = l.business_id and sp.square_order_id = l.square_order_id
+        where l.appointment_id = a.id and upper(coalesce(sp.status, '')) in ('COMPLETED', 'APPROVED')
+      )
+  ), expired as (
+    update public.appointments a
+    set status = 'expired', updated_at = timezone('utc', now())
+    from stale
+    where a.id = stale.id
+    returning a.id, stale.from_status
+  )
+  insert into public.appointment_status_history (appointment_id, booking_metadata_id, from_status, to_status, changed_by, reason, metadata)
+  select e.id, null, e.from_status, 'expired', null, 'Unpaid checkout hold expired',
+         jsonb_build_object('source', 'migration_202610020001', 'hold_minutes', public.booking_hold_minutes())
+  from expired e;
 
--- Same formula as the appointments_maintain_occupancy trigger, so running
--- this migration again never undoes an early Finish.
-update public.appointments a
-set occupied_until = case
-      when a.status = 'completed' and a.completed_at is not null and a.completed_at <= a.starts_at then a.starts_at
-      when a.status = 'completed' and a.completed_at is not null
-        then least(a.ends_at, a.completed_at) + make_interval(mins => coalesce(a.buffer_minutes_override, public.booking_buffer_minutes(a.location_id)))
-      else a.ends_at + make_interval(mins => coalesce(a.buffer_minutes_override, public.booking_buffer_minutes(a.location_id)))
-    end;
+  -- Appointments that were booked back to back while the gap was zero keep
+  -- their place: each records the real gap to its next neighbour, so the new
+  -- constraint accepts the existing pair. New bookings never get an override.
+  update public.appointments a
+  set buffer_minutes_override = greatest(0, floor(extract(epoch from (n.next_start - a.ends_at)) / 60))::integer
+  from (
+    select x.id,
+           (select min(b.starts_at)
+            from public.appointments b
+            where b.barber_profile_id = x.barber_profile_id
+              and b.id <> x.id
+              and b.status in ('slot_held', 'pending_confirmation', 'confirmed', 'checked_in', 'assigned', 'in_service')
+              and (b.starts_at, b.id) > (x.starts_at, x.id)
+              and b.starts_at < x.ends_at + make_interval(mins => public.booking_buffer_minutes(x.location_id))) as next_start
+    from public.appointments x
+    where x.status in ('slot_held', 'pending_confirmation', 'confirmed', 'checked_in', 'assigned', 'in_service')
+      and x.buffer_minutes_override is null
+  ) n
+  where n.id = a.id and n.next_start is not null;
 
-alter table public.appointments enable trigger user;
+  -- Same formula as the appointments_maintain_occupancy trigger, so running
+  -- this migration again never undoes an early Finish.
+  update public.appointments a
+  set occupied_until = case
+        when a.status = 'completed' and a.completed_at is not null and a.completed_at <= a.starts_at then a.starts_at
+        when a.status = 'completed' and a.completed_at is not null
+          then least(a.ends_at, a.completed_at) + make_interval(mins => coalesce(a.buffer_minutes_override, public.booking_buffer_minutes(a.location_id)))
+        else a.ends_at + make_interval(mins => coalesce(a.buffer_minutes_override, public.booking_buffer_minutes(a.location_id)))
+      end;
 
-do $$
-declare
-  v_trigger record;
-begin
-  for v_trigger in select tgname from lbl_disabled_appointment_triggers loop
-    execute format('alter table public.appointments disable trigger %I', v_trigger.tgname);
+  alter table public.appointments enable trigger user;
+
+  foreach v_name in array v_disabled loop
+    execute format('alter table public.appointments disable trigger %I', v_name);
   end loop;
 end;
-$$;
+$backfill$;
 
 alter table public.appointments alter column occupied_until set not null;
 
@@ -306,8 +309,7 @@ begin
 end;
 $$;
 
-drop trigger if exists zz_appointments_maintain_occupancy on public.appointments;
-create trigger zz_appointments_maintain_occupancy
+create or replace trigger zz_appointments_maintain_occupancy
 before insert or update on public.appointments
 for each row execute function public.appointments_maintain_occupancy();
 
@@ -329,8 +331,7 @@ begin
 end;
 $$;
 
-drop trigger if exists location_settings_refresh_occupancy on public.location_settings;
-create trigger location_settings_refresh_occupancy
+create or replace trigger location_settings_refresh_occupancy
 after update of default_buffer_minutes on public.location_settings
 for each row execute function public.refresh_appointment_occupancy_for_location();
 
@@ -549,21 +550,38 @@ end;
 $$;
 
 -- The standalone time-off trigger duplicated rule 2 and re-ran on every status
--- change. The guard above is now the only implementation.
-drop trigger if exists trg_enforce_approved_barber_time_off_on_appointment on public.appointments;
-drop function if exists public.enforce_approved_barber_time_off_on_appointment();
+-- change, which could block checking in a client whose barber later marked
+-- that time unavailable. The guard above is now the only implementation, so
+-- the old trigger function is kept but passes every row through.
+create or replace function public.enforce_approved_barber_time_off_on_appointment()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  return new;
+end;
+$$;
+
+comment on function public.enforce_approved_barber_time_off_on_appointment() is 'Superseded by enforce_appointment_barber_availability (migration 202610020001). Kept as a pass-through.';
 
 -- Database-level backstop: even if two requests race past every other check,
 -- two occupying appointments of one barber can never be closer than the buffer.
-alter table public.appointments drop constraint if exists appointments_no_active_overlap;
-alter table public.appointments drop constraint if exists appointments_no_buffered_overlap;
-alter table public.appointments
-  add constraint appointments_no_buffered_overlap
-  exclude using gist (
-    barber_profile_id with =,
-    tstzrange(starts_at, occupied_until, '[)') with &&
-  )
-  where (status in ('slot_held', 'pending_confirmation', 'confirmed', 'checked_in', 'assigned', 'in_service'));
+-- The earlier constraint appointments_no_active_overlap (same statuses, range
+-- without the buffer) is strictly weaker than this one and is left in place.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'appointments_no_buffered_overlap' and conrelid = 'public.appointments'::regclass) then
+    alter table public.appointments
+      add constraint appointments_no_buffered_overlap
+      exclude using gist (
+        barber_profile_id with =,
+        tstzrange(starts_at, occupied_until, '[)') with &&
+      )
+      where (status in ('slot_held', 'pending_confirmation', 'confirmed', 'checked_in', 'assigned', 'in_service'));
+  end if;
+end;
+$$;
 
 -- ---------------------------------------------------------------------------
 -- 6. Status transitions: Finish from any operational state; a verified late
@@ -654,16 +672,20 @@ create table if not exists public.family_booking_tiers (
 
 alter table public.family_booking_tiers enable row level security;
 
-drop policy if exists family_booking_tiers_public_read on public.family_booking_tiers;
-create policy family_booking_tiers_public_read on public.family_booking_tiers
-  for select using (active);
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'family_booking_tiers' and policyname = 'family_booking_tiers_public_read') then
+    create policy family_booking_tiers_public_read on public.family_booking_tiers
+      for select using (active);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'family_booking_tiers' and policyname = 'family_booking_tiers_admin_manage') then
+    create policy family_booking_tiers_admin_manage on public.family_booking_tiers
+      for all using (public.can_manage_business(business_id)) with check (public.can_manage_business(business_id));
+  end if;
+end;
+$$;
 
-drop policy if exists family_booking_tiers_admin_manage on public.family_booking_tiers;
-create policy family_booking_tiers_admin_manage on public.family_booking_tiers
-  for all using (public.can_manage_business(business_id)) with check (public.can_manage_business(business_id));
-
-drop trigger if exists family_booking_tiers_updated_at on public.family_booking_tiers;
-create trigger family_booking_tiers_updated_at
+create or replace trigger family_booking_tiers_updated_at
 before update on public.family_booking_tiers
 for each row execute function public.set_updated_at();
 
@@ -684,14 +706,19 @@ create table if not exists public.appointment_service_items (
 
 alter table public.appointment_service_items enable row level security;
 
-drop policy if exists appointment_service_items_access on public.appointment_service_items;
-create policy appointment_service_items_access on public.appointment_service_items
-  for select using (exists (select 1 from public.appointments a where a.id = appointment_id));
-
-drop policy if exists appointment_service_items_staff_manage on public.appointment_service_items;
-create policy appointment_service_items_staff_manage on public.appointment_service_items
-  for all using (exists (select 1 from public.appointments a where a.id = appointment_id and public.can_operate_business(a.business_id)))
-  with check (exists (select 1 from public.appointments a where a.id = appointment_id and public.can_operate_business(a.business_id)));
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'appointment_service_items' and policyname = 'appointment_service_items_access') then
+    create policy appointment_service_items_access on public.appointment_service_items
+      for select using (exists (select 1 from public.appointments a where a.id = appointment_id));
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'appointment_service_items' and policyname = 'appointment_service_items_staff_manage') then
+    create policy appointment_service_items_staff_manage on public.appointment_service_items
+      for all using (exists (select 1 from public.appointments a where a.id = appointment_id and public.can_operate_business(a.business_id)))
+      with check (exists (select 1 from public.appointments a where a.id = appointment_id and public.can_operate_business(a.business_id)));
+  end if;
+end;
+$$;
 
 -- The child component is always the live Kids Haircut service. Its price and
 -- duration are read from public.services at booking time, never copied here.
@@ -885,7 +912,19 @@ grant execute on function public.create_appointment_atomic(jsonb) to service_rol
 --    moves as one block and keeps its exact duration.
 -- ---------------------------------------------------------------------------
 
-drop function if exists public.reschedule_appointment_atomic(uuid, timestamptz, timestamptz, uuid, text, text);
+-- The earlier six-argument version is renamed, not removed, so a call with
+-- the six original arguments resolves to the new function below (its seventh
+-- argument is optional). The renamed copy stays callable by service_role only.
+do $$
+begin
+  if to_regprocedure('public.reschedule_appointment_atomic(uuid, timestamptz, timestamptz, uuid, text, text)') is not null then
+    alter function public.reschedule_appointment_atomic(uuid, timestamptz, timestamptz, uuid, text, text)
+      rename to reschedule_appointment_atomic_legacy;
+    revoke all on function public.reschedule_appointment_atomic_legacy(uuid, timestamptz, timestamptz, uuid, text, text) from public, anon, authenticated;
+    comment on function public.reschedule_appointment_atomic_legacy(uuid, timestamptz, timestamptz, uuid, text, text) is 'Superseded by reschedule_appointment_atomic with seven arguments (migration 202610020001). Not called by the application.';
+  end if;
+end;
+$$;
 
 create or replace function public.reschedule_appointment_atomic(
   p_appointment_id uuid,
@@ -1300,28 +1339,23 @@ exception
 end;
 $$;
 
-drop trigger if exists appointments_availability_broadcast on public.appointments;
-create trigger appointments_availability_broadcast
+create or replace trigger appointments_availability_broadcast
 after insert or delete or update of status, starts_at, ends_at, barber_profile_id, completed_at, hold_expires_at on public.appointments
 for each statement execute function public.broadcast_booking_availability_change();
 
-drop trigger if exists barber_time_off_availability_broadcast on public.barber_time_off;
-create trigger barber_time_off_availability_broadcast
+create or replace trigger barber_time_off_availability_broadcast
 after insert or delete or update on public.barber_time_off
 for each statement execute function public.broadcast_booking_availability_change();
 
-drop trigger if exists barber_schedules_availability_broadcast on public.barber_schedules;
-create trigger barber_schedules_availability_broadcast
+create or replace trigger barber_schedules_availability_broadcast
 after insert or delete or update on public.barber_schedules
 for each statement execute function public.broadcast_booking_availability_change();
 
-drop trigger if exists barber_breaks_availability_broadcast on public.barber_breaks;
-create trigger barber_breaks_availability_broadcast
+create or replace trigger barber_breaks_availability_broadcast
 after insert or delete or update on public.barber_breaks
 for each statement execute function public.broadcast_booking_availability_change();
 
-drop trigger if exists holiday_hours_availability_broadcast on public.holiday_hours;
-create trigger holiday_hours_availability_broadcast
+create or replace trigger holiday_hours_availability_broadcast
 after insert or delete or update on public.holiday_hours
 for each statement execute function public.broadcast_booking_availability_change();
 

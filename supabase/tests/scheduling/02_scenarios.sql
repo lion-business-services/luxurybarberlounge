@@ -100,7 +100,8 @@ select t.ok((select status = 'confirmed' and buffer_minutes_override = 0 and occ
 select t.ok((select status = 'confirmed' and buffer_minutes_override is null and occupied_until = ends_at + interval '5 minutes' from public.appointments where public_reference = 'LEGACY-ADJ-2'), 'its neighbour has the normal 5-minute occupancy');
 select t.ok((select count(*) from public.appointments where buffer_minutes_override is not null) = 1, 'no other appointment is grandfathered');
 select t.ok(exists (select 1 from pg_constraint where conname = 'appointments_no_buffered_overlap'), 'buffered exclusion constraint exists');
-select t.ok(not exists (select 1 from pg_constraint where conname = 'appointments_no_active_overlap'), 'unbuffered constraint replaced');
+select t.ok(not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'reschedule_appointment_atomic' and p.pronargs = 6), 'the six-argument move function no longer shadows the new one');
+select t.ok((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'reschedule_appointment_atomic') = 1, 'exactly one reschedule_appointment_atomic exists');
 select t.ok((select count(*) from public.family_booking_tiers where active) = 5, 'Family 1-5 tiers exist');
 select t.ok((select not family_adult_eligible from public.services where slug = 'kids-haircut'), 'Kids Haircut is the child component, not an adult choice');
 select t.ok((select bool_and(family_adult_eligible) from public.services where slug <> 'kids-haircut'), 'other services are adult-eligible');

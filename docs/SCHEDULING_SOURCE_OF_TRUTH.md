@@ -38,6 +38,6 @@ The matching Square payment link is deleted when a hold expires, which makes the
 
 ## Data safety
 
-The migration is additive. It adds columns, tables, functions, triggers and one constraint, and replaces one constraint with a stricter one. It deletes no appointments, clients or payment records. Stale unpaid holds are moved to `expired` with a history row; their records are kept. A hold with any verified payment is never expired. Appointments that were already back to back keep their place.
+The migration is strictly additive. It adds columns, tables, functions, triggers and one stricter constraint, and removes nothing: no appointments, clients or payment records, and no database object. The earlier overlap constraint stays in place (the new one is stricter), the superseded time-off trigger function is kept as a pass-through, and the earlier six-argument move function is renamed to `reschedule_appointment_atomic_legacy`. Stale unpaid holds are moved to `expired` with a history row; their records are kept. A hold with any verified payment is never expired. Appointments that were already back to back keep their place.
 
 It can be run again safely on a database in use: early finishes stay released and nothing that is live is expired. If it cannot take its locks within 15 seconds it rolls back untouched.

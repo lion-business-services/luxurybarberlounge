@@ -72,7 +72,12 @@ test("application and database scheduling rules agree", async () => {
     sql,
     new RegExp(`add constraint appointments_no_buffered_overlap\\s+exclude using gist \\(\\s+barber_profile_id with =,\\s+tstzrange\\(starts_at, occupied_until, '\\[\\)'\\) with &&\\s+\\)\\s+where \\(status in \\(${escape(sqlList(BLOCKING_STATUSES))}\\)\\);`),
   );
-  assert.match(sql, /drop constraint if exists appointments_no_active_overlap/);
+
+  // The migration is strictly additive: it removes no database object and no row.
+  const statements = sql.replace(/--[^\n]*/g, "");
+  assert.doesNotMatch(statements, /\bdrop\s+(table|column|function|trigger|constraint|policy|index|schema|type)\b/i);
+  assert.doesNotMatch(statements, /\btruncate\b/i);
+  assert.doesNotMatch(statements, /\bdelete\s+from\b/i);
 
   // Unavailable time and breaks use the same statuses.
   const guard = functionBody(sql, "enforce_appointment_barber_availability");
