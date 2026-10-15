@@ -497,6 +497,10 @@ html, body { max-width: 100%; overflow-x: clip; }
 @media (max-width: 767px) {
   body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
 }
+/* Phones only. This unlayered rule outranks Tailwind's md:hidden, so hide it here. */
+@media (min-width: 768px) {
+  .mobile-actions { display: none; }
+}
 
 /* --------------------------------------------------------- small screens */
 
