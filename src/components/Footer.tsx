@@ -7,6 +7,7 @@ import { InstagramIcon, FacebookIcon } from "./SocialIcons";
 import { useLang } from "@/lib/i18n/context";
 import { dict } from "@/lib/i18n/dict";
 import { Logo } from "./Logo";
+import { VyntexCredit } from "./VyntexCredit";
 import { business, hours } from "@/lib/content/site";
 
 const explore = [
@@ -65,6 +66,7 @@ export function Footer() {
           </nav>
         </div>
       </div>
+      <VyntexCredit />
     </footer>
   );
 }

@@ -48,6 +48,7 @@ export const dict = {
     sectionExplore: { en: "Explore", es: "Explora" },
     sectionFollow: { en: "Follow", es: "Síguenos" },
     rights: { en: "All rights reserved.", es: "Todos los derechos reservados." },
+    credit: { en: "Website, CRM & AI automation by", es: "Sitio web, CRM y automatización con IA por" },
     tagline: {
       en: "Precision grooming, genuine hospitality, and a chair worth returning to.",
       es: "Grooming de precisión, hospitalidad genuina y una silla a la que vale la pena volver.",
