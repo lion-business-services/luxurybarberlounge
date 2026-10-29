@@ -26,7 +26,7 @@ const choiceSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("any_barber") }),
   z.object({ type: z.literal("date"), date: day }),
   z.object({ type: z.literal("slot"), startsAt: z.string().datetime({ offset: true }), barberId: uuid }),
-  z.object({ type: z.literal("all_times"), date: day }),
+  z.object({ type: z.literal("all_times"), date: day, part: z.enum(["morning", "afternoon", "evening"]).optional() }),
   z.object({ type: z.literal("change"), step: z.enum(["service", "barber", "date", "time"]) }),
   z.object({ type: z.literal("openings"), barberId: uuid.optional(), serviceId: uuid.optional() }),
   z.object({ type: z.literal("restart") }),
