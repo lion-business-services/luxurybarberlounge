@@ -30,7 +30,8 @@ export { CONCIERGE_NAME };
 const SERVICE_FEE_PERCENT = 4;
 const CHECKOUT_HOLD_MINUTES = 15;
 const SEARCH_DAYS = 14;
-const MAX_TIME_CHIPS = 8;
+const MAX_TIME_CHIPS = 6;
+const MAX_PART_CHIPS = 9;
 const MAX_DATE_CHIPS = 7;
 
 export type Step = "service" | "family_size" | "adult_service" | "barber" | "date" | "time" | "details";
@@ -65,7 +66,7 @@ export type Choice =
   | { type: "any_barber" }
   | { type: "date"; date: string }
   | { type: "slot"; startsAt: string; barberId: string }
-  | { type: "all_times"; date: string }
+  | { type: "all_times"; date: string; part?: PartOfDay }
   | { type: "change"; step: "service" | "barber" | "date" | "time" }
   | { type: "openings"; barberId?: string; serviceId?: string }
   | { type: "restart" };
@@ -173,8 +174,12 @@ function displayName(barber: BookingCatalogBarber) {
   return barber.name;
 }
 
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 function text(value: string): Block {
-  return { kind: "text", text: value };
+  return { kind: "text", text: capitalize(value) };
 }
 
 /* ------------------------------------------------------------------------ */
@@ -432,6 +437,38 @@ function uniqueTimes(slots: AvailabilitySlot[]) {
     });
 }
 
+/**
+ * A short, well spread selection instead of every quarter hour: times on the
+ * hour and half hour first, picked evenly across the window, always including
+ * the first opening.
+ */
+function spread(ctx: Context, slots: AvailabilitySlot[], limit: number) {
+  if (slots.length <= limit) return slots;
+  const round = slots.filter((slot) => localMinutes(slot.startsAt, ctx) % 30 === 0);
+  const pool = round.length >= Math.min(limit, 3) ? round : slots;
+  const picked = new Set<AvailabilitySlot>([pool[0]]);
+  for (let index = 1; picked.size < limit && index < limit; index += 1) picked.add(pool[Math.round((index * (pool.length - 1)) / (limit - 1))]);
+  return [...picked].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+}
+
+const PARTS: PartOfDay[] = ["morning", "afternoon", "evening"];
+
+function partName(ctx: Context, part: PartOfDay) {
+  if (part === "morning") return L(ctx.lang, "Morning", "En la mañana");
+  if (part === "afternoon") return L(ctx.lang, "Afternoon", "En la tarde");
+  return L(ctx.lang, "Evening", "En la noche");
+}
+
+function inPart(ctx: Context, slots: AvailabilitySlot[], part: PartOfDay) {
+  const [from, to] = partWindow(part);
+  return slots.filter((slot) => { const minute = localMinutes(slot.startsAt, ctx); return minute >= from && minute < to; });
+}
+
+/** "Morning", "Afternoon", "Evening" for the parts of this day that still have openings, other than the one shown. */
+function partChips(ctx: Context, slots: AvailabilitySlot[], date: string, except?: PartOfDay): Chip[] {
+  return PARTS.filter((part) => part !== except && inPart(ctx, slots, part).length).map((part) => ({ label: partName(ctx, part), choice: { type: "all_times", date, part } }));
+}
+
 function slotChip(ctx: Context, slot: AvailabilitySlot, draft: Draft, withDay = false): Chip {
   const who = draft.barberId ? "" : ` · ${firstName(slot.barberName)}`;
   const day = withDay ? `${dayLabel(dateInZone(new Date(slot.startsAt), ctx.tz), ctx)} ` : "";
@@ -505,26 +542,25 @@ async function chooseTime(ctx: Context, state: ConciergeState, blocks: Block[]):
       const target = Number(draft.time.slice(0, 2)) * 60 + Number(draft.time.slice(3, 5));
       exact = slots.find((slot) => localMinutes(slot.startsAt, ctx) === target);
       if (exact) return readyForDetails(ctx, state, blocks, exact);
-      shown = slots.slice().sort((a, b) => Math.abs(localMinutes(a.startsAt, ctx) - target) - Math.abs(localMinutes(b.startsAt, ctx) - target)).slice(0, MAX_TIME_CHIPS).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+      shown = slots.slice().sort((a, b) => Math.abs(localMinutes(a.startsAt, ctx) - target) - Math.abs(localMinutes(b.startsAt, ctx) - target)).slice(0, 4).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
       const wanted = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", hour: "numeric", minute: "2-digit" }).format(new Date(`2026-01-01T${draft.time}:00Z`));
       blocks.push(text(L(ctx.lang, `${wanted} isn't open${withWho(ctx, draft)} on ${dayLabel(draft.date, ctx)}. The closest times are:`, `${wanted} no está disponible${withWho(ctx, draft)} el ${dayLabel(draft.date, ctx)}. Los horarios más cercanos son:`)));
     } else if (draft.partOfDay) {
-      const [from, to] = partWindow(draft.partOfDay);
-      const inWindow = slots.filter((slot) => { const minute = localMinutes(slot.startsAt, ctx); return minute >= from && minute < to; });
+      const inWindow = inPart(ctx, slots, draft.partOfDay);
       if (inWindow.length) {
-        shown = inWindow.slice(0, MAX_TIME_CHIPS);
-        blocks.push(text(L(ctx.lang, `Open times${withWho(ctx, draft)} on ${dayLabel(draft.date, ctx)}${assumed}:`, `Horarios disponibles${withWho(ctx, draft)} el ${dayLabel(draft.date, ctx)}${assumed}:`)));
+        shown = spread(ctx, inWindow, MAX_PART_CHIPS);
+        blocks.push(text(L(ctx.lang, `${partName(ctx, draft.partOfDay)} openings${withWho(ctx, draft)} on ${dayLabel(draft.date, ctx, true)}${assumed}. Tap a time to reserve it.`, `Horarios ${partName(ctx, draft.partOfDay).toLowerCase()}${withWho(ctx, draft)} el ${dayLabel(draft.date, ctx, true)}${assumed}. Toca una hora para reservarla.`)));
       } else {
-        shown = slots.slice(0, MAX_TIME_CHIPS);
-        blocks.push(text(L(ctx.lang, `Nothing is open in that part of the day, but these times are${withWho(ctx, draft)} on ${dayLabel(draft.date, ctx)}:`, `No hay nada en ese momento del día, pero estos horarios sí${withWho(ctx, draft)} el ${dayLabel(draft.date, ctx)}:`)));
+        shown = spread(ctx, slots, MAX_TIME_CHIPS);
+        blocks.push(text(L(ctx.lang, `Nothing is open that ${partName(ctx, draft.partOfDay).toLowerCase()}${withWho(ctx, draft)} on ${dayLabel(draft.date, ctx, true)}. These times are:`, `No hay horarios ${partName(ctx, draft.partOfDay).toLowerCase()}${withWho(ctx, draft)} el ${dayLabel(draft.date, ctx, true)}. Estos sí:`)));
       }
     } else {
-      shown = slots.slice(0, MAX_TIME_CHIPS);
-      blocks.push(text(L(ctx.lang, `${slots.length} open ${slots.length === 1 ? "time" : "times"}${withWho(ctx, draft)} on ${dayLabel(draft.date, ctx, true)}${assumed}. Pick one:`, `${slots.length} ${slots.length === 1 ? "horario disponible" : "horarios disponibles"}${withWho(ctx, draft)} el ${dayLabel(draft.date, ctx, true)}${assumed}. Elige uno:`)));
+      shown = spread(ctx, slots, MAX_TIME_CHIPS);
+      blocks.push(text(L(ctx.lang, `Here are the best times${withWho(ctx, draft)} on ${dayLabel(draft.date, ctx, true)}${assumed}. Tap one to reserve it, or type the time you prefer.`, `Estos son los mejores horarios${withWho(ctx, draft)} el ${dayLabel(draft.date, ctx, true)}${assumed}. Toca uno para reservarlo o escribe la hora que prefieras.`)));
     }
     state.awaiting = "time";
     const chips = shown.map((slot) => slotChip(ctx, slot, draft));
-    if (slots.length > shown.length) chips.push({ label: L(ctx.lang, `All ${slots.length} times`, `Los ${slots.length} horarios`), choice: { type: "all_times", date: draft.date } });
+    if (slots.length > shown.length) chips.push(...partChips(ctx, slots, draft.date, draft.partOfDay && !draft.time && inPart(ctx, slots, draft.partOfDay).length ? draft.partOfDay : undefined));
     chips.push({ label: L(ctx.lang, "Another day", "Otro día"), choice: { type: "change", step: "date" } });
     chips.push(...changeChips(ctx, draft));
     return { blocks, chips, state };
@@ -549,22 +585,21 @@ async function chooseDate(ctx: Context, state: ConciergeState, blocks: Block[], 
     delete draft.soonest;
     state.awaiting = "time";
     blocks.push(text(L(ctx.lang, `The earliest openings${withWho(ctx, draft)}${assumed}:`, `Los horarios más próximos${withWho(ctx, draft)}${assumed}:`)));
-    const chips = slots.slice(0, MAX_TIME_CHIPS).map((slot) => slotChip(ctx, slot, draft, true));
+    const chips = slots.slice(0, 4).map((slot) => slotChip(ctx, slot, draft, true));
     chips.push({ label: L(ctx.lang, "Pick a day", "Elegir día"), choice: { type: "change", step: "date" } }, ...changeChips(ctx, draft));
     return { blocks, chips, state };
   }
 
-  const byDay = new Map<string, number>();
-  for (const slot of slots) {
-    const day = dateInZone(new Date(slot.startsAt), ctx.tz);
-    byDay.set(day, (byDay.get(day) ?? 0) + 1);
-  }
-  const days = [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, MAX_DATE_CHIPS);
+  const days = [...new Set(slots.map((slot) => dateInZone(new Date(slot.startsAt), ctx.tz)))].sort().slice(0, MAX_DATE_CHIPS);
   state.awaiting = "date";
   const first = slots[0];
-  blocks.push(text(L(ctx.lang, `Which day works${assumed}? The next opening${withWho(ctx, draft)} is ${dayLabel(dateInZone(new Date(first.startsAt), ctx.tz), ctx)} at ${clock(first.startsAt, ctx)}.`, `¿Qué día te funciona${assumed}? El próximo horario${withWho(ctx, draft)} es ${dayLabel(dateInZone(new Date(first.startsAt), ctx.tz), ctx).toLowerCase()} a las ${clock(first.startsAt, ctx)}.`)));
-  const chips: Chip[] = days.map(([day, count]) => ({ label: L(ctx.lang, `${dayLabel(day, ctx)} · ${count} ${count === 1 ? "time" : "times"}`, `${dayLabel(day, ctx)} · ${count} ${count === 1 ? "horario" : "horarios"}`), choice: { type: "date", date: day } }));
-  chips.unshift({ label: L(ctx.lang, `Earliest: ${clock(first.startsAt, ctx)} ${dayLabel(dateInZone(new Date(first.startsAt), ctx.tz), ctx)}`, `Primero: ${dayLabel(dateInZone(new Date(first.startsAt), ctx.tz), ctx)} ${clock(first.startsAt, ctx)}`), choice: { type: "slot", startsAt: first.startsAt, barberId: first.barberId }, primary: true });
+  blocks.push(text(L(ctx.lang, `Which day works${assumed}? The next opening${withWho(ctx, draft)} is ${dayLabel(dateInZone(new Date(first.startsAt), ctx.tz), ctx).replace(/^(Today|Tomorrow)$/, (word) => word.toLowerCase())} at ${clock(first.startsAt, ctx)}.`, `¿Qué día te funciona${assumed}? El próximo horario${withWho(ctx, draft)} es ${dayLabel(dateInZone(new Date(first.startsAt), ctx.tz), ctx).toLowerCase()} a las ${clock(first.startsAt, ctx)}.`)));
+  const chips: Chip[] = days.map((day) => {
+    const relative = dayLabel(day, ctx);
+    const short = new Intl.DateTimeFormat(locale(ctx.lang), { timeZone: "UTC", month: "short", day: "numeric" }).format(new Date(`${day}T12:00:00Z`));
+    return { label: capitalize(/^(Today|Tomorrow|Hoy|Mañana)$/.test(relative) ? `${relative}, ${short}` : relative), choice: { type: "date", date: day } };
+  });
+  chips.unshift({ label: L(ctx.lang, `Earliest: ${dayLabel(dateInZone(new Date(first.startsAt), ctx.tz), ctx)} ${clock(first.startsAt, ctx)}`, `Primero: ${dayLabel(dateInZone(new Date(first.startsAt), ctx.tz), ctx)} ${clock(first.startsAt, ctx)}`), choice: { type: "slot", startsAt: first.startsAt, barberId: first.barberId }, primary: true });
   chips.push(...changeChips(ctx, draft));
   return { blocks, chips, state };
 }
@@ -957,14 +992,8 @@ async function respondToChoice(ctx: Context, state: ConciergeState, choice: Choi
       delete draft.time;
       delete draft.partOfDay;
       clearTime();
-      if (!draft.serviceId) return continueBooking(ctx, state);
-      const slots = uniqueTimes(await search(ctx, draft, choice.date, 1));
-      state.awaiting = "time";
-      return {
-        blocks: [text(L(ctx.lang, `All open times${withWho(ctx, draft)} on ${dayLabel(choice.date, ctx, true)}:`, `Todos los horarios${withWho(ctx, draft)} el ${dayLabel(choice.date, ctx, true)}:`))],
-        chips: [...slots.map((slot) => slotChip(ctx, slot, draft)), { label: L(ctx.lang, "Another day", "Otro día"), choice: { type: "change", step: "date" } }],
-        state,
-      };
+      if (choice.part) draft.partOfDay = choice.part;
+      return continueBooking(ctx, state);
     }
     case "change": {
       state.mode = "booking";

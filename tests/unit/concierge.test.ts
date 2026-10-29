@@ -185,3 +185,25 @@ test("the reader understands the ways clients ask", () => {
   assert.equal(understand("Rivera friday", { catalog: names, today }).barberSlug, undefined, "a shared last name is not guessed");
   assert.equal(understand("anyone is fine, earliest please", { catalog: names, today }).firstAvailable, true);
 });
+
+test("times are offered as a short, professional selection, never as counts", async () => {
+  let reply = await pick({ type: "service", serviceId: id(100) }, { mode: "idle", draft: {} });
+  reply = await pick({ type: "any_barber" }, reply.state);
+  assert.ok(reply.chips.every((chip) => !/\d+ (times|horarios)/.test(chip.label)), reply.chips.map((chip) => chip.label).join(", "));
+  assert.ok(reply.chips.some((chip) => chip.label.startsWith("Tomorrow, Oct 31")));
+  const day = reply.chips.find((chip) => chip.choice.type === "date")!;
+  reply = await pick(day.choice, reply.state);
+  const times = reply.chips.filter((chip) => chip.choice.type === "slot");
+  assert.ok(times.length <= 6 && times.length >= 4, `${times.length} times`);
+  assert.doesNotMatch(words(reply), /\d+ open times/);
+  assert.match(words(reply), /Here are the best times/);
+  const parts = reply.chips.filter((chip) => chip.choice.type === "all_times").map((chip) => chip.label);
+  assert.deepEqual(parts, ["Morning", "Afternoon", "Evening"]);
+  const afternoon = reply.chips.find((chip) => chip.label === "Afternoon")!;
+  reply = await pick(afternoon.choice, reply.state);
+  assert.match(words(reply), /Afternoon openings/);
+  const afternoonTimes = reply.chips.filter((chip) => chip.choice.type === "slot").map((chip) => chip.label);
+  assert.ok(afternoonTimes.length > 0 && afternoonTimes.length <= 9);
+  assert.ok(afternoonTimes.every((label) => / PM/.test(label)), afternoonTimes.join(", "));
+  assert.ok(!reply.chips.some((chip) => chip.label === "Afternoon"), "the part already shown is not offered again");
+});
