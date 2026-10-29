@@ -41,7 +41,8 @@ const T = {
   open: { en: "Book in chat", es: "Reserva por chat" },
   live: { en: "Live times", es: "Horarios en vivo" },
   placeholder: { en: "Ask anything or say “haircut Friday at 3”", es: "Pregunta o escribe “corte el viernes a las 3”" },
-  restart: { en: "Start over", es: "Empezar de nuevo" },
+  restart: { en: "New chat", es: "Nuevo chat" },
+  restartLong: { en: "Start a new chat", es: "Empezar un chat nuevo" },
   close: { en: "Close", es: "Cerrar" },
   footer: { en: "Times come from the lounge's live schedule. Prefer a person?", es: "Los horarios vienen de la agenda en vivo. ¿Prefieres hablar con alguien?" },
   call: { en: "Call", es: "Llama al" },
@@ -223,6 +224,9 @@ export function ConciergeWidget() {
   }
 
   function restart() {
+    if (busy) return;
+    setInput("");
+    setContact((current) => ({ ...current, notes: "", policyAccepted: false }));
     setEntries([]);
     setChips([]);
     setState({ mode: "idle", draft: {} });
@@ -254,7 +258,7 @@ export function ConciergeWidget() {
               </div>
             </div>
             <div className="flex shrink-0 gap-1.5">
-              <button type="button" onClick={restart} disabled={busy} aria-label={t("restart", language)} title={t("restart", language)} className="grid h-9 w-9 place-items-center rounded-full border border-[var(--color-ink-line)] text-[var(--color-bone-muted)] hover:text-[var(--color-bone)] disabled:opacity-40"><RotateCcw className="h-4 w-4" /></button>
+              <button type="button" onClick={restart} disabled={busy} title={t("restartLong", language)} aria-label={t("restartLong", language)} className="flex h-9 items-center gap-1.5 rounded-full border border-[var(--color-brass)]/45 px-2.5 text-[10px] sm:px-3 uppercase tracking-[.14em] text-[var(--color-brass-light)] hover:border-[var(--color-brass)] hover:text-[var(--color-bone)] disabled:opacity-40"><RotateCcw className="h-3.5 w-3.5" /><span className="hidden sm:inline">{t("restart", language)}</span></button>
               <button type="button" onClick={() => setOpen(false)} aria-label={t("close", language)} className="grid h-9 w-9 place-items-center rounded-full border border-[var(--color-ink-line)]"><X className="h-4 w-4" /></button>
             </div>
           </header>
@@ -281,7 +285,10 @@ export function ConciergeWidget() {
               <input ref={field} value={input} onChange={(event) => setInput(event.target.value)} placeholder={t("placeholder", language)} aria-label={`Message the ${CONCIERGE_NAME}`} maxLength={600} className="form-control py-2.5 text-sm" />
               <button type="submit" disabled={busy || !input.trim()} aria-label="Send" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--color-brass)] text-[var(--color-ink)] disabled:opacity-40"><ArrowUp className="h-4 w-4" /></button>
             </div>
-            <p className="mt-2 text-[10px] leading-4 text-[var(--color-bone-muted)]">{t("footer", language)} <a href={businessConfig.phoneHref} className="text-[var(--color-brass)]">{t("call", language)} {businessConfig.phone}</a></p>
+            <div className="mt-2 flex items-start justify-between gap-3">
+              <p className="text-[10px] leading-4 text-[var(--color-bone-muted)]">{t("footer", language)} <a href={businessConfig.phoneHref} className="text-[var(--color-brass)]">{t("call", language)} {businessConfig.phone}</a></p>
+              {entries.length > 1 ? <button type="button" onClick={restart} disabled={busy} className="flex shrink-0 items-center gap-1 text-[10px] leading-4 text-[var(--color-brass)] underline-offset-2 hover:underline disabled:opacity-40"><RotateCcw className="h-3 w-3" />{t("restartLong", language)}</button> : null}
+            </div>
           </form>
         </section>
       ) : null}
