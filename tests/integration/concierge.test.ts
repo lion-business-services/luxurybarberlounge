@@ -39,3 +39,9 @@ test("the optional model interpreter is server-only, validated and off without a
   assert.match(interpreter, /serviceSlugs\.has/);
   assert.match(interpreter, /AbortController/);
 });
+
+test("the chat can always be reset from the header and under the message box", async () => {
+  const widget = await source("src/components/public/ConciergeWidget.tsx");
+  assert.match(widget, /restart: \{ en: "New chat", es: "Nuevo chat" \}/);
+  assert.equal((widget.match(/onClick=\{restart\}/g) ?? []).length, 2);
+});
