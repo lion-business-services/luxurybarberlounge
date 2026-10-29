@@ -39,7 +39,6 @@ const catalog: BookingCatalog = {
 };
 
 const RUBEN = id(200);
-const HOMMY = id(201);
 // Friday Oct 30 2026, 10:00 AM in Northfield.
 const NOW = zonedDateTimeToUtc("2026-10-30", "10:00:00", TZ);
 
@@ -135,9 +134,9 @@ test("a family booking is one appointment priced and timed from the live catalog
 
 test("questions are answered from the catalog and approved content", async () => {
   assert.match(words(await say("how much is a beard trim?")), /Beard: 25 min, \$15/);
-  assert.match(words(await say("what are your hours")), /Monday.*Closed/s);
+  assert.match(words(await say("what are your hours")), /Monday[\s\S]*Closed/);
   assert.match(words(await say("where are you located?")), /801 Tilton Road/);
-  assert.match(words(await say("do you need a deposit?")), /full payment by card.*4% service fee/s);
+  assert.match(words(await say("do you need a deposit?")), /full payment by card[\s\S]*4% service fee/);
   assert.match(words(await say("who speaks spanish")), /Hommy Rivera/);
   assert.match(words(await say("I need to cancel my appointment")), /Manage appointment link/);
   assert.match(words(await say("is hair color available?")), /not currently offered/i);

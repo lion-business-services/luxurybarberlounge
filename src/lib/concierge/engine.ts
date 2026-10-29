@@ -19,7 +19,7 @@
 import { composeFamilyBooking } from "../booking/family.ts";
 import { MAXIMUM_ADVANCE_DAYS } from "../booking/rules.ts";
 import { addDays, dateInZone, weekdayForDate } from "../booking/timezone.ts";
-import type { AvailabilitySlot, BookingCatalog, BookingCatalogBarber, BookingCatalogService } from "../booking/types.ts";
+import type { AvailabilitySlot, BookingCatalog, BookingCatalogBarber } from "../booking/types.ts";
 import { business, faqs, giftCards, hours, packages, tiers } from "../content/site.ts";
 import { CONCIERGE_NAME } from "./identity.ts";
 import { understand, type ConciergeLanguage, type Intent, type PartOfDay, type Understanding } from "./understand.ts";

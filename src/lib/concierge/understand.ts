@@ -185,7 +185,7 @@ function extractDate(text: string, today: string): Extracted<string> | null {
     [/\b(today|tonight|hoy|esta noche|this (morning|afternoon|evening))\b/, () => today],
     [/\b(tomorrow|tmrw|tmr)\b/, () => addDaysTo(today, 1)],
     // "manana" means tomorrow unless it is "the morning" ("por la manana").
-    [/(?<!\b(la|por|en|de|esta) )\bmanana\b/, () => addDaysTo(today, 1)],
+    [/(?:^|[^a-z])((?:la|por|en|de|esta) )?manana\b/, (m) => (m[1] ? null : addDaysTo(today, 1))],
     [new RegExp(`\\b${MONTH_WORD}\\.? (\\d{1,2})(st|nd|rd|th)?\\b`), (m) => { const month = monthNumber(m[1]); return month ? upcoming(today, month, Number(m[2])) : null; }],
     [new RegExp(`\\b(\\d{1,2})(st|nd|rd|th)? (de )?${MONTH_WORD}\\b`), (m) => { const month = monthNumber(m[4]); return month ? upcoming(today, month, Number(m[1])) : null; }],
     [/\b(\d{4})-(\d{2})-(\d{2})\b/, (m) => (validDate(Number(m[1]), Number(m[2]), Number(m[3])) ? `${m[1]}-${m[2]}-${m[3]}` : null)],
