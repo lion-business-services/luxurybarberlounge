@@ -12,7 +12,7 @@ import type { Block, BookingSummary, Chip, Choice, ConciergeState } from "@/lib/
 import type { AvailabilitySlot, BookingConfirmation } from "@/lib/booking/types";
 
 /**
- * Sterling, the booking concierge.
+ * The Lounge Concierge, the booking assistant.
  *
  * The conversation itself runs on the server (/api/concierge), which answers
  * from the live catalog and the one availability engine. This window only
@@ -38,7 +38,7 @@ const STORAGE_KEY = "lbl.concierge.v1";
 const EMPTY_CONTACT: Contact = { firstName: "", lastName: "", email: "", phone: "", notes: "", emailConsent: true, smsConsent: false, policyAccepted: false };
 
 const T = {
-  open: { en: `Book with ${CONCIERGE_NAME}`, es: `Reserva con ${CONCIERGE_NAME}` },
+  open: { en: "Book in chat", es: "Reserva por chat" },
   live: { en: "Live times", es: "Horarios en vivo" },
   placeholder: { en: "Ask anything or say “haircut Friday at 3”", es: "Pregunta o escribe “corte el viernes a las 3”" },
   restart: { en: "Start over", es: "Empezar de nuevo" },
@@ -278,7 +278,7 @@ export function ConciergeWidget() {
 
           <form onSubmit={send} className="border-t border-[var(--color-ink-line)] p-3">
             <div className="flex gap-2">
-              <input ref={field} value={input} onChange={(event) => setInput(event.target.value)} placeholder={t("placeholder", language)} aria-label={`Message ${CONCIERGE_NAME}`} maxLength={600} className="form-control py-2.5 text-sm" />
+              <input ref={field} value={input} onChange={(event) => setInput(event.target.value)} placeholder={t("placeholder", language)} aria-label={`Message the ${CONCIERGE_NAME}`} maxLength={600} className="form-control py-2.5 text-sm" />
               <button type="submit" disabled={busy || !input.trim()} aria-label="Send" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--color-brass)] text-[var(--color-ink)] disabled:opacity-40"><ArrowUp className="h-4 w-4" /></button>
             </div>
             <p className="mt-2 text-[10px] leading-4 text-[var(--color-bone-muted)]">{t("footer", language)} <a href={businessConfig.phoneHref} className="text-[var(--color-brass)]">{t("call", language)} {businessConfig.phone}</a></p>

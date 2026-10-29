@@ -1,5 +1,5 @@
 /**
- * Sterling, the lounge's booking concierge: the conversation engine.
+ * The Lounge Concierge, the lounge's booking assistant: the conversation engine.
  *
  * Every fact it states comes from one of two places:
  *   - the live booking catalog (services, prices, durations, barbers) and the
@@ -628,8 +628,8 @@ function mainChips(ctx: Context): Chip[] {
 
 export function welcome(lang: ConciergeLanguage): Block[] {
   return [text(lang === "es"
-    ? `Hola, soy ${CONCIERGE_NAME}, el concierge de Luxury Barber Lounge. Puedo reservar tu cita aquí mismo con horarios en vivo, o responder sobre servicios, precios, barberos y horario.`
-    : `Hi, I'm ${CONCIERGE_NAME}, the Luxury Barber Lounge concierge. I can book your appointment right here with live times, or answer anything about services, prices, barbers and hours.`)];
+    ? `Bienvenido a Luxury Barber Lounge. Soy tu ${CONCIERGE_NAME}. Puedo reservar tu cita aquí mismo con horarios en vivo, o responder sobre servicios, precios, barberos y horario.`
+    : `Welcome to Luxury Barber Lounge. I'm your ${CONCIERGE_NAME}. I can book your appointment right here with live times, or answer anything about services, prices, barbers and hours.`)];
 }
 
 export function welcomeChips(lang: ConciergeLanguage, catalog: BookingCatalog, now: Date): Chip[] {

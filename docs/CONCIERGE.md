@@ -1,6 +1,6 @@
-# Sterling, the booking concierge
+# The Lounge Concierge
 
-Sterling is the chat window on the public site. It answers questions about the lounge and books appointments inside the chat, then hands the client the same Square checkout the booking page uses.
+The Lounge Concierge is the chat window on the public site. It answers questions about the lounge and books appointments inside the chat, then hands the client the same Square checkout the booking page uses.
 
 ## How it works
 
